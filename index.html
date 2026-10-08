@@ -1,8 +1,8 @@
-    // 🔑 ใส่ค่า Supabase Project ของท่านตรงนี้
-    // const SUPABASE_URL = 'https://oigggpdambseabrezhuh.supabase.co';
-    // const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9pZ2dncGRhbWJzZWFicmV6aHVoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE0MzQyNjQsImV4cCI6MjEwNzAxMDI2NH0.YEnpBEqfybFOw2VbMLGw1qtUKj8pMBUI8FZIT6yFlM0';
+<!-- 🔑 ใส่ค่า Supabase Project ของท่านตรงนี้ -->
+<!-- const SUPABASE_URL = 'https://oigggpdambseabrezhuh.supabase.co'; -->
+<!-- const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9pZ2dncGRhbWJzZWFicmV6aHVoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE0MzQyNjQsImV4cCI6MjEwNzAxMDI2NH0.YEnpBEqfybFOw2VbMLGw1qtUKj8pMBUI8FZIT6yFlM0'; -->
 
-    <!DOCTYPE html>
+<!DOCTYPE html>
 <html>
 
 <head>
@@ -22,38 +22,170 @@
       --text-main: #334155;
       --card-radius: 12px;
     }
-    body { font-family: 'Sarabun', sans-serif; background-color: var(--bg-body); color: var(--text-main); font-size: 15px; }
-    [v-cloak] { display: none; }
-    .card-clean { background: #fff; border: 1px solid #e2e8f0; border-radius: var(--card-radius); box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); }
-    .btn-fast { border-radius: 8px; font-weight: 500; padding: 6px 12px; font-size: 13px; }
-    .btn-primary-fast { background-color: var(--primary); border: none; color: white; }
-    .btn-outline-fast { border: 1px solid #cbd5e1; background: white; color: #475569; }
-    .form-fast { border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px; background-color: #fff; }
-    .table-wrapper { background: #fff; border-radius: var(--card-radius); border: 1px solid #e2e8f0; overflow: hidden; }
-    .sticky-col-1 { position: sticky; left: 0; z-index: 20; background-color: #fff; width: 40px; border-right: 1px solid #f1f5f9; }
-    .sticky-col-2 { position: sticky; left: 40px; z-index: 20; background-color: #fff; width: 220px; border-right: 2px solid #e2e8f0; }
-    thead.sticky-top th { position: sticky; top: 0; z-index: 30; background-color: #f8fafc; border-bottom: 2px solid #cbd5e1; }
-    .vertical-text { writing-mode: vertical-rl; transform: rotate(180deg); font-size: 10px; color: #64748b; margin: 5px 0; white-space: nowrap; }
-    .date-header-card { position: relative; width: 38px; height: 56px; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1px solid #cbd5e1; border-radius: 6px; background-color: #fff; cursor: pointer; }
-    .hidden-date-input { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; z-index: 10; }
-    .select-status { width: 100%; height: 36px; border: none; background: transparent; text-align: center; font-weight: 700; font-size: 14px; cursor: pointer; }
+
+    body {
+      font-family: 'Sarabun', sans-serif;
+      background-color: var(--bg-body);
+      color: var(--text-main);
+      font-size: 15px;
+    }
+
+    [v-cloak] {
+      display: none;
+    }
+
+    .card-clean {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: var(--card-radius);
+      box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    }
+
+    .btn-fast {
+      border-radius: 8px;
+      font-weight: 500;
+      padding: 6px 12px;
+      font-size: 13px;
+    }
+
+    .btn-primary-fast {
+      background-color: var(--primary);
+      border: none;
+      color: white;
+    }
+
+    .btn-outline-fast {
+      border: 1px solid #cbd5e1;
+      background: white;
+      color: #475569;
+    }
+
+    .form-fast {
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 10px;
+      background-color: #fff;
+    }
+
+    .form-fast:disabled {
+      background-color: #f1f5f9;
+      color: #94a3b8;
+      cursor: not-allowed;
+    }
+
+    .table-wrapper {
+      background: #fff;
+      border-radius: var(--card-radius);
+      border: 1px solid #e2e8f0;
+      overflow: hidden;
+    }
+
+    .sticky-col-1 {
+      position: sticky;
+      left: 0;
+      z-index: 20;
+      background-color: #fff;
+      width: 40px;
+      border-right: 1px solid #f1f5f9;
+    }
+
+    .sticky-col-2 {
+      position: sticky;
+      left: 40px;
+      z-index: 20;
+      background-color: #fff;
+      width: 220px;
+      border-right: 2px solid #e2e8f0;
+    }
+
+    thead.sticky-top th {
+      position: sticky;
+      top: 0;
+      z-index: 30;
+      background-color: #f8fafc;
+      border-bottom: 2px solid #cbd5e1;
+    }
+
+    .vertical-text {
+      writing-mode: vertical-rl;
+      transform: rotate(180deg);
+      font-size: 10px;
+      color: #64748b;
+      margin: 5px 0;
+      white-space: nowrap;
+    }
+
+    .select-status {
+      width: 100%;
+      height: 36px;
+      border: none;
+      background: transparent;
+      text-align: center;
+      font-weight: 700;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
     .st-1 { color: #16a34a; background-color: #f0fdf4; }
     .st-2 { color: #d97706; background-color: #fffbeb; }
     .st-3 { color: #dc2626; background-color: #fef2f2; }
     .st-0 { color: #cbd5e1; }
-    .a4-container { width: 210mm; margin: 20px auto; background: white; box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1); padding: 20mm; min-height: 297mm; color: black; }
+
+    .a4-container {
+      width: 210mm;
+      margin: 20px auto;
+      background: white;
+      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+      padding: 20mm;
+      min-height: 297mm;
+      color: black;
+    }
+
+    .editable {
+      border-bottom: 1px dotted #ccc;
+      min-width: 50px;
+      display: inline-block;
+      color: #000;
+      cursor: text;
+    }
+    .editable:focus { outline: none; border-bottom: 1px solid var(--primary); background: #f0f9ff; }
+
     .table-report { width: 100%; border-collapse: collapse; font-size: 11pt; margin-bottom: 15px; }
     .table-report th, .table-report td { border: 1px solid #000; padding: 6px; vertical-align: middle; }
     .table-report th { background-color: #f3f3f3; text-align: center; font-weight: bold; }
+
     .photo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
     .photo-slot { border: 1px dashed #ccc; height: 250px; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; background: #f9f9f9; cursor: pointer; }
     .photo-slot img { width: 100%; height: 100%; object-fit: contain; }
+
     .btn-registered { background-color: #2563eb !important; color: white !important; }
     .btn-enroll { background-color: #16a34a !important; color: white !important; }
     .btn-closed { background-color: #dc2626 !important; color: white !important; }
     .btn-full { background-color: #64748b !important; color: white !important; }
+
+    .btn-equal-width { min-width: 100px; display: inline-flex; justify-content: center; align-items: center; padding: 8px 5px !important; }
+
+    .date-header-card {
+      position: relative;
+      width: 38px;
+      height: 56px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      background-color: #fff;
+      cursor: pointer;
+    }
+    .hidden-date-input { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; z-index: 10; }
+    .date-day { font-size: 16px; font-weight: 800; line-height: 1.0; margin-top: 2px; }
+    .date-month { font-size: 10px; font-weight: 500; line-height: 1.1; }
+    .date-year { font-size: 9px; font-weight: 500; color: #64748b; }
+    .date-empty { font-size: 10px; color: #94a3b8; font-weight: bold; }
+
     @media print {
-      .no-print, navbar, .btn { display: none !important; }
+      .no-print, .navbar, .btn, .modal { display: none !important; }
       .a4-container { width: 100% !important; box-shadow: none !important; margin: 0 !important; padding: 0 !important; }
     }
   </style>
@@ -61,20 +193,28 @@
 
 <body>
   <div id="app" v-cloak>
-    <!-- หน้าเข้าสู่ระบบ -->
+
+    <!-- หน้า Login -->
     <div v-if="!isLoggedIn" class="d-flex align-items-center justify-content-center min-vh-100 p-3 no-print" style="background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);">
-      <div class="card-clean p-4 p-5 text-center shadow-lg border-0" style="width: 100%; max-width: 400px; border-radius: 20px;">
+      <div class="card-clean p-4 p-md-5 text-center shadow-lg border-0" style="width: 100%; max-width: 400px; border-radius: 20px;">
         <div class="mb-3">
           <img src="https://lh3.googleusercontent.com/d/1c1KrXHS8EW5ORMBPFQaYg4wCU8XjPhcO=s100" class="img-fluid" style="max-width: 80px;">
         </div>
         <h3 class="fw-bold mb-1 text-dark">ระบบชุมนุม SKN</h3>
-        <p class="text-muted small">โรงเรียนสมุทรสาครบูรณะ (Supabase Edition)</p>
-        
-        <div class="text-start mt-3">
-          <label class="small text-secondary mb-1">ชื่อผู้ใช้งาน / รหัสนักเรียน</label>
+        <p class="text-muted small">โรงเรียนสมุทรสาครบูรณะ</p>
+
+        <div class="text-start">
+          <label class="small text-secondary mb-1 ms-1">ชื่อผู้ใช้งาน / รหัสนักเรียน</label>
           <input type="text" v-model="form.user" class="form-control form-fast mb-3 py-2 px-3" placeholder="Username">
-          <label class="small text-secondary mb-1">รหัสผ่าน / วันเกิด (วว/ดด/ปปปป)</label>
-          <input type="password" v-model="form.pass" class="form-control form-fast mb-4 py-2 px-3" placeholder="Password" @keyup.enter="doLogin">
+          
+          <label class="small text-secondary mb-1 ms-1">รหัสผ่าน</label>
+          <div class="position-relative mb-3">
+            <input :type="showPassword ? 'text' : 'password'" v-model="form.pass" class="form-control form-fast py-2 px-3 pe-5" placeholder="Password" @keyup.enter="doLogin">
+            <span class="position-absolute top-50 end-0 translate-middle-y me-3 text-muted" style="cursor: pointer;" @click="showPassword = !showPassword">
+              <i class="fas" :class="showPassword ? 'fa-eye-slash' : 'fa-eye'"></i>
+            </span>
+          </div>
+          <small class="text-danger ms-1 d-block mb-2" style="font-size: 0.70rem;">* นักเรียน ระบุรหัสประจำตัว และวันเกิด ตัวอย่าง [01/01/2569]</small>
         </div>
         <button @click="doLogin" class="btn btn-primary-fast btn-fast w-100 py-2 shadow" :disabled="loading">
           <span v-if="loading" class="spinner-border spinner-border-sm me-2"></span> เข้าสู่ระบบ
@@ -82,7 +222,7 @@
       </div>
     </div>
 
-    <!-- หน้าหลัก Dashboard -->
+    <!-- หน้า Dashboard & เมนูหลัก -->
     <div v-else class="d-flex flex-column vh-100">
       <nav class="bg-white border-bottom px-4 d-flex justify-content-between align-items-center flex-shrink-0 no-print" style="height: 70px;">
         <div class="d-flex align-items-center gap-2 fw-bold text-primary fs-4">
@@ -91,147 +231,314 @@
         </div>
         <div class="d-flex align-items-center gap-3">
           <button class="btn btn-light btn-sm shadow-sm border" @click="refreshData" :disabled="loading">
-            <i class="fas fa-sync-alt" :class="{'fa-spin': loading}"></i> รีเฟรช
+            <i class="fas fa-sync-alt" :class="{'fa-spin': loading}"></i>
+            <span class="ms-1 small d-none d-md-inline">รีเฟรช</span>
           </button>
           <div class="text-end d-none d-sm-block">
-            <div class="fw-bold text-dark small">{{ user.name }}</div>
-            <span class="badge bg-light text-primary border-0 fw-normal">{{ user.role.toUpperCase() }}</span>
+            <div class="fw-bold text-dark small" style="line-height: 1.2;">{{ user.name }}</div>
+            <span class="badge bg-light text-primary border-0 fw-normal" style="font-size: 10px;">{{ user.role.toUpperCase() }}</span>
           </div>
-          <button @click="logout" class="btn btn-outline-danger btn-sm rounded-pill px-3 bg-danger bg-opacity-10"><i class="fas fa-sign-out-alt"></i></button>
+          <button @click="logout" class="btn btn-outline-danger btn-sm rounded-pill px-3 bg-danger bg-opacity-10">
+            <i class="fas fa-sign-out-alt"></i>
+          </button>
         </div>
       </nav>
 
       <div class="flex-grow-1 overflow-auto p-3 p-md-4" style="background-color: #f8fafc;">
-        
-        <!-- DASHBOARD VIEW -->
-        <div v-if="view === 'dashboard'" class="container-xl no-print">
-          <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-end mb-4 gap-3">
-            <div>
-              <h3 class="fw-bold m-0 text-dark">ยินดีต้อนรับ, {{ user.name }}</h3>
-              <p class="m-0" v-if="user.role === 'student'">
-                <span v-if="user.clubId && clubMap[user.clubId]" class="text-primary fw-bold">
-                  <i class="fas fa-users-rectangle me-1"></i>ปัจจุบันอยู่ชุมนุม : <span class="text-danger">{{ clubMap[user.clubId].name }}</span>
-                </span>
-                <span v-else class="text-danger fw-bold"><i class="fas fa-exclamation-triangle me-1"></i>สถานะ : ยังไม่ได้สมัครชุมนุม</span>
-              </p>
-            </div>
-            <div class="d-flex gap-2 justify-content-end">
-              <template v-if="user.role === 'admin'">
-                <button class="btn btn-white border btn-fast shadow-sm" @click="view = 'insight_report'"><i class="fas fa-chart-line me-1 text-info"></i> สรุปข้อมูลระบบ</button>
-                <button class="btn btn-white border btn-fast shadow-sm" @click="goToManageUsers"><i class="fas fa-users-cog me-1 text-warning"></i> จัดการผู้ใช้</button>
-                <button class="btn btn-white border btn-fast shadow-sm" @click="view = 'admin_settings'"><i class="fas fa-cogs me-1 text-danger"></i> ตั้งค่าระบบขั้นสูง</button>
-              </template>
-              <button v-if="user.role === 'admin' || (user.role === 'teacher' && config.allow_edit_club === 'true' && !user.hasClub)" class="btn btn-primary-fast btn-fast shadow-sm px-4" @click="openAddModal">
-                <i class="fas fa-plus me-1"></i> สร้างชุมนุม
-              </button>
-            </div>
-          </div>
 
-          <!-- ตารางรายชื่อชุมนุม -->
-          <div class="card-clean border-0 shadow-sm p-3 mb-3 bg-white">
-            <div class="row align-items-center">
-              <div class="col-md-7"><h6 class="mb-0 fw-bold"><i class="fas fa-search me-2 text-primary"></i>ค้นหาชุมนุม</h6></div>
-              <div class="col-md-5"><input type="text" v-model="searchClubQuery" class="form-control bg-light border-0" placeholder="พิมพ์ชื่อชุมนุม หรือ ชื่อครู..."></div>
+        <!-- 1. ADMIN A4 REPORT VIEW -->
+        <transition name="fade">
+          <div v-if="view === 'admin_report'" class="container-fluid px-0">
+            <div class="d-flex justify-content-between align-items-center mb-4 container-xl no-print pt-3">
+              <div class="d-flex align-items-center gap-3">
+                <button @click="view = 'insight_report'" class="btn btn-white border shadow-sm rounded-circle p-0 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;"><i class="fas fa-arrow-left"></i></button>
+                <div><h4 class="fw-bold m-0">เอกสารสรุปผลการดำเนินงาน (Admin)</h4><div class="text-muted small">แบบฟอร์มมาตรฐานพิมพ์ลง A4</div></div>
+              </div>
+              <div class="d-flex gap-2 no-print">
+                <button @click="downloadAdminWordReport" class="btn btn-primary btn-fast px-4"><i class="fas fa-file-word me-2"></i>ดาวน์โหลด Word</button>
+                <button @click="printReport" class="btn btn-dark btn-fast px-4"><i class="fas fa-print me-2"></i>พิมพ์เอกสาร</button>
+              </div>
+            </div>
+            <div class="a4-container shadow-sm">
+              <div class="text-center mb-4">
+                <img src="https://lh3.googleusercontent.com/d/1c1KrXHS8EW5ORMBPFQaYg4wCU8XjPhcO=s500" style="width: 80px; height: 80px; object-fit: contain; margin-bottom: 15px;">
+                <h4 class="fw-bold mb-1">สรุปผลการจัดกิจกรรมชุมนุม</h4>
+                <div style="font-size: 14pt;">โรงเรียนสมุทรสาครบูรณะ ภาคเรียนที่ <span class="editable" contenteditable="true">1/2569</span></div>
+              </div>
+              <div class="mb-4" style="font-size: 12pt; border: 1px solid #000; padding: 15px; border-radius: 8px;">
+                <h6 class="fw-bold text-decoration-underline mb-2">ข้อมูลสถิติภาพรวม</h6>
+                <div class="row g-2">
+                  <div class="col-6">๑. จำนวนชุมนุมทั้งหมด: <b>{{ summary ? summary.clubsCount : 0 }}</b> ชุมนุม</div>
+                  <div class="col-6">๒. จำนวนนักเรียนทั้งหมด: <b>{{ summary ? summary.student.total : 0 }}</b> คน</div>
+                  <div class="col-6">๓. นักเรียนที่สมัครชุมนุมแล้ว: <b class="text-success">{{ summary ? summary.student.registered : 0 }}</b> คน</div>
+                  <div class="col-6">๔. นักเรียนที่ยังไม่สมัคร: <b class="text-danger">{{ summary ? summary.student.unregistered : 0 }}</b> คน</div>
+                  <div class="col-6">๕. ครูที่ปรึกษาชุมนุม: <b>{{ summary ? summary.teacher.hasClub : 0 }}</b> ท่าน</div>
+                  <div class="col-6">๖. นักเรียนที่ไม่ผ่านกิจกรรม: <b class="text-danger">{{ globalFailedList.length }}</b> คน</div>
+                </div>
+              </div>
             </div>
           </div>
+        </transition>
 
-          <div class="card-clean overflow-hidden border-0 shadow-sm">
-            <div class="table-responsive">
-              <table class="table table-hover align-middle mb-0">
-                <thead class="bg-light">
-                  <tr>
-                    <th class="py-3 ps-4 border-0 text-secondary small fw-bold">ชื่อชุมนุม / ครูผู้สอน</th>
-                    <th class="py-3 border-0 text-secondary small fw-bold d-none d-md-table-cell">ระดับ</th>
-                    <th class="py-3 border-0 text-secondary small fw-bold">จำนวนสมาชิก</th>
-                    <th class="py-3 pe-4 text-end border-0 text-secondary small fw-bold">จัดการกิจกรรม</th>
-                  </tr>
-                </thead>
-                <tbody class="bg-white">
-                  <tr v-for="c in filteredClubs" :key="c.id" class="border-bottom">
-                    <td class="ps-4 py-3">
-                      <div class="fw-bold text-dark fs-6">{{ c.name }}</div>
-                      <div class="text-muted small"><i class="far fa-user me-1"></i>{{ c.teacher_name }}</div>
-                      <div v-if="c.location" class="text-success small"><i class="fas fa-map-marker-alt me-1"></i>{{ c.location }}</div>
-                    </td>
-                    <td class="d-none d-md-table-cell"><span class="badge rounded-pill bg-light text-dark border px-3">{{ c.level }}</span></td>
-                    <td>
-                      <div class="progress mb-1" style="height: 6px; width: 100px;">
-                        <div class="progress-bar" :class="c.current_count >= c.max_capacity ? 'bg-danger':'bg-success'" :style="{width: (c.current_count/c.max_capacity*100)+'%'}"></div>
-                      </div>
-                      <span class="small fw-bold">{{ c.current_count }}</span><span class="small text-muted"> / {{ c.max_capacity }} คน</span>
-                    </td>
-                    <td class="pe-4 text-end">
-                      <div class="d-flex flex-wrap justify-content-end gap-2">
-                        <button v-if="user.role === 'student'" class="btn btn-fast" :class="getBtnClass(c)" :disabled="isBtnDisabled(c)" @click="enroll(c)">{{ getBtnText(c) }}</button>
-                        <template v-if="user.role !== 'student'">
-                          <button class="btn btn-outline-primary btn-fast" @click="goToAttendance(c)"><i class="fas fa-user-check me-1"></i> เช็คชื่อ</button>
-                          <button class="btn btn-outline-success btn-fast" @click="downloadExcelList(c)"><i class="fas fa-file-excel me-1"></i> รายชื่อ</button>
-                          <button class="btn btn-outline-info btn-fast" @click="goToReport(c)"><i class="fas fa-file-alt me-1"></i> รายงาน</button>
-                          <button v-if="user.role === 'admin' || config.allow_edit_club === 'true'" class="btn btn-outline-secondary btn-fast" @click="openEditModal(c)"><i class="fas fa-cog"></i></button>
-                          <button v-if="user.role === 'admin'" class="btn btn-outline-danger btn-fast" @click="confirmDeleteClub(c)"><i class="fas fa-trash-alt"></i></button>
-                        </template>
-                      </div>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
+        <!-- 2. DASHBOARD VIEW -->
+        <transition name="fade">
+          <div v-if="view === 'dashboard'" class="container-xl no-print">
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-end mb-4 gap-3">
+              <div>
+                <h3 class="fw-bold m-0 text-dark">ยินดีต้อนรับ, {{ user.name }}</h3>
+                <p class="m-0 d-flex align-items-center flex-wrap" v-if="user.role === 'student'">
+                  <span class="ms-md-3 mt-2 mt-md-0" style="font-size: 1.15rem; font-weight: 800; color: #000;">
+                    <template v-if="user.clubId && clubMap[user.clubId]">
+                      <span class="text-primary" style="font-size: 1.2rem;"><i class="fas fa-users-rectangle me-1"></i>ปัจจุบันอยู่ชุมนุม : <span style="color: #dc3545;">{{ clubMap[user.clubId].name }}</span></span>
+                      <span v-if="clubMap[user.clubId].location" class="d-block text-success" style="font-size: 1.0rem;"><i class="fas fa-map-marker-alt me-1"></i>สถานที่เรียน : <span style="color: #dc3545;">{{ clubMap[user.clubId].location }}</span></span>
+                    </template>
+                    <span v-else class="text-danger d-block fw-bold" style="font-size: 1.2rem;"><i class="fas fa-exclamation-triangle me-1"></i>สถานะ : <span>ยังไม่ได้สมัครชุมนุม</span></span>
+                  </span>
+                </p>
+              </div>
 
-        <!-- ATTENDANCE GRID VIEW -->
-        <div v-if="view === 'attendance'" class="h-100 d-flex flex-column">
-          <div class="d-flex justify-content-between align-items-center mb-3">
-            <div class="d-flex align-items-center gap-3">
-              <button @click="view = 'dashboard'" class="btn btn-white border shadow-sm rounded-circle p-0" style="width: 40px; height: 40px;"><i class="fas fa-arrow-left"></i></button>
-              <h4 class="fw-bold m-0">{{ currentClubName }} (เช็คชื่อ)</h4>
+              <div class="d-flex gap-2 justify-content-end">
+                <button v-if="user.role === 'admin' || user.role === 'teacher'" class="btn btn-white border btn-fast shadow-sm" @click="view = 'room_lookup'">
+                  <i class="fas fa-chalkboard text-success me-1"></i> ค้นหารายห้อง
+                </button>
+                <template v-if="user.role === 'admin'">
+                  <button class="btn btn-white border btn-fast shadow-sm" @click="view = 'insight_report'"><i class="fas fa-chart-line me-1 text-info"></i> สรุปข้อมูลระบบ</button>
+                  <button class="btn btn-white border btn-fast shadow-sm" @click="goToManageUsers"><i class="fas fa-users-cog me-1 text-warning"></i> จัดการผู้ใช้</button>
+                  <button class="btn btn-white border btn-fast shadow-sm" @click="view = 'admin_settings'"><i class="fas fa-cogs me-1 text-danger"></i> ตั้งค่าระบบขั้นสูง</button>
+                </template>
+                <button v-if="user.role === 'admin' || (user.role === 'teacher' && config.allow_edit_club === 'true' && !user.hasClub)" class="btn btn-primary-fast btn-fast shadow-sm px-4" @click="openAddModal">
+                  <i class="fas fa-plus me-1"></i> สร้างชุมนุม
+                </button>
+              </div>
             </div>
-            <button @click="saveAttendance" class="btn btn-primary-fast btn-fast shadow-sm px-4"><i class="fas fa-save me-2"></i> บันทึกข้อมูล</button>
-          </div>
-          <div class="table-wrapper flex-grow-1 position-relative border-0 shadow-sm">
-            <div style="overflow: auto; position: absolute; top:0; left:0; right:0; bottom:0;">
-              <table class="table mb-0 bg-white" style="min-width: 1400px;">
-                <thead class="sticky-top" style="z-index: 50;">
-                  <tr>
-                    <th class="sticky-col-1 text-center bg-light">#</th>
-                    <th class="sticky-col-2 ps-3 bg-light">รายชื่อนักเรียน</th>
-                    <th v-for="(d, index) in 20" :key="index" class="text-center bg-light" style="width: 45px;">
-                      <span class="vertical-text fw-bold text-primary">ครั้งที่ {{ index + 1 }}</span>
-                      <input type="date" v-model="attData.dates[index]" class="form-control form-control-sm mb-1" style="font-size:9px; width:40px;">
-                    </th>
-                    <th class="text-center text-success bg-success bg-opacity-10">มา</th>
-                    <th class="text-center text-warning bg-warning bg-opacity-10">ลา</th>
-                    <th class="text-center text-danger bg-danger bg-opacity-10">ขาด</th>
-                    <th class="text-center text-secondary bg-light">ผลประเมิน</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="(student, sIndex) in attStudents" :key="student.id">
-                    <td class="sticky-col-1 text-center">{{ sIndex + 1 }}</td>
-                    <td class="sticky-col-2 ps-3">
-                      <div class="fw-bold">{{ student.name }}</div>
-                      <div class="text-muted small">{{ student.room }} / เลขที่ {{ student.no }}</div>
-                    </td>
-                    <td v-for="(t, tIndex) in 20" :key="tIndex" class="p-0">
-                      <select v-model.number="attData.records[student.id][tIndex]" class="select-status" :class="'st-' + (attData.records[student.id][tIndex] || 0)">
-                        <option value="0">-</option><option value="1">/</option><option value="2">ล</option><option value="3">ข</option>
-                      </select>
-                    </td>
-                    <td class="text-center fw-bold text-success">{{ countStatus(student.id, 1) }}</td>
-                    <td class="text-center fw-bold text-warning">{{ countStatus(student.id, 2) }}</td>
-                    <td class="text-center fw-bold text-danger">{{ countStatus(student.id, 3) }}</td>
-                    <td class="text-center fw-bold" :class="calculateGrade(student.id) === 'ผ่าน' ? 'text-success':'text-danger'">{{ calculateGrade(student.id) }}</td>
-                  </tr>
-                </tbody>
-              </table>
+
+            <!-- Config Switches for Admin -->
+            <div v-if="user.role === 'admin'" class="card-clean p-3 mb-4 d-flex flex-wrap gap-4 align-items-center bg-white shadow-sm border-0">
+              <div class="fw-bold text-primary"><i class="fas fa-sliders-h me-2"></i>ตั้งค่าการรับสมัคร:</div>
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" v-model="config.open_reg" true-value="true" false-value="false" @change="saveConfig">
+                <label class="small fw-bold ms-1">เปิดรับสมัคร</label>
+              </div>
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" v-model="config.allow_transfer" true-value="true" false-value="false" @change="saveConfig">
+                <label class="small fw-bold ms-1">อนุญาตย้าย</label>
+              </div>
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" v-model="config.allow_edit_club" true-value="true" false-value="false" @change="saveConfig">
+                <label class="small fw-bold ms-1">ครูแก้ไขข้อมูลชุมนุมได้</label>
+              </div>
+            </div>
+
+            <!-- Search Clubs -->
+            <div class="card-clean border-0 shadow-sm p-3 mb-3 bg-white">
+              <div class="row align-items-center">
+                <div class="col-md-7"><h6 class="mb-0 fw-bold text-dark"><i class="fas fa-search me-2 text-primary"></i>ค้นหาชุมนุม</h6></div>
+                <div class="col-md-5 mt-2 mt-md-0">
+                  <div class="input-group">
+                    <span class="input-group-text bg-light border-0"><i class="fas fa-search text-muted"></i></span>
+                    <input type="text" v-model="searchClubQuery" class="form-control bg-light border-0" placeholder="พิมพ์ชื่อชุมนุม หรือ ชื่อครู...">
+                    <button v-if="searchClubQuery" @click="searchClubQuery = ''" class="btn btn-light border-0 text-muted" type="button"><i class="fas fa-times"></i></button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Clubs Table -->
+            <div class="card-clean overflow-hidden border-0 shadow-sm">
+              <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                  <thead class="bg-light">
+                    <tr>
+                      <th class="py-3 ps-4 border-0 text-secondary small fw-bold">ชื่อชุมนุม / ครูผู้สอน</th>
+                      <th class="py-3 border-0 text-secondary small fw-bold d-none d-md-table-cell">ระดับ</th>
+                      <th class="py-3 border-0 text-secondary small fw-bold">จำนวนสมาชิก</th>
+                      <th class="py-3 pe-4 text-end border-0 text-secondary small fw-bold">จัดการกิจกรรม</th>
+                    </tr>
+                  </thead>
+                  <tbody class="bg-white">
+                    <tr v-for="c in filteredClubs" :key="c.id" class="border-bottom">
+                      <td class="ps-4 py-3">
+                        <div class="fw-bold text-dark fs-6">{{ c.name }}</div>
+                        <div class="text-muted small"><i class="far fa-user me-1"></i>{{ c.teacher_name }}</div>
+                        <div v-if="c.location" class="text-success small"><i class="fas fa-map-marker-alt me-1"></i>{{ c.location }}</div>
+                        <div v-if="c.comment" class="text-danger small" style="font-size: 0.75rem;"><i class="fas fa-info-circle me-1"></i>{{ c.comment }}</div>
+                      </td>
+                      <td class="d-none d-md-table-cell"><span class="badge rounded-pill bg-light text-dark border px-3 fw-normal">{{ c.level }}</span></td>
+                      <td>
+                        <div class="progress mb-1" style="height: 6px; width: 100px;">
+                          <div class="progress-bar" :class="c.current_count >= c.max_capacity ? 'bg-danger':'bg-success'" :style="{width: (c.current_count/c.max_capacity*100)+'%'}"></div>
+                        </div>
+                        <span class="small fw-bold text-dark">{{ c.current_count }}</span><span class="small text-muted"> / {{ c.max_capacity }} คน</span>
+                      </td>
+                      <td class="pe-4 text-end">
+                        <div class="d-flex flex-wrap justify-content-end gap-2">
+                          <button v-if="user.role === 'student'" class="btn btn-fast" :class="getBtnClass(c)" :disabled="isBtnDisabled(c)" @click="enroll(c)">{{ getBtnText(c) }}</button>
+                          <template v-if="user.role !== 'student'">
+                            <button class="btn btn-outline-primary btn-fast btn-equal-width" @click="goToAttendance(c)"><i class="fas fa-user-check me-1"></i><span class="ms-1">เช็คชื่อ</span></button>
+                            <button class="btn btn-outline-success btn-fast btn-equal-width" @click="downloadExcelList(c)"><i class="fas fa-file-excel me-1"></i><span class="ms-1">รายชื่อ</span></button>
+                            <button class="btn btn-outline-info btn-fast btn-equal-width text-dark" @click="goToReport(c)"><i class="fas fa-file-alt me-1"></i><span class="ms-1">รายงาน</span></button>
+                            <button v-if="user.role === 'admin' || config.allow_edit_club === 'true'" class="btn btn-outline-secondary btn-fast btn-equal-width" @click="openEditModal(c)"><i class="fas fa-cog me-1"></i><span class="ms-1">ตั้งค่า</span></button>
+                            <button v-if="user.role === 'admin'" class="btn btn-outline-danger btn-fast btn-equal-width" @click="confirmDeleteClub(c)" title="ลบชุมนุมนี้"><i class="fas fa-trash-alt me-1"></i><span class="ms-1">ลบชุมนุม</span></button>
+                          </template>
+                        </div>
+                      </td>
+                    </tr>
+                    <tr v-if="filteredClubs.length === 0">
+                      <td colspan="4" class="text-center py-5 text-muted">ไม่พบข้อมูลชุมนุมที่คุณค้นหา</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
-        </div>
+        </transition>
+
+        <!-- 3. INSIGHT REPORT & ADMIN TOOLS VIEW -->
+        <transition name="fade">
+          <div v-if="view === 'insight_report'" class="container-xl no-print">
+            <div class="mb-4 d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+              <div>
+                <h4 class="fw-bold m-0 text-primary"><i class="fas fa-chart-pie me-2"></i>สรุปข้อมูลระบบและเครื่องมือ Admin</h4>
+                <p class="text-muted small m-0">จัดการสถิติ ค้นหานักเรียน และดาวน์โหลดรายงาน</p>
+              </div>
+              <div class="d-flex flex-wrap gap-2">
+                <button @click="openAdminPrintReport" class="btn btn-dark shadow-sm rounded-pill px-4"><i class="fas fa-print me-1"></i> พิมพ์สรุปทั้งเทอม</button>
+                <button @click="view = 'dashboard'" class="btn btn-white border shadow-sm rounded-pill px-4"><i class="fas fa-arrow-left me-1"></i> กลับหน้าหลัก</button>
+              </div>
+            </div>
+
+            <div v-if="summary" class="row g-3 mb-4">
+              <div class="col-md-3">
+                <div class="card-clean p-3 bg-primary text-white border-0 shadow-sm h-100">
+                  <small class="opacity-75">จำนวนชุมนุมทั้งหมด</small>
+                  <div class="d-flex justify-content-between align-items-end mt-1"><h2 class="fw-bold m-0">{{ summary.clubsCount }}</h2><i class="fas fa-layer-group fa-2x opacity-25"></i></div>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="card-clean p-3 bg-white border-0 shadow-sm h-100">
+                  <div class="text-secondary small fw-bold mb-2"><i class="fas fa-user-graduate me-1 text-info"></i> สถิตินักเรียน ({{ summary.student.total }} คน)</div>
+                  <div class="row g-0 mt-2">
+                    <div class="col-6 border-end text-center"><div class="h4 fw-bold text-success m-0">{{ summary.student.registered }}</div><div class="small text-muted">สมัครแล้ว</div></div>
+                    <div class="col-6 text-center"><div class="h4 fw-bold text-danger m-0">{{ summary.student.unregistered }}</div><div class="small text-muted">ตกค้าง</div></div>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-5">
+                <div class="card-clean p-3 bg-white border-0 shadow-sm h-100">
+                  <div class="text-secondary small fw-bold mb-2"><i class="fas fa-chalkboard-teacher me-1 text-warning"></i> สถิติคุณครู ({{ summary.teacher.total }} ท่าน)</div>
+                  <div class="row g-0 mt-2">
+                    <div class="col-6 border-end text-center"><div class="h4 fw-bold text-dark m-0">{{ summary.teacher.hasClub }}</div><div class="small text-muted">มีชุมนุมแล้ว</div></div>
+                    <div class="col-6 text-center"><div class="h4 fw-bold text-secondary m-0">{{ summary.teacher.noClub }}</div><div class="small text-muted">ยังไม่มีชุมนุม</div></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="row g-3 mb-4">
+              <div class="col-md-4">
+                <div class="card-clean h-100 border-0 shadow-sm bg-white p-3 text-center">
+                  <div class="fw-bold text-dark mb-2 small text-uppercase text-start"><i class="fas fa-user-clock me-1 text-danger"></i> นักเรียนที่ยังไม่สมัคร</div>
+                  <h3 class="fw-bold text-danger mb-1">{{ summary ? summary.student.unregistered : 0 }}</h3>
+                  <div class="small text-muted mb-3">คน (ที่ยังไม่ได้เลือกชุมนุม)</div>
+                  <button class="btn btn-outline-danger btn-sm w-100 rounded-pill shadow-sm" @click="downloadUnregisteredStudents"><i class="fas fa-download me-1"></i> ดาวน์โหลดรายชื่อ</button>
+                </div>
+              </div>
+
+              <div class="col-md-4">
+                <div class="card-clean h-100 border-0 shadow-sm bg-white p-3 text-center">
+                  <div class="fw-bold text-dark mb-2 small text-uppercase text-start"><i class="fas fa-chalkboard-teacher me-1 text-warning"></i> ครูที่ยังไม่มีชุมนุม</div>
+                  <h3 class="fw-bold text-warning mb-1">{{ summary ? summary.teacher.noClub : 0 }}</h3>
+                  <div class="small text-muted mb-3">ท่าน (ที่ยังไม่มีชื่อในระบบ)</div>
+                  <button class="btn btn-outline-warning text-dark btn-sm w-100 rounded-pill shadow-sm" @click="downloadNoClubTeachers"><i class="fas fa-download me-1"></i> ดาวน์โหลดรายชื่อ</button>
+                </div>
+              </div>
+
+              <div class="col-md-4">
+                <div class="card-clean h-100 border-0 shadow-sm bg-white p-3 text-center">
+                  <div class="fw-bold text-dark mb-2 small text-uppercase text-start"><i class="fas fa-user-times me-1 text-danger"></i> นักเรียนที่ไม่ผ่านกิจกรรม</div>
+                  <h3 class="fw-bold text-danger mb-1">{{ globalFailedList.length }}</h3>
+                  <div class="small text-muted mb-3">คน (ที่ยังไม่ผ่านชุมนุม)</div>
+                  <div class="mt-3">
+                    <button class="btn btn-outline-danger btn-sm w-100 rounded-pill shadow-sm" @click="loadFailedData" :disabled="loading"><i class="fas fa-sync-alt me-1"></i> อัปเดตข้อมูล</button>
+                    <button v-if="globalFailedList.length > 0" class="btn btn-outline-danger btn-sm w-100 rounded-pill shadow-sm mt-2" @click="downloadGlobalFailed"><i class="fas fa-file-excel me-1 text-success"></i> ดาวน์โหลดรายชื่อ (.xls)</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </transition>
+
+        <!-- 4. ATTENDANCE GRID VIEW -->
+        <transition name="fade">
+          <div v-if="view === 'attendance'" class="h-100 d-flex flex-column container-fluid px-0 no-print">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <div class="d-flex align-items-center gap-3">
+                <button @click="view = 'dashboard'" class="btn btn-white border shadow-sm rounded-circle p-0 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;"><i class="fas fa-arrow-left"></i></button>
+                <div><h4 class="fw-bold m-0">{{ currentClubName }}</h4><div class="text-primary small fw-bold">บันทึกเวลาเข้าร่วมกิจกรรม</div></div>
+              </div>
+              <div class="d-flex justify-content-end align-items-center gap-2">
+                <button @click="saveAttendance" class="btn btn-primary-fast btn-fast shadow-sm px-4"><i class="fas fa-save me-2"></i> บันทึกข้อมูล</button>
+              </div>
+            </div>
+
+            <div class="table-wrapper flex-grow-1 position-relative border-0 shadow-sm">
+              <div style="overflow: auto; position: absolute; top:0; left:0; right:0; bottom:0; border-radius: 12px;">
+                <table class="table mb-0 bg-white" style="border-collapse: separate; border-spacing: 0; min-width: 1400px;">
+                  <thead class="sticky-top" style="z-index: 50;">
+                    <tr>
+                      <th class="sticky-col-1 text-center align-middle text-muted border-0 small" style="background:#f8fafc">#</th>
+                      <th class="sticky-col-2 ps-3 align-middle text-start text-dark border-0 fw-bold" style="background:#f8fafc">รายชื่อนักเรียน</th>
+                      <th v-for="(d, index) in 20" :key="index" class="text-center align-bottom pb-2 border-0" style="width: 45px; min-width: 45px; background:#f8fafc">
+                        <div class="d-flex flex-column align-items-center justify-content-end h-100">
+                          <span class="vertical-text fw-bold mb-2 text-primary">ครั้งที่ {{ index + 1 }}</span>
+                          <div class="date-header-card shadow-sm mb-2">
+                            <input type="date" v-model="attData.dates[index]" class="hidden-date-input">
+                            <template v-if="attData.dates[index]">
+                              <div class="date-day">{{ formatShortDateThaiObj(attData.dates[index]).day }}</div>
+                              <div class="date-month">{{ formatShortDateThaiObj(attData.dates[index]).month }}</div>
+                              <div class="date-year">{{ formatShortDateThaiObj(attData.dates[index]).year }}</div>
+                            </template>
+                            <template v-else>
+                              <div class="date-empty"><i class="fas fa-calendar-plus mb-1 d-block"></i>ระบุ</div>
+                            </template>
+                          </div>
+                          <div class="btn-check-icon" @click="toggleColumn(index)" title="คลิกเพื่อเช็คมาทุกคน"><i class="fas fa-check"></i></div>
+                        </div>
+                      </th>
+                      <th class="align-middle text-center small text-success border-0 fw-bold" style="min-width: 45px; background:#f0fdf4">มา</th>
+                      <th class="align-middle text-center small text-warning border-0 fw-bold" style="min-width: 45px; background:#fffbeb">ลา</th>
+                      <th class="align-middle text-center small text-danger border-0 fw-bold" style="min-width: 45px; background:#fef2f2">ขาด</th>
+                      <th class="align-middle text-center small text-secondary border-0 fw-bold" style="min-width: 70px; background:#f1f5f9">ผลประเมิน</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="(student, sIndex) in attStudents" :key="student.id">
+                      <td class="sticky-col-1 text-center align-middle text-muted small border-bottom" style="background:white">{{ sIndex + 1 }}</td>
+                      <td class="sticky-col-2 ps-3 align-middle border-bottom" style="background:white">
+                        <div class="fw-bold text-dark text-truncate" style="font-size: 14px;">{{ student.name }}</div>
+                        <div class="text-muted" style="font-size: 10px;">{{ student.room }} / เลขที่ {{ student.no }}</div>
+                      </td>
+                      <td v-for="(t, tIndex) in 20" :key="tIndex" class="p-0 border-bottom">
+                        <select v-model.number="attData.records[student.id][tIndex]" class="select-status" :class="'st-' + (attData.records[student.id][tIndex] || 0)">
+                          <option value="0">-</option><option value="1">/</option><option value="2">ล</option><option value="3">ข</option>
+                        </select>
+                      </td>
+                      <td class="align-middle text-center border-bottom fw-bold text-success small" style="background:#f0fdf4">{{ countStatus(student.id, 1) }}</td>
+                      <td class="align-middle text-center border-bottom fw-bold text-warning small" style="background:#fffbeb">{{ countStatus(student.id, 2) }}</td>
+                      <td class="align-middle text-center border-bottom fw-bold text-danger small" style="background:#fef2f2">{{ countStatus(student.id, 3) }}</td>
+                      <td class="align-middle text-center border-bottom small fw-bold" :class="calculateGrade(student.id) === 'ผ่าน' ? 'text-success':'text-danger'" style="background:#f1f5f9">{{ calculateGrade(student.id) }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </transition>
 
       </div>
     </div>
 
-    <!-- Modal จัดการชุมนุม -->
+    <!-- Modal สร้าง/แก้ไขชุมนุม -->
     <div class="modal fade" id="clubModal" tabindex="-1">
       <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg p-4" style="border-radius: 20px;">
@@ -260,14 +567,15 @@
   
   <script>
     // 🔑 ตั้งค่า Supabase Project ของท่านที่นี่
-    const SUPABASE_URL = 'https://oigggpdambseabrezhuh.supabase.co';
-    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9pZ2dncGRhbWJzZWFicmV6aHVoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE0MzQyNjQsImV4cCI6MjEwNzAxMDI2NH0.YEnpBEqfybFOw2VbMLGw1qtUKj8pMBUI8FZIT6yFlM0';
+    const SUPABASE_URL = 'YOUR_SUPABASE_URL';
+    const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
     const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     const { createApp } = Vue;
     createApp({
       data() {
         return {
+          showPassword: false,
           view: 'dashboard',
           isLoggedIn: false,
           loading: false,
@@ -276,6 +584,8 @@
           clubs: [],
           teachersList: [],
           config: {},
+          summary: null,
+          globalFailedList: [],
           clubForm: { id: '', name: '', level: 'ทั้งหมด', owner_ids: [], max_capacity: 30, location: '', comment: '' },
           isEditMode: false,
           currentClubId: '',
@@ -283,7 +593,22 @@
           attStudents: [],
           attData: { dates: Array(20).fill(''), records: {} },
           searchClubQuery: '',
-          clubMap: {}
+          clubMap: {},
+          adminSettings: {
+            schoolName: 'โรงเรียนสมุทรสาครบูรณะ',
+            semester: '1',
+            academicYear: '2569',
+            studentQuota: 20,
+            reportEmail: '',
+            driveFolderId: '',
+            sigDirector: 'ดร.อรรณพ ชุ่มเพ็งพันธ์',
+            sigDeputy: '(ชื่อรองผู้อำนวยการกลุ่มบริหารงานวิชาการ)',
+            sigHeadDev: '(ชื่อหัวหน้ากิจกรรมพัฒนาผู้เรียน)',
+            sigHeadClub: '(ชื่อหัวหน้างานกิจกรรมชุมนุม)'
+          },
+          holidays: [],
+          systemDates: Array(20).fill(''),
+          exportFilter: { type: 'ทั้งหมด', room: '' }
         }
       },
       computed: {
@@ -295,6 +620,9 @@
             res = res.filter(c => (c.name || '').toLowerCase().includes(q) || (c.teacher_name || '').toLowerCase().includes(q));
           }
           return res.sort((a, b) => String(a.name).localeCompare(String(b.name), 'th'));
+        },
+        sortedAdminReportClubs() {
+          return [...this.clubs].sort((a, b) => String(a.name).localeCompare(String(b.name), 'th'));
         }
       },
       methods: {
@@ -307,7 +635,7 @@
           const u = this.form.user.trim();
           const p = this.form.pass.trim();
 
-          // 1. เช็คใน Teachers
+          // 1. เช็คในตาราง Teachers
           let { data: teacher } = await _supabase.from('teachers').select('*').ilike('username', u).eq('password', p).single();
           if (teacher) {
             this.user = { id: teacher.id, name: teacher.name, role: teacher.role };
@@ -317,7 +645,7 @@
             return;
           }
 
-          // 2. เช็คใน Students
+          // 2. เช็คในตาราง Students
           let { data: student } = await _supabase.from('students').select('*').eq('id', u).eq('password', p).single();
           if (student) {
             this.user = { id: student.id, name: student.name, role: 'student', clubId: student.club_id };
@@ -330,17 +658,20 @@
           this.loading = false;
           Swal.fire('ผิดพลาด', 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง', 'error');
         },
-        async refreshData() {
-          this.loading = true;
-          const [clubRes, configRes, teacherRes] = await Promise.all([
+        async refreshData(isSilent = false) {
+          if (!isSilent) this.loading = true;
+
+          const [clubRes, configRes, teacherRes, studentRes] = await Promise.all([
             _supabase.from('clubs').select('*'),
             _supabase.from('config').select('*'),
-            _supabase.from('teachers').select('id, name')
+            _supabase.from('teachers').select('*'),
+            _supabase.from('students').select('*')
           ]);
 
           this.clubs = clubRes.data || [];
           this.teachersList = teacherRes.data || [];
-          
+          let students = studentRes.data || [];
+
           let cfg = {};
           (configRes.data || []).forEach(r => { cfg[r.key] = r.value; });
           this.config = cfg;
@@ -349,7 +680,23 @@
           this.clubs.forEach(c => { map[String(c.id)] = c; });
           this.clubMap = map;
 
-          this.loading = false;
+          // คำนวณ Admin Summary
+          if (this.user && this.user.role === 'admin') {
+            const totalStudents = students.length;
+            const registeredStudents = students.filter(s => s.club_id && s.club_id !== '').length;
+            const allOwnerIds = this.clubs.reduce((acc, c) => acc.concat((c.owner_id || '').split(',').map(id => id.trim())), []);
+            const uniqueOwners = [...new Set(allOwnerIds)];
+            const totalTeachers = this.teachersList.length;
+            const teachersWithClub = this.teachersList.filter(t => uniqueOwners.includes(String(t.id))).length;
+
+            this.summary = {
+              student: { total: totalStudents, registered: registeredStudents, unregistered: totalStudents - registeredStudents },
+              teacher: { total: totalTeachers, hasClub: teachersWithClub, noClub: totalTeachers - teachersWithClub },
+              clubsCount: this.clubs.length
+            };
+          }
+
+          if (!isSilent) this.loading = false;
         },
         async goToAttendance(club) {
           this.currentClubId = club.id;
@@ -385,12 +732,26 @@
           });
           Swal.fire({ icon: 'success', title: 'บันทึกเรียบร้อย', timer: 1500, showConfirmButton: false });
         },
+        toggleColumn(index) {
+          let isAllPresent = this.attStudents.every(s => this.attData.records[s.id][index] === 1);
+          this.attStudents.forEach(s => { this.attData.records[s.id][index] = isAllPresent ? 0 : 1; });
+        },
         countStatus(stdId, type) { return (this.attData.records[stdId] || []).filter(s => s === type).length; },
         calculateGrade(stdId) {
           const present = this.countStatus(stdId, 1);
           const absent = this.countStatus(stdId, 3);
           if (present === 0 || absent > 3) return 'ไม่ผ่าน';
           return 'ผ่าน';
+        },
+        formatShortDateThaiObj(dateStr) {
+          if (!dateStr) return { day: '', month: '', year: '' };
+          const d = new Date(dateStr);
+          const months = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+          return {
+            day: d.getDate().toString().padStart(2, '0'),
+            month: months[d.getMonth()],
+            year: (d.getFullYear() + 543).toString().slice(-2)
+          };
         },
         openAddModal() {
           this.isEditMode = false;
@@ -444,12 +805,11 @@
           if (this.user.clubId === c.id) return true;
           return false;
         },
-        downloadExcelList(club) {
-          // ฟังก์ชันดาวน์โหลด Excel รายชื่อสมาชิกชุมนุม
-        },
+        downloadExcelList(club) {},
         logout() {
           this.isLoggedIn = false;
           this.user = null;
+          this.view = 'dashboard';
         }
       }
     }).mount('#app');
