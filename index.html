@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Supabase JS Client SDK -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root { --primary: #2563eb; --bg-body: #f1f5f9; --text-main: #334155; --card-radius: 12px; }
+    body { font-family: 'Sarabun', sans-serif; background-color: var(--bg-body); color: var(--text-main); font-size: 15px; }
+    [v-cloak] { display: none; }
+    .card-clean { background: #fff; border: 1px solid #e2e8f0; border-radius: var(--card-radius); box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); }
+    .btn-fast { border-radius: 8px; font-weight: 500; padding: 6px 12px; font-size: 13px; }
+    .btn-primary-fast { background-color: var(--primary); border: none; color: white; }
+    .form-fast { border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px; background-color: #fff; }
+  </style>
+</head>
+<body>
+  <div id="app" v-cloak>
+    <!-- หน้าจอ Login -->
+    <div v-if="!isLoggedIn" class="d-flex align-items-center justify-content-center min-vh-100 p-3" style="background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);">
+      <div class="card-clean p-4 p-md-5 text-center shadow-lg border-0" style="width: 100%; max-width: 400px; border-radius: 20px;">
+        <h3 class="fw-800 mb-1 text-dark">ระบบชุมนุม SKN (Supabase)</h3>
+        <p class="text-muted small">โรงเรียนสมุทรสาครบูรณะ</p>
+        <div class="text-start mt-4">
+          <label class="small text-secondary mb-1">ชื่อผู้ใช้งาน</label>
+          <input type="text" v-model="form.user" class="form-control form-fast mb-3 py-2 px-3" placeholder="Username หรือ รหัสนักเรียน">
+          <label class="small text-secondary mb-1">รหัสผ่าน</label>
+          <input type="password" v-model="form.pass" class="form-control form-fast mb-4 py-2 px-3" placeholder="Password" @keyup.enter="doLogin">
+        </div>
+        <button @click="doLogin" class="btn btn-primary-fast btn-fast w-100 py-2 shadow" :disabled="loading">
+          <span v-if="loading" class="spinner-border spinner-border-sm me-2"></span> เข้าสู่ระบบ
+        </button>
+      </div>
+    </div>
+
+    <!-- หน้าหลัก Dashboard -->
+    <div v-else class="d-flex flex-column vh-100">
+      <nav class="bg-white border-bottom px-4 d-flex justify-content-between align-items-center flex-shrink-0" style="height: 70px;">
+        <div class="d-flex align-items-center gap-2 fw-800 text-primary fs-4">
+          <span>SKN CLUBS (Supabase Edition)</span>
+        </div>
+        <div class="d-flex align-items-center gap-3">
+          <span class="fw-bold text-dark small">{{ user.name }} ({{ user.role }})</span>
+          <button @click="logout" class="btn btn-outline-danger btn-sm rounded-pill px-3"><i class="fas fa-sign-out-alt"></i></button>
+        </div>
+      </nav>
+      <div class="flex-grow-1 overflow-auto p-4">
+        <h3 class="fw-bold">ยินดีต้อนรับ, {{ user.name }}</h3>
+        <p class="text-muted">ระบบกำลังเชื่อมต่อฐานข้อมูล Supabase อย่างเต็มรูปแบบ</p>
+        <!-- สามารถใส่คอมโพเนนต์ตารางชุมนุมและระบบจัดการอื่นๆ ต่อเนื่องได้ที่นี่ -->
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script>
+    // 🔑 ใส่ค่า Supabase Project ของท่านตรงนี้
+    const SUPABASE_URL = 'https://oigggpdambseabrezhuh.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9pZ2dncGRhbWJzZWFicmV6aHVoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE0MzQyNjQsImV4cCI6MjEwNzAxMDI2NH0.YEnpBEqfybFOw2VbMLGw1qtUKj8pMBUI8FZIT6yFlM0';
+    const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    const { createApp } = Vue;
+    createApp({
+      data() {
+        return {
+          isLoggedIn: false,
+          loading: false,
+          form: { user: '', pass: '' },
+          user: null,
+          clubs: []
+        }
+      },
+      methods: {
+        async doLogin() {
+          if (!this.form.user || !this.form.pass) {
+            Swal.fire('แจ้งเตือน', 'กรุณากรอกชื่อผู้ใช้และรหัสผ่าน', 'warning');
+            return;
+          }
+          this.loading = true;
+          const uInput = this.form.user.trim();
+          const pInput = this.form.pass.trim();
+
+          // 1. เช็คในตาราง Teachers
+          let { data: teacher } = await _supabase.from('teachers').select('*').eq('username', uInput).eq('password', pInput).single();
+          if (teacher) {
+            this.user = { id: teacher.id, name: teacher.name, role: teacher.role };
+            this.isLoggedIn = true;
+            this.loading = false;
+            return;
+          }
+
+          // 2. เช็คในตาราง Students
+          let { data: student } = await _supabase.from('students').select('*').eq('id', uInput).eq('password', pInput).single();
+          if (student) {
+            this.user = { id: student.id, name: student.name, role: 'student', clubId: student.club_id };
+            this.isLoggedIn = true;
+            this.loading = false;
+            return;
+          }
+
+          this.loading = false;
+          Swal.fire('ผิดพลาด', 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง', 'error');
+        },
+        logout() {
+          this.isLoggedIn = false;
+          this.user = null;
+          this.form = { user: '', pass: '' };
+        }
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>
