@@ -2,7 +2,8 @@
 <!-- const SUPABASE_URL = 'https://oigggpdambseabrezhuh.supabase.co'; // URL จาก Supabase
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9pZ2dncGRhbWJzZWFicmV6aHVoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE0MzQyNjQsImV4cCI6MjEwNzAxMDI2NH0.YEnpBEqfybFOw2VbMLGw1qtUKj8pMBUI8FZIT6yFlM0'; // KEY จาก Supabase
 const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbya8N3NC_QbN9diZRcX6_che3lEDO-su7KQqR4R3PKM6g5cPI54NFTsRkj6cSlBds6j/exec' -->
-v.02
+v.03
+
 <!DOCTYPE html>
 <!-- <marquee behavior="alternate" >ทดสอบ ระบบชุมนุม SKN โรงเรียนสมุทรสาครบูรณะ ประจำภาคเรียนที่ 1/2569</marquee> -->
 <html>
@@ -358,8 +359,8 @@ v.02
 
     @media print {
       @page {
-        size: A4;
-        margin: 20mm;
+        size: A4 portrait;
+        margin: 9mm 10mm 9mm 10mm;
       }
 
       body {
@@ -411,8 +412,8 @@ v.02
         box-shadow: none !important;
         margin: 0 !important;
         padding: 0 !important;
-        min-height: auto !important;
-        page-break-inside: auto;
+        min-height: 0 !important;
+        page-break-inside: avoid !important;
       }
 
       .page-break-after {
@@ -579,13 +580,13 @@ v.02
 
     .signature-upload-slot {
       width: 220px; max-width: 100%; min-height: 48px; margin: 0 auto 5px; padding: 2px 4px;
-      border: 1px dashed #cbd5e1; border-bottom: 1px dotted #000; border-radius: 4px 4px 0 0;
-      background: rgba(248,250,252,.75); display: flex; align-items: center;
-      justify-content: center; position: relative; cursor: pointer; color: #64748b;
-      font-size: 10px; line-height: 1.1; text-align: center;
+      /* พื้นที่คลิกวางลายเซ็น: ตั้งใจไม่แสดงกรอบหรือข้อความ */
+      border: 0; border-radius: 0; background: transparent; display: flex; align-items: center;
+      justify-content: center; position: relative; cursor: pointer; color: transparent;
+      font-size: 0; line-height: 1.1; text-align: center;
     }
     .signature-upload-slot img { max-width: 100%; max-height: 42px; object-fit: contain; display: block; }
-    .signature-upload-slot .sig-hint { background: rgba(255,255,255,.88); padding: 3px 5px; }
+    .signature-upload-slot .sig-hint { display: none !important; }
     .signature-upload-slot:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
     .period-picker { min-width: 145px; max-width: 190px; font-size: 12px; }
     .historical-banner { border-left: 4px solid #f59e0b; background: #fffbeb; color: #92400e; }
@@ -596,6 +597,23 @@ v.02
     @media (max-width: 768px) {
       .period-picker { min-width: 118px; max-width: 145px; }
       .signature-upload-slot { width: 180px; }
+    }
+
+    @media print {
+      .a4-container { font-size: 9.5pt !important; line-height: 1.12 !important; }
+      .a4-title { font-size: 15pt !important; margin: 0 0 2px !important; }
+      .a4-subtitle { font-size: 11pt !important; line-height: 1.1 !important; }
+      .table-report { font-size: 8.5pt !important; margin-bottom: 5px !important; }
+      .table-report th, .table-report td { padding: 3px 4px !important; }
+      #report-print-area h1, #report-print-area h2, #report-print-area h3,
+      #report-print-area p { margin-top: 2px !important; margin-bottom: 3px !important; }
+      #report-print-area .mt-5 { margin-top: .65rem !important; }
+      #report-print-area .mb-4 { margin-bottom: .4rem !important; }
+      #report-print-area .signature-grid { margin-top: .5rem !important; page-break-inside: avoid !important; break-inside: avoid !important; }
+      #report-print-area .signature-upload-slot { min-height: 35px !important; margin-bottom: 2px !important; border: 0 !important; background: transparent !important; }
+      #report-print-area .signature-upload-slot .sig-hint { display: none !important; }
+      #report-print-area img { max-height: 36px; }
+      #report-print-area .activity-photo, #report-print-area .photo-slot { break-inside: avoid !important; }
     }
   </style>
 </head>
@@ -2903,7 +2921,8 @@ methods: {
         async saveConfig(showToast = true) {
           try {
             const payloads = Object.keys(this.config).map(key => ({ key, value: String(this.config[key]) }));
-            await db.from('config').upsert(payloads, { onConflict: 'key' });
+            const { error: configError } = await db.from('config').upsert(payloads, { onConflict: 'key' });
+            if (configError) throw configError;
             if (showToast) Swal.mixin({toast:true,position:'top-end',showConfirmButton:false,timer:1500}).fire({icon:'success',title:'บันทึกค่าแล้ว'});
             return true;
           } catch (error) { Swal.fire('บันทึกการตั้งค่าไม่สำเร็จ', error.message || String(error), 'error'); return false; }
@@ -3125,7 +3144,8 @@ methods: {
             for(let i=1;i<=4;i++) staged.photos[i]=await uploadIfData(staged.photos[i],`SKN_Activity_${this.currentClubId}_${i}_T${this.activeTerm}_${this.activeYear}.jpg`);
             staged.teacherSignature=await uploadIfData(staged.teacherSignature,`SKN_Signature_Teacher_${this.currentClubId}_T${this.activeTerm}_${this.activeYear}.jpg`);
             const payload={club_id:this.currentClubId,term:String(this.activeTerm),year:String(this.activeYear),report_json:{teacher:this.reportData.teacher,actData:this.reportActData,signatures:{teacher:staged.teacherSignature}},logo:staged.logo||'',photo_1:staged.photos[1]||'',photo_2:staged.photos[2]||'',photo_3:staged.photos[3]||'',photo_4:staged.photos[4]||''};
-            await db.from('club_reports').upsert(payload,{onConflict:'club_id,term,year'});
+            const { error: reportError } = await db.from('club_reports').upsert(payload,{onConflict:'club_id,term,year'});
+            if (reportError) throw reportError;
             // Commit UI state only after Supabase confirms that the report was stored.
             this.reportData.logo=staged.logo; this.reportData.photos=staged.photos; this.reportData.signatures.teacher=staged.teacherSignature;
             this.reportSavedSnapshot=this.getReportImageSnapshot();
