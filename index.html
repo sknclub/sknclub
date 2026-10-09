@@ -1052,8 +1052,7 @@ const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbya8N3NC_QbN9diZRcX
     </div> <!-- ปิด d-flex flex-column vh-100 -->
 
   </div> <!-- ปิด div id="app" -->
-
-  <script>
+<script>
     const SUPABASE_URL = 'https://oigggpdambseabrezhuh.supabase.co'; // *** แก้ไข 1: URL จาก Supabase ของคุณ ***
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9pZ2dncGRhbWJzZWFicmV6aHVoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE0MzQyNjQsImV4cCI6MjEwNzAxMDI2NH0.YEnpBEqfybFOw2VbMLGw1qtUKj8pMBUI8FZIT6yFlM0'; // *** แก้ไข 2: ANON/PUBLIC KEY จาก Supabase ของคุณ ***
     const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbya8N3NC_QbN9diZRcX6_che3lEDO-su7KQqR4R3PKM6g5cPI54NFTsRkj6cSlBds6j/exec'; // *** แก้ไข 3: Web App URL ของ Google Apps Script ***
@@ -1087,7 +1086,6 @@ const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbya8N3NC_QbN9diZRcX
         if (this.isLoggedIn) { this.refreshData(); }
         setInterval(() => {
           if (this.isLoggedIn && !this.loading) {
-            const isUrgent = this.config && (this.config.open_reg === 'true' || this.config.allow_transfer === 'true');
             this.refreshData(true); 
           }
         }, 300000); 
@@ -1128,6 +1126,21 @@ const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbya8N3NC_QbN9diZRcX
         }
       },
       methods: {
+        // ==========================================
+        // ฟังก์ชันนำทาง (Navigation) ที่เติมกลับเข้ามา
+        // ==========================================
+        goToInsight() { this.view = 'insight_report'; this.refreshData(); this.loadFailedData(); },
+        goToManageUsers() { this.manageRole = 'student'; this.fetchUsers('student'); this.view = 'manage_users'; },
+        switchManageRole(role) { this.manageRole = role; this.fetchUsers(role); },
+        goToAttendance(club) { this.loadClubData(club, 'attendance'); },
+        goToReport(club) {
+          this.reportData.teacher = club ? club.teacher_name : this.reportData.teacher;
+          if(club) this.loadClubData(club, 'report'); else this.view = 'report';
+        },
+
+        // ==========================================
+        // ฟังก์ชันระบบอื่นๆ
+        // ==========================================
         syncAdvancedSettings() {
           if (this.config) {
             if (this.config.adminSettings && this.config.adminSettings.startsWith('{')) { this.adminSettings = Object.assign({}, this.adminSettings, JSON.parse(this.config.adminSettings)); }
@@ -1414,5 +1427,6 @@ const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbya8N3NC_QbN9diZRcX
       }
     }).mount('#app');
   </script>
+  
 </body>
 </html>
