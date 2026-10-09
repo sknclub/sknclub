@@ -1188,13 +1188,13 @@
 
       const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-      // ฟังก์ชันเรียก API เฉพาะส่งรูป/อีเมลไป Google Apps Script
+    // ฟังก์ชันเรียก API เฉพาะส่งรูป/อีเมลไป Google Apps Script
       async function fetchGAS(action, payload = {}) {
         try {
           const response = await fetch(GAS_API_URL, {
             method: 'POST',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify({ action: action, payload: payload })
+            body: JSON.stringify({ action: action, payload: payload }),
+            redirect: 'follow' // <--- เพิ่มตรงนี้ เพื่อให้เบราว์เซอร์วิ่งตามการ Redirect ของ Google
           });
           return await response.json();
         } catch (error) { throw error; }
