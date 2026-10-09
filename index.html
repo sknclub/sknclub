@@ -4,7 +4,6 @@
       // const SUPABASE_URL = 'https://oigggpdambseabrezhuh.supabase.co'; // URL จาก Supabase
       // const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9pZ2dncGRhbWJzZWFicmV6aHVoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE0MzQyNjQsImV4cCI6MjEwNzAxMDI2NH0.YEnpBEqfybFOw2VbMLGw1qtUKj8pMBUI8FZIT6yFlM0'; // KEY จาก Supabase
       // const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbya8N3NC_QbN9diZRcX6_che3lEDO-su7KQqR4R3PKM6g5cPI54NFTsRkj6cSlBds6j/exec'; // Web App URL
-
 <!DOCTYPE html>
 <html>
 
@@ -22,10 +21,8 @@
   
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-  <!-- ใช้ Vue Production ป้องกัน Warning -->
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <!-- โหลด Bootstrap JS ให้ครบ ป้องกัน Error -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
   <style>
@@ -124,7 +121,7 @@
 <body>
   <div id="app" v-cloak>
 
-    <!-- หน้าล็อกอิน -->
+    <!-- 1. หน้าล็อกอิน -->
     <div v-if="!isLoggedIn" class="d-flex align-items-center justify-content-center min-vh-100 p-3 no-print" style="background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);">
       <div class="card-clean p-4 p-md-5 text-center shadow-lg border-0" style="width: 100%; max-width: 400px; border-radius: 20px;">
         <div class="mb-4">
@@ -151,7 +148,7 @@
       </div>
     </div>
 
-    <!-- เมื่อเข้าระบบแล้ว -->
+    <!-- 2. ส่วนของ Application เมื่อล็อกอินแล้ว -->
     <div v-else class="d-flex flex-column vh-100">
       
       <!-- Navbar -->
@@ -173,9 +170,10 @@
         </div>
       </nav>
 
+      <!-- พื้นที่แสดง View ต่างๆ (เปลี่ยนหน้าแบบ SPA) -->
       <div class="flex-grow-1 overflow-auto p-3 p-md-4" style="background-color: #f8fafc;">
 
-        <!-- หน้า View: Admin Report A4 -->
+        <!-- View: Admin Report A4 -->
         <transition name="fade">
           <div v-if="view === 'admin_report'" class="container-fluid px-0">
             <div class="d-flex justify-content-between align-items-center mb-4 container-xl no-print pt-3">
@@ -236,7 +234,7 @@
           </div>
         </transition> 
 
-        <!-- หน้า View: Dashboard (แดชบอร์ดหลัก) -->
+        <!-- View: Dashboard (แดชบอร์ดหลัก) -->
         <transition name="fade">
           <div v-if="view === 'dashboard'" class="container-xl no-print">
             <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-end mb-4 gap-3">
@@ -261,7 +259,7 @@
 
                 <template v-if="user.role === 'admin'">
                   <button class="btn btn-white border btn-fast shadow-sm" @click="goToInsight()"><i class="fas fa-chart-line me-1 text-info"></i> สรุปข้อมูลระบบ</button>
-                  <button class="btn btn-white border btn-fast shadow-sm" @click="goToManageUsers"><i class="fas fa-users-cog me-1 text-warning"></i> จัดการผู้ใช้</button>
+                  <button class="btn btn-white border btn-fast shadow-sm" @click="goToManageUsers()"><i class="fas fa-users-cog me-1 text-warning"></i> จัดการผู้ใช้</button>
                   <button class="btn btn-white border btn-fast shadow-sm" @click="view = 'admin_settings'"><i class="fas fa-cogs me-1 text-danger"></i> ตั้งค่าระบบขั้นสูง</button>
                 </template>
                 <button v-if="user.role === 'admin' || (user.role === 'teacher' && config.allow_edit_club === 'true' && !user.hasClub)" class="btn btn-primary-fast btn-fast shadow-sm px-4" @click="openAddModal">
@@ -352,7 +350,7 @@
           </div>
         </transition>
 
-        <!-- หน้า View: Insight Report -->
+        <!-- View: Insight Report -->
         <transition name="fade">
           <div v-if="view === 'insight_report'" class="container-xl no-print">
             <div class="mb-4 d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
@@ -484,7 +482,7 @@
           </div>
         </transition>
 
-        <!-- หน้า View: Admin Settings -->
+        <!-- View: Admin Settings -->
         <transition name="fade">
           <div v-if="view === 'admin_settings'" class="container-xl no-print">
             <div class="d-flex align-items-center justify-content-between mb-4 mt-3">
@@ -567,8 +565,6 @@
                   <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
                      <h6 class="fw-bold text-danger m-0"><i class="fas fa-exclamation-triangle me-2"></i>๕. เริ่มภาคเรียนใหม่ / ล้างข้อมูลระบบ</h6>
                      <div>
-                       <!-- ปิดปุ่มแบคอัปในเวอร์ชัน Supabase -->
-                       <!-- <button class="btn btn-sm btn-outline-secondary px-3 me-2" @click="openBackupHistoryModal"><i class="fas fa-history me-1"></i> ประวัติแบคอัป</button> -->
                        <button class="btn btn-sm btn-danger px-4" @click="openResetModal"><i class="fas fa-power-off me-2"></i>เริ่มดำเนินการล้างระบบ</button>
                      </div>
                   </div>
@@ -579,7 +575,7 @@
           </div>
         </transition>
 
-        <!-- หน้า View: Manage Users -->
+        <!-- View: Manage Users -->
         <transition name="fade">
           <div v-if="view === 'manage_users'" class="container-xl no-print">
             <div class="d-flex align-items-center justify-content-between mb-4">
@@ -593,7 +589,7 @@
               <div class="d-flex flex-wrap gap-2">
                 <button class="btn btn-white border btn-fast shadow-sm" @click="$refs.csvInput.click()"><i class="fas fa-file-csv me-1 text-success"></i> นำเข้า/อัพเดทรายชื่อ CSV</button>
                 <button class="btn btn-white border btn-fast shadow-sm" @click="downloadUsersCSV"><i class="fas fa-download me-1 text-primary"></i> Download รายชื่อ</button>
-                <button v-if="user.role === 'admin' && manageRole === 'student'" type="button" class="btn btn-white border btn-fast shadow-sm" @click="openBulkDeleteModal"><i class="fas fa-tools me-1 text-danger"></i> ลบข้อมูลนักเรียนรายกลุ่ม/ห้อง</button>
+                <button v-if="user.role === 'admin' && manageRole === 'student'" type="button" class="btn btn-white border btn-fast shadow-sm" @click="openBulkDeleteModal()"><i class="fas fa-tools me-1 text-danger"></i> ลบข้อมูลนักเรียนรายกลุ่ม/ห้อง</button>
                 <input type="file" ref="csvInput" class="d-none" accept=".csv" @change="processCSV">
                 <button class="btn btn-primary-fast btn-fast shadow-sm px-3" @click="openUserModal()"><i class="fas fa-plus me-1"></i> เพิ่มคนใหม่</button>
               </div>
@@ -648,331 +644,336 @@
           </div>
         </transition>
 
-      <!-- หน้า View: Room Lookup -->
-      <transition name="fade">
-        <div v-if="view === 'room_lookup'" class="container-xl no-print">
-          <div class="mb-4 d-flex align-items-center justify-content-between">
-            <div>
-              <h4 class="fw-800 m-0 text-success"><i class="fas fa-users me-2"></i>ตรวจสอบสถานะการสมัครชุมนุมของนักเรียน</h4>
-              <p class="text-muted small m-0">เลือกชั้นและห้องเพื่อดูสถานะการสมัครชุมนุม</p>
-            </div>
-            <button @click="view = 'dashboard'" class="btn btn-white border shadow-sm rounded-pill px-4"><i class="fas fa-arrow-left me-2"></i> กลับหน้าหลัก</button>
-          </div>
-
-          <div class="card-clean p-3 mb-4 bg-white shadow-sm border-0">
-            <div class="row g-2 align-items-end">
-              <div class="col-md-3">
-                <label class="small fw-bold">ระดับชั้น</label>
-                <select v-model="lookup.level" class="form-select form-fast"><option value="ม.ต้น">ม.ต้น</option><option value="ม.ปลาย">ม.ปลาย</option></select>
-              </div>
-              <div class="col-md-3">
-                <label class="small fw-bold">ระบุห้อง (เช่น ม.1/1)</label>
-                <input type="text" v-model="lookup.room" class="form-control form-fast" placeholder="ตัวอย่าง ม.1/1" @keyup.enter="searchByRoom">
-              </div>
-              <div class="col-md-2">
-                <button class="btn btn-success w-100 btn-fast" @click="searchByRoom" :disabled="loading"><i class="fas fa-search me-1"></i> ค้นหา</button>          
-              </div>
-              <div class="col-md-3" v-if="roomStudents && roomStudents.length > 0">
-                <button class="btn btn-outline-success w-100 btn-fast" @click="downloadRoomExcel"><i class="fas fa-file-excel me-1"></i> ดาวน์โหลดรายงานห้องนี้ (.xls)</button>
-              </div>
-            </div>
-          </div>
-
-          <div v-if="roomStudents.length > 0" class="card-clean overflow-hidden border-0 shadow-sm animate__animated animate__fadeIn">
-            <div class="table-responsive">
-              <table class="table table-hover align-middle mb-0">
-                <thead class="bg-light">
-                  <tr>
-                    <th class="ps-4 text-center" style="width: 80px;">เลขที่</th>
-                    <th style="width: 120px;">รหัส</th>
-                    <th>ชื่อ-นามสกุล</th>
-                    <th>ชุมนุมที่สังกัด</th>
-                  </tr>
-                </thead>
-                <tbody class="bg-white">
-                  <tr v-for="s in roomStudents" :key="s.id">
-                    <td class="text-center fw-bold">{{ s.no }}</td>
-                    <td class="text-muted">{{ s.id }}</td>
-                    <td class="fw-bold">{{ s.name }}</td>
-                    <td><span :class="s.club_name === 'ยังไม่ได้สมัครชุมนุม' ? 'text-danger' : 'text-primary fw-bold'">{{ s.club_name }}</span></td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </transition>
-
-      <!-- หน้า View: Attendance -->
-      <transition name="fade">
-        <div v-if="view === 'attendance'" class="h-100 d-flex flex-column container-fluid px-0 no-print">
-          <div class="d-flex justify-content-between align-items-center mb-3">
-            <div class="d-flex align-items-center gap-3">
-              <button @click="view = 'dashboard'" class="btn btn-white border shadow-sm rounded-circle p-0 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;"><i class="fas fa-arrow-left"></i></button>
+        <!-- View: Room Lookup -->
+        <transition name="fade">
+          <div v-if="view === 'room_lookup'" class="container-xl no-print">
+            <div class="mb-4 d-flex align-items-center justify-content-between">
               <div>
-                <h4 class="fw-800 m-0">{{ currentClubName }}</h4>
-                <div class="text-primary small fw-bold">บันทึกเวลาเข้าร่วมกิจกรรม</div>
+                <h4 class="fw-800 m-0 text-success"><i class="fas fa-users me-2"></i>ตรวจสอบสถานะการสมัครชุมนุมของนักเรียน</h4>
+                <p class="text-muted small m-0">เลือกชั้นและห้องเพื่อดูสถานะการสมัครชุมนุม</p>
               </div>
-            </div>
-            <div class="d-flex justify-content-end align-items-center gap-2 mb-3">
-              <button @click="view = 'dashboard'" class="btn btn-white border btn-fast shadow-sm"><i class="fas fa-arrow-left me-1 me-md-2"></i> กลับหน้าหลัก</button>
-              <button @click="saveAttendance" class="btn btn-primary-fast btn-fast shadow-sm px-4"><i class="fas fa-save me-2"></i> บันทึกข้อมูล</button>
-            </div>
-          </div>
-          
-          <div class="table-wrapper flex-grow-1 position-relative border-0 shadow-sm">
-            <div style="overflow: auto; position: absolute; top:0; left:0; right:0; bottom:0; border-radius: 12px;">
-              <table class="table mb-0 bg-white" style="border-collapse: separate; border-spacing: 0; min-width: 1400px;">
-                <thead class="sticky-top" style="z-index: 50;">
-                  <tr>
-                    <th class="sticky-col-1 text-center align-middle text-muted border-0 small" style="background:#f8fafc">#</th>
-                    <th class="sticky-col-2 ps-3 align-middle text-start text-dark border-0 fw-bold" style="background:#f8fafc">รายชื่อนักเรียน</th>
-                      <th v-for="(d, index) in 20" :key="index" class="text-center align-bottom pb-2 border-0 attendance-col" style="width: 45px; min-width: 45px; background:#f8fafc">
-                      <div class="d-flex flex-column align-items-center justify-content-end h-100">
-                        <span class="vertical-text fw-bold mb-2" :class="checkHoliday(attData.dates[index]) ? 'text-danger' : 'text-primary'">
-                          <i v-if="checkHoliday(attData.dates[index])" class="fas fa-star text-warning" style="font-size: 8px; margin-bottom: 4px;"></i>
-                          ครั้งที่ {{ index + 1 }}
-                        </span>
-                        <div class="date-header-card shadow-sm mb-2" :class="checkHoliday(attData.dates[index]) ? 'border-danger bg-danger bg-opacity-10' : ''">
-                          <input type="date" v-model="attData.dates[index]" class="hidden-date-input" :title="checkHoliday(attData.dates[index]) ? 'วันหยุด: ' + getHolidayDesc(attData.dates[index]) + ' (คลิกเพื่อแก้ไข)' : 'คลิกเพื่อกำหนดวันที่'">
-                          <template v-if="attData.dates[index]">
-                            <div class="date-day" :class="checkHoliday(attData.dates[index]) ? 'text-danger' : 'text-dark'">{{ formatShortDateThaiObj(attData.dates[index]).day }}</div>
-                            <div class="date-month" :class="checkHoliday(attData.dates[index]) ? 'text-danger' : 'text-secondary'">{{ formatShortDateThaiObj(attData.dates[index]).month }}</div>
-                            <div class="date-year" :class="checkHoliday(attData.dates[index]) ? 'text-danger opacity-75' : ''">{{ formatShortDateThaiObj(attData.dates[index]).year }}</div>
-                          </template>
-                          <template v-else><div class="date-empty"><i class="fas fa-calendar-plus mb-1 d-block"></i>ระบุ</div></template>
-                        </div>
-                        <div class="btn-check-icon" @click="toggleColumn(index)" :class="checkHoliday(attData.dates[index]) ? 'border-danger text-danger bg-white' : ''" title="คลิกเพื่อเช็คมาทุกคน"><i class="fas fa-check"></i></div>
-                      </div>
-                    </th>
-                    <th class="align-middle text-center small text-success border-0 fw-bold" style="min-width: 45px; background:#f0fdf4">มา</th>
-                    <th class="align-middle text-center small text-warning border-0 fw-bold" style="min-width: 45px; background:#fffbeb">ลา</th>
-                    <th class="align-middle text-center small text-danger border-0 fw-bold" style="min-width: 45px; background:#fef2f2">ขาด</th>
-                    <th class="align-middle text-center small text-secondary border-0 fw-bold" style="min-width: 70px; background:#f1f5f9">ผลประเมิน</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="(student, sIndex) in attStudents" :key="student.id">
-                    <td class="sticky-col-1 text-center align-middle text-muted small border-bottom" style="background:white">{{ sIndex + 1 }}</td>
-                    <td class="sticky-col-2 ps-3 align-middle border-bottom" style="background:white">
-                      <div class="fw-bold text-dark text-truncate" style="font-size: 14px;">{{ student.name }}</div>
-                      <div class="text-muted" style="font-size: 10px;">{{student.room}} / เลขที่ {{student.no}}</div>
-                    </td>
-                    <td v-for="(t, tIndex) in 20" :key="tIndex" class="p-0 border-bottom">
-                      <select v-model.number="attData.records[student.id][tIndex]" class="select-status" :class="'st-' + (attData.records[student.id][tIndex] || 0)">
-                         <option value="0">-</option><option value="1">/</option><option value="2">ล</option><option value="3">ข</option>
-                      </select>
-                    </td>
-                    <td class="align-middle text-center border-bottom fw-bold text-success small" style="background:#f0fdf4">{{ countStatus(student.id, 1) }}</td>
-                    <td class="align-middle text-center border-bottom fw-bold text-warning small" style="background:#fffbeb">{{ countStatus(student.id, 2) }}</td>
-                    <td class="align-middle text-center border-bottom fw-bold text-danger small" style="background:#fef2f2">{{ countStatus(student.id, 3) }}</td>
-                    <td class="align-middle text-center border-bottom small fw-bold" :class="calculateGrade(student.id) === 'ผ่าน' ? 'text-success':'text-danger'" style="background:#f1f5f9">{{ calculateGrade(student.id) }}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </transition>
-
-      <!-- หน้า View: Report (ปริ้น A4 ของครู) -->
-      <transition name="fade">
-        <div v-if="view === 'report'" class="container-fluid px-0">
-          <div class="d-flex justify-content-between align-items-center mb-4 container-xl no-print pt-3">
-            <div class="d-flex align-items-center gap-3">
-              <button @click="view = 'dashboard'" class="btn btn-white border shadow-sm rounded-circle p-0 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;"><i class="fas fa-arrow-left"></i></button>
-              <div>
-                <h4 class="fw-800 m-0">เอกสารรายงานชุมนุม</h4>
-                <div class="text-muted small">แบบฟอร์มมาตรฐานพิมพ์ลง A4</div>
-              </div>
+              <button @click="view = 'dashboard'" class="btn btn-white border shadow-sm rounded-pill px-4"><i class="fas fa-arrow-left me-2"></i> กลับหน้าหลัก</button>
             </div>
 
-            <div class="d-flex justify-content-end gap-2 mb-4 no-print">
-              <button @click="saveCurrentReport" class="btn btn-success btn-fast shadow-sm px-4 me-2" :disabled="loading">
-                <i v-if="!loading" class="fas fa-cloud-upload-alt me-2"></i>
-                <span v-if="loading" class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                {{ loading ? 'กำลังบันทึก...' : 'บันทึกรายงานลงระบบ' }}
-              </button>
-              <button @click="downloadPDF" class="btn btn-danger btn-fast shadow-sm px-4"><i class="fas fa-file-pdf me-2"></i>ดาวน์โหลด PDF</button>
-              <button @click="printReport" class="btn btn-dark btn-fast shadow-sm px-4"><i class="fas fa-print me-2"></i>พิมพ์เอกสาร</button>
-              <button @click="promptSendEmail" class="btn btn-info btn-fast shadow-sm px-4 text-white"><i class="fas fa-envelope me-2"></i>ส่งอีเมล</button>
-            </div>
-          </div>
-
-          <div id="report-print-area">
-            <div class="a4-container cover-page page-break-after shadow-sm d-flex flex-column" style="padding: 1.5cm 1.5cm; height: 29.7cm; width: 21cm; box-sizing: border-box; background: white; margin: 0 auto; overflow: hidden;">
-              <div class="text-center flex-grow-1 d-flex flex-column justify-content-center">
-                <input type="file" ref="logoInput" class="d-none" accept="image/*" @change="onLogoSelected">
-                <div class="mb-3">
-                  <img :src="reportData.logo || 'https://lh3.googleusercontent.com/d/1c1KrXHS8EW5ORMBPFQaYg4wCU8XjPhcO=s500'" @click="$refs.logoInput.click()" style="width: 80px; height: 80px; object-fit: contain; cursor: pointer;">
+            <div class="card-clean p-3 mb-4 bg-white shadow-sm border-0">
+              <div class="row g-2 align-items-end">
+                <div class="col-md-3">
+                  <label class="small fw-bold">ระดับชั้น</label>
+                  <select v-model="lookup.level" class="form-select form-fast"><option value="ม.ต้น">ม.ต้น</option><option value="ม.ปลาย">ม.ปลาย</option></select>
                 </div>
-                <div style="font-size: 18pt; font-weight: bold; line-height: 1.2;">แบบรายงานการจัดกิจกรรมชุมนุม</div>
-                <div style="font-size: 14pt; margin-bottom: 20px;">
-                  ประจำภาคเรียนที่ <b>{{ adminSettings.semester }}</b> ปีการศึกษา <b>{{ adminSettings.academicYear }}</b>
+                <div class="col-md-3">
+                  <label class="small fw-bold">ระบุห้อง (เช่น ม.1/1)</label>
+                  <input type="text" v-model="lookup.room" class="form-control form-fast" placeholder="ตัวอย่าง ม.1/1" @keyup.enter="searchByRoom">
                 </div>
-                <div class="my-3 px-4" style="word-wrap: break-word; overflow-wrap: break-word;">
-                  <h1 class="fw-bold text-primary" style="font-size: 26pt; line-height: 1.3; margin: 0; display: block;">{{ currentClubName }}</h1>
-                  <div style="width: 150px; height: 1.5px; background: #2563eb; margin: 15px auto;"></div>
+                <div class="col-md-2">
+                  <button class="btn btn-success w-100 btn-fast" @click="searchByRoom" :disabled="loading"><i class="fas fa-search me-1"></i> ค้นหา</button>          
                 </div>
-                <div style="font-size: 16pt; margin-bottom: 20px;">ครูที่ปรึกษา: <span class="editable px-3" contenteditable="true" style="border-bottom: 1px dotted #000;">{{ reportData.teacher }}</span></div>
-              </div>
-
-              <div class="fixed-footer-section" style="flex-shrink: 0;">
-                <div class="p-3 mb-4 mx-auto text-start" style="width: 90%; border: 1.5px solid #000; border-radius: 10px; background: #fafafa;">
-                  <h6 class="fw-bold text-center mb-3 text-decoration-underline" style="font-size: 13pt;">สรุปผลการประเมินกิจกรรม</h6>
-                  <div class="row g-2" style="font-size: 12pt;">
-                    <div class="col-6">นักเรียนทั้งหมด: <b>{{ attStudents.length }}</b> คน</div>
-                    <div class="col-6">ผ่านการประเมิน: <b class="text-success">{{ countPass() }}</b> คน</div>
-                    <div class="col-6">ไม่ผ่านการประเมิน: <b class="text-danger">{{ countFail() }}</b> คน</div>
-                    <div class="col-6">หมายเหตุ: <span class="editable" contenteditable="true">ไม่มี</span></div>
-                  </div>
-                </div>
-
-                <div class="signature-grid px-3">
-                  <div class="row text-center mb-4">
-                    <div class="col-6">
-                      <div style="height: 35px;"></div><div style="border-bottom: 1px dotted #000; width: 180px; margin: 0 auto 5px;"></div>
-                      <span class="small fw-bold">( <span class="editable" contenteditable="true">{{ reportData.teacher }}</span> )</span><br><span style="font-size: 9pt;">ครูที่ปรึกษาชุมนุม</span>
-                    </div>
-                    <div class="col-6">
-                      <div style="height: 35px;"></div><div style="border-bottom: 1px dotted #000; width: 180px; margin: 0 auto 5px;"></div>
-                      <span class="small fw-bold">( {{ adminSettings.sigHeadClub }} )</span><br><span style="font-size: 9pt;">หัวหน้างานกิจกรรมชุมนุม</span>
-                    </div>
-                  </div>
-                  <div class="row text-center mb-4">
-                    <div class="col-6">
-                      <div style="height: 35px;"></div><div style="border-bottom: 1px dotted #000; width: 180px; margin: 0 auto 5px;"></div>
-                      <span class="small fw-bold">( {{ adminSettings.sigHeadDev }} )</span><br><span style="font-size: 9pt;">หัวหน้ากิจกรรมพัฒนาผู้เรียน</span>
-                    </div>
-                    <div class="col-6">
-                      <div style="height: 35px;"></div><div style="border-bottom: 1px dotted #000; width: 180px; margin: 0 auto 5px;"></div>
-                      <span class="small fw-bold">( {{ adminSettings.sigDeputy }} )</span><br><span style="font-size: 9pt;">รองผู้อำนวยการกลุ่มบริหารงานวิชาการ</span>
-                    </div>
-                  </div>
-                  <div class="text-center mt-2">
-                    <div style="border: 1px solid #000; display: inline-block; padding: 4px 15px; border-radius: 4px; font-size: 10pt;" class="mb-2">
-                      <input type="checkbox"> อนุมัติ &nbsp;&nbsp; <input type="checkbox"> ไม่อนุมัติ
-                    </div><br>
-                    <div style="height: 30px;"></div><div style="border-bottom: 1px dotted #000; width: 200px; margin: 0 auto 5px;"></div>
-                    <div class="fw-bold" style="font-size: 11pt;">( {{ adminSettings.sigDirector }} )</div><div style="font-size: 9pt;">ผู้อำนวยการ{{ adminSettings.schoolName }}</div>
-                  </div>
+                <div class="col-md-3" v-if="roomStudents && roomStudents.length > 0">
+                  <button class="btn btn-outline-success w-100 btn-fast" @click="downloadRoomExcel"><i class="fas fa-file-excel me-1"></i> ดาวน์โหลดรายงานห้องนี้ (.xls)</button>
                 </div>
               </div>
             </div>
 
-            <div class="a4-container shadow-sm" style="min-height: auto;">
-              <div class="mb-5">
-                <h4 class="fw-bold border-bottom border-dark pb-2 mb-3">๑. ข้อมูลทั่วไปของกิจกรรมชุมนุม</h4>
-                <p><b>ชื่อกิจกรรม:</b> {{ currentClubName }}</p>
-                <p><b>จุดประสงค์:</b></p>
-                <ol class="ms-2">
-                  <li class="mb-2 w-100"><input type="text" v-model="reportActData.objectives[0]" class="form-control border-0 border-bottom bg-transparent p-0 w-100 rounded-0"></li>
-                  <li class="mb-2 w-100"><input type="text" v-model="reportActData.objectives[1]" class="form-control border-0 border-bottom bg-transparent p-0 w-100 rounded-0"></li>
-                  <li class="mb-2 w-100"><input type="text" v-model="reportActData.objectives[2]" class="form-control border-0 border-bottom bg-transparent p-0 w-100 rounded-0"></li>
-                </ol>
-                <p class="mt-4"><b>คณะกรรมการชุมนุม:</b></p>
-                <div class="ps-3">
-                  <div class="d-flex align-items-center mb-2"><span style="min-width: 100px;">๑. ประธาน:</span><input type="text" v-model="reportActData.committees[0]" class="form-control border-0 border-bottom bg-transparent ms-2 p-0 w-50 rounded-0"></div>
-                  <div class="d-flex align-items-center mb-2"><span style="min-width: 100px;">๒. รองประธาน:</span><input type="text" v-model="reportActData.committees[1]" class="form-control border-0 border-bottom bg-transparent ms-2 p-0 w-50 rounded-0"></div>
-                  <div class="d-flex align-items-center mb-2"><span style="min-width: 100px;">๓. เลขานุการ:</span><input type="text" v-model="reportActData.committees[2]" class="form-control border-0 border-bottom bg-transparent ms-2 p-0 w-50 rounded-0"></div>
-                  <div class="d-flex align-items-center mb-2"><span style="min-width: 100px;">๔. เหรัญญิก:</span><input type="text" v-model="reportActData.committees[3]" class="form-control border-0 border-bottom bg-transparent ms-2 p-0 w-50 rounded-0"></div>
-                  <div class="d-flex align-items-center mb-2"><span style="min-width: 100px;">๕. ประชาสัมพันธ์:</span><input type="text" v-model="reportActData.committees[4]" class="form-control border-0 border-bottom bg-transparent ms-2 p-0 w-50 rounded-0"></div>
-                </div>
-              </div>
-
-              <div class="mb-5">
-                <h4 class="fw-bold mb-3 border-bottom border-dark pb-2">๒. แบบบันทึกรายละเอียดการจัดกิจกรรม</h4>
-                <table class="table-report">
-                  <thead><tr><th style="width: 25%;">ว/ด/ป</th><th>รายละเอียดกิจกรรมที่ปฏิบัติ</th></tr></thead>
-                  <tbody style="font-size: 13px;">
-                    <tr v-for="i in 20" :key="'act'+i">
-                      <td class="text-center" style="height: 40px; vertical-align:middle;">{{ attData.dates[i-1] ? formatDateThai(attData.dates[i-1]) : '' }}</td>
-                      <td class="p-1">
-                        <span v-if="holidays.some(h => h.date === attData.dates[i-1])" class="text-danger fw-bold ms-2">{{ holidays.find(h => h.date === attData.dates[i-1]).desc }}</span>
-                        <textarea v-else v-model="reportActData.activities[i-1]" class="form-control border-0 bg-transparent p-0 w-100" style="resize: none; font-size:13px; line-height:1.4;" rows="2" placeholder="ระบุรายละเอียดกิจกรรม..."></textarea>
-                      </td>
+            <div v-if="roomStudents.length > 0" class="card-clean overflow-hidden border-0 shadow-sm animate__animated animate__fadeIn">
+              <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                  <thead class="bg-light">
+                    <tr>
+                      <th class="ps-4 text-center" style="width: 80px;">เลขที่</th>
+                      <th style="width: 120px;">รหัส</th>
+                      <th>ชื่อ-นามสกุล</th>
+                      <th>ชุมนุมที่สังกัด</th>
+                    </tr>
+                  </thead>
+                  <tbody class="bg-white">
+                    <tr v-for="s in roomStudents" :key="s.id">
+                      <td class="text-center fw-bold">{{ s.no }}</td>
+                      <td class="text-muted">{{ s.id }}</td>
+                      <td class="fw-bold">{{ s.name }}</td>
+                      <td><span :class="s.club_name === 'ยังไม่ได้สมัครชุมนุม' ? 'text-danger' : 'text-primary fw-bold'">{{ s.club_name }}</span></td>
                     </tr>
                   </tbody>
                 </table>
               </div>
+            </div>
+          </div>
+        </transition>
 
-              <div class="mb-5 page-break-before pt-4">
-                <h4 class="fw-bold mb-3 border-bottom border-dark pb-2">๓. แบบบันทึกเวลาเข้าร่วมกิจกรรม</h4>
-                <div style="font-size: 8.5pt;">
-                  <table class="table-report" style="table-layout: fixed;">
-                    <thead>
-                      <tr>
-                        <th style="width: 4%;">ที่</th>
-                        <th style="width: 30%;">ชื่อ-สกุล</th>
-                        <th style="width: 8%;">ชั้น/ห้อง</th>
-                        <th style="width: 5%;">เลขที่</th>
-                        <th v-for="i in 20" :key="i" style="width: 2.8%; vertical-align: bottom; padding-bottom: 5px;">
-                          <div class="th-rotate-container"><div class="th-rotate">{{ attData.dates[i-1] ? formatDateThai(attData.dates[i-1]) : 'ครั้งที่ ' + i }}</div></div>
-                        </th>
-                        <th style="width: 6%;">รวม</th>
+        <!-- View: Attendance -->
+        <transition name="fade">
+          <div v-if="view === 'attendance'" class="h-100 d-flex flex-column container-fluid px-0 no-print">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <div class="d-flex align-items-center gap-3">
+                <button @click="view = 'dashboard'" class="btn btn-white border shadow-sm rounded-circle p-0 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;"><i class="fas fa-arrow-left"></i></button>
+                <div>
+                  <h4 class="fw-800 m-0">{{ currentClubName }}</h4>
+                  <div class="text-primary small fw-bold">บันทึกเวลาเข้าร่วมกิจกรรม</div>
+                </div>
+              </div>
+              <div class="d-flex justify-content-end align-items-center gap-2 mb-3">
+                <button @click="view = 'dashboard'" class="btn btn-white border btn-fast shadow-sm"><i class="fas fa-arrow-left me-1 me-md-2"></i> กลับหน้าหลัก</button>
+                <button @click="saveAttendance" class="btn btn-primary-fast btn-fast shadow-sm px-4"><i class="fas fa-save me-2"></i> บันทึกข้อมูล</button>
+              </div>
+            </div>
+            
+            <div class="table-wrapper flex-grow-1 position-relative border-0 shadow-sm">
+              <div style="overflow: auto; position: absolute; top:0; left:0; right:0; bottom:0; border-radius: 12px;">
+                <table class="table mb-0 bg-white" style="border-collapse: separate; border-spacing: 0; min-width: 1400px;">
+                  <thead class="sticky-top" style="z-index: 50;">
+                    <tr>
+                      <th class="sticky-col-1 text-center align-middle text-muted border-0 small" style="background:#f8fafc">#</th>
+                      <th class="sticky-col-2 ps-3 align-middle text-start text-dark border-0 fw-bold" style="background:#f8fafc">รายชื่อนักเรียน</th>
+                        <th v-for="(d, index) in 20" :key="index" class="text-center align-bottom pb-2 border-0 attendance-col" style="width: 45px; min-width: 45px; background:#f8fafc">
+                        <div class="d-flex flex-column align-items-center justify-content-end h-100">
+                          <span class="vertical-text fw-bold mb-2" :class="checkHoliday(attData.dates[index]) ? 'text-danger' : 'text-primary'">
+                            <i v-if="checkHoliday(attData.dates[index])" class="fas fa-star text-warning" style="font-size: 8px; margin-bottom: 4px;"></i>
+                            ครั้งที่ {{ index + 1 }}
+                          </span>
+                          <div class="date-header-card shadow-sm mb-2" :class="checkHoliday(attData.dates[index]) ? 'border-danger bg-danger bg-opacity-10' : ''">
+                            <input type="date" v-model="attData.dates[index]" class="hidden-date-input" :title="checkHoliday(attData.dates[index]) ? 'วันหยุด: ' + getHolidayDesc(attData.dates[index]) + ' (คลิกเพื่อแก้ไข)' : 'คลิกเพื่อกำหนดวันที่'">
+                            <template v-if="attData.dates[index]">
+                              <div class="date-day" :class="checkHoliday(attData.dates[index]) ? 'text-danger' : 'text-dark'">{{ formatShortDateThaiObj(attData.dates[index]).day }}</div>
+                              <div class="date-month" :class="checkHoliday(attData.dates[index]) ? 'text-danger' : 'text-secondary'">{{ formatShortDateThaiObj(attData.dates[index]).month }}</div>
+                              <div class="date-year" :class="checkHoliday(attData.dates[index]) ? 'text-danger opacity-75' : ''">{{ formatShortDateThaiObj(attData.dates[index]).year }}</div>
+                            </template>
+                            <template v-else><div class="date-empty"><i class="fas fa-calendar-plus mb-1 d-block"></i>ระบุ</div></template>
+                          </div>
+                          <div class="btn-check-icon" @click="toggleColumn(index)" :class="checkHoliday(attData.dates[index]) ? 'border-danger text-danger bg-white' : ''" title="คลิกเพื่อเช็คมาทุกคน"><i class="fas fa-check"></i></div>
+                        </div>
+                      </th>
+                      <th class="align-middle text-center small text-success border-0 fw-bold" style="min-width: 45px; background:#f0fdf4">มา</th>
+                      <th class="align-middle text-center small text-warning border-0 fw-bold" style="min-width: 45px; background:#fffbeb">ลา</th>
+                      <th class="align-middle text-center small text-danger border-0 fw-bold" style="min-width: 45px; background:#fef2f2">ขาด</th>
+                      <th class="align-middle text-center small text-secondary border-0 fw-bold" style="min-width: 70px; background:#f1f5f9">ผลประเมิน</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="(student, sIndex) in attStudents" :key="student.id">
+                      <td class="sticky-col-1 text-center align-middle text-muted small border-bottom" style="background:white">{{ sIndex + 1 }}</td>
+                      <td class="sticky-col-2 ps-3 align-middle border-bottom" style="background:white">
+                        <div class="fw-bold text-dark text-truncate" style="font-size: 14px;">{{ student.name }}</div>
+                        <div class="text-muted" style="font-size: 10px;">{{student.room}} / เลขที่ {{student.no}}</div>
+                      </td>
+                      <td v-for="(t, tIndex) in 20" :key="tIndex" class="p-0 border-bottom">
+                        <select v-model.number="attData.records[student.id][tIndex]" class="select-status" :class="'st-' + (attData.records[student.id][tIndex] || 0)">
+                           <option value="0">-</option><option value="1">/</option><option value="2">ล</option><option value="3">ข</option>
+                        </select>
+                      </td>
+                      <td class="align-middle text-center border-bottom fw-bold text-success small" style="background:#f0fdf4">{{ countStatus(student.id, 1) }}</td>
+                      <td class="align-middle text-center border-bottom fw-bold text-warning small" style="background:#fffbeb">{{ countStatus(student.id, 2) }}</td>
+                      <td class="align-middle text-center border-bottom fw-bold text-danger small" style="background:#fef2f2">{{ countStatus(student.id, 3) }}</td>
+                      <td class="align-middle text-center border-bottom small fw-bold" :class="calculateGrade(student.id) === 'ผ่าน' ? 'text-success':'text-danger'" style="background:#f1f5f9">{{ calculateGrade(student.id) }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </transition>
+
+        <!-- View: Report -->
+        <transition name="fade">
+          <div v-if="view === 'report'" class="container-fluid px-0">
+            <div class="d-flex justify-content-between align-items-center mb-4 container-xl no-print pt-3">
+              <div class="d-flex align-items-center gap-3">
+                <button @click="view = 'dashboard'" class="btn btn-white border shadow-sm rounded-circle p-0 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;"><i class="fas fa-arrow-left"></i></button>
+                <div>
+                  <h4 class="fw-800 m-0">เอกสารรายงานชุมนุม</h4>
+                  <div class="text-muted small">แบบฟอร์มมาตรฐานพิมพ์ลง A4</div>
+                </div>
+              </div>
+
+              <div class="d-flex justify-content-end gap-2 mb-4 no-print">
+                <button @click="saveCurrentReport" class="btn btn-success btn-fast shadow-sm px-4 me-2" :disabled="loading">
+                  <i v-if="!loading" class="fas fa-cloud-upload-alt me-2"></i>
+                  <span v-if="loading" class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                  {{ loading ? 'กำลังบันทึก...' : 'บันทึกรายงานลงระบบ' }}
+                </button>
+                <button @click="downloadWordReport" class="btn btn-primary btn-fast shadow-sm px-4"><i class="fas fa-file-word me-2"></i>ดาวน์โหลด Word</button>
+                <button @click="downloadPDF" class="btn btn-danger btn-fast shadow-sm px-4"><i class="fas fa-file-pdf me-2"></i>ดาวน์โหลด PDF</button>
+                <button @click="printReport" class="btn btn-dark btn-fast shadow-sm px-4"><i class="fas fa-print me-2"></i>พิมพ์เอกสาร</button>
+                <button @click="promptSendEmail" class="btn btn-info btn-fast shadow-sm px-4 text-white"><i class="fas fa-envelope me-2"></i>ส่งอีเมล</button>
+              </div>
+            </div>
+
+            <div id="report-print-area">
+              <div class="a4-container cover-page page-break-after shadow-sm d-flex flex-column" style="padding: 1.5cm 1.5cm; height: 29.7cm; width: 21cm; box-sizing: border-box; background: white; margin: 0 auto; overflow: hidden;">
+                <div class="text-center flex-grow-1 d-flex flex-column justify-content-center">
+                  <input type="file" ref="logoInput" class="d-none" accept="image/*" @change="onLogoSelected">
+                  <div class="mb-3">
+                    <img :src="reportData.logo || 'https://lh3.googleusercontent.com/d/1c1KrXHS8EW5ORMBPFQaYg4wCU8XjPhcO=s500'" @click="$refs.logoInput.click()" style="width: 80px; height: 80px; object-fit: contain; cursor: pointer;">
+                  </div>
+                  <div style="font-size: 18pt; font-weight: bold; line-height: 1.2;">แบบรายงานการจัดกิจกรรมชุมนุม</div>
+                  <div style="font-size: 14pt; margin-bottom: 20px;">
+                    ประจำภาคเรียนที่ <b>{{ adminSettings.semester }}</b> ปีการศึกษา <b>{{ adminSettings.academicYear }}</b>
+                  </div>
+                  <div class="my-3 px-4" style="word-wrap: break-word; overflow-wrap: break-word;">
+                    <h1 class="fw-bold text-primary" style="font-size: 26pt; line-height: 1.3; margin: 0; display: block;">{{ currentClubName }}</h1>
+                    <div style="width: 150px; height: 1.5px; background: #2563eb; margin: 15px auto;"></div>
+                  </div>
+                  <div style="font-size: 16pt; margin-bottom: 20px;">ครูที่ปรึกษา: <span class="editable px-3" contenteditable="true" style="border-bottom: 1px dotted #000;">{{ reportData.teacher }}</span></div>
+                </div>
+
+                <div class="fixed-footer-section" style="flex-shrink: 0;">
+                  <div class="p-3 mb-4 mx-auto text-start" style="width: 90%; border: 1.5px solid #000; border-radius: 10px; background: #fafafa;">
+                    <h6 class="fw-bold text-center mb-3 text-decoration-underline" style="font-size: 13pt;">สรุปผลการประเมินกิจกรรม</h6>
+                    <div class="row g-2" style="font-size: 12pt;">
+                      <div class="col-6">นักเรียนทั้งหมด: <b>{{ attStudents.length }}</b> คน</div>
+                      <div class="col-6">ผ่านการประเมิน: <b class="text-success">{{ countPass() }}</b> คน</div>
+                      <div class="col-6">ไม่ผ่านการประเมิน: <b class="text-danger">{{ countFail() }}</b> คน</div>
+                      <div class="col-6">หมายเหตุ: <span class="editable" contenteditable="true">ไม่มี</span></div>
+                    </div>
+                  </div>
+
+                  <div class="signature-grid px-3">
+                    <div class="row text-center mb-4">
+                      <div class="col-6">
+                        <div style="height: 35px;"></div><div style="border-bottom: 1px dotted #000; width: 180px; margin: 0 auto 5px;"></div>
+                        <span class="small fw-bold">( <span class="editable" contenteditable="true">{{ reportData.teacher }}</span> )</span><br><span style="font-size: 9pt;">ครูที่ปรึกษาชุมนุม</span>
+                      </div>
+                      <div class="col-6">
+                        <div style="height: 35px;"></div><div style="border-bottom: 1px dotted #000; width: 180px; margin: 0 auto 5px;"></div>
+                        <span class="small fw-bold">( {{ adminSettings.sigHeadClub }} )</span><br><span style="font-size: 9pt;">หัวหน้างานกิจกรรมชุมนุม</span>
+                      </div>
+                    </div>
+                    <div class="row text-center mb-4">
+                      <div class="col-6">
+                        <div style="height: 35px;"></div><div style="border-bottom: 1px dotted #000; width: 180px; margin: 0 auto 5px;"></div>
+                        <span class="small fw-bold">( {{ adminSettings.sigHeadDev }} )</span><br><span style="font-size: 9pt;">หัวหน้ากิจกรรมพัฒนาผู้เรียน</span>
+                      </div>
+                      <div class="col-6">
+                        <div style="height: 35px;"></div><div style="border-bottom: 1px dotted #000; width: 180px; margin: 0 auto 5px;"></div>
+                        <span class="small fw-bold">( {{ adminSettings.sigDeputy }} )</span><br><span style="font-size: 9pt;">รองผู้อำนวยการกลุ่มบริหารงานวิชาการ</span>
+                      </div>
+                    </div>
+                    <div class="text-center mt-2">
+                      <div style="border: 1px solid #000; display: inline-block; padding: 4px 15px; border-radius: 4px; font-size: 10pt;" class="mb-2">
+                        <input type="checkbox"> อนุมัติ &nbsp;&nbsp; <input type="checkbox"> ไม่อนุมัติ
+                      </div><br>
+                      <div style="height: 30px;"></div><div style="border-bottom: 1px dotted #000; width: 200px; margin: 0 auto 5px;"></div>
+                      <div class="fw-bold" style="font-size: 11pt;">( {{ adminSettings.sigDirector }} )</div><div style="font-size: 9pt;">ผู้อำนวยการ{{ adminSettings.schoolName }}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="a4-container shadow-sm" style="min-height: auto;">
+                <div class="mb-5">
+                  <h4 class="fw-bold border-bottom border-dark pb-2 mb-3">๑. ข้อมูลทั่วไปของกิจกรรมชุมนุม</h4>
+                  <p><b>ชื่อกิจกรรม:</b> {{ currentClubName }}</p>
+                  <p><b>จุดประสงค์:</b></p>
+                  <ol class="ms-2">
+                    <li class="mb-2 w-100"><input type="text" v-model="reportActData.objectives[0]" class="form-control border-0 border-bottom bg-transparent p-0 w-100 rounded-0"></li>
+                    <li class="mb-2 w-100"><input type="text" v-model="reportActData.objectives[1]" class="form-control border-0 border-bottom bg-transparent p-0 w-100 rounded-0"></li>
+                    <li class="mb-2 w-100"><input type="text" v-model="reportActData.objectives[2]" class="form-control border-0 border-bottom bg-transparent p-0 w-100 rounded-0"></li>
+                  </ol>
+                  <p class="mt-4"><b>คณะกรรมการชุมนุม:</b></p>
+                  <div class="ps-3">
+                    <div class="d-flex align-items-center mb-2"><span style="min-width: 100px;">๑. ประธาน:</span><input type="text" v-model="reportActData.committees[0]" class="form-control border-0 border-bottom bg-transparent ms-2 p-0 w-50 rounded-0"></div>
+                    <div class="d-flex align-items-center mb-2"><span style="min-width: 100px;">๒. รองประธาน:</span><input type="text" v-model="reportActData.committees[1]" class="form-control border-0 border-bottom bg-transparent ms-2 p-0 w-50 rounded-0"></div>
+                    <div class="d-flex align-items-center mb-2"><span style="min-width: 100px;">๓. เลขานุการ:</span><input type="text" v-model="reportActData.committees[2]" class="form-control border-0 border-bottom bg-transparent ms-2 p-0 w-50 rounded-0"></div>
+                    <div class="d-flex align-items-center mb-2"><span style="min-width: 100px;">๔. เหรัญญิก:</span><input type="text" v-model="reportActData.committees[3]" class="form-control border-0 border-bottom bg-transparent ms-2 p-0 w-50 rounded-0"></div>
+                    <div class="d-flex align-items-center mb-2"><span style="min-width: 100px;">๕. ประชาสัมพันธ์:</span><input type="text" v-model="reportActData.committees[4]" class="form-control border-0 border-bottom bg-transparent ms-2 p-0 w-50 rounded-0"></div>
+                  </div>
+                </div>
+
+                <div class="mb-5">
+                  <h4 class="fw-bold mb-3 border-bottom border-dark pb-2">๒. แบบบันทึกรายละเอียดการจัดกิจกรรม</h4>
+                  <table class="table-report">
+                    <thead><tr><th style="width: 25%;">ว/ด/ป</th><th>รายละเอียดกิจกรรมที่ปฏิบัติ</th></tr></thead>
+                    <tbody style="font-size: 13px;">
+                      <tr v-for="i in 20" :key="'act'+i">
+                        <td class="text-center" style="height: 40px; vertical-align:middle;">{{ attData.dates[i-1] ? formatDateThai(attData.dates[i-1]) : '' }}</td>
+                        <td class="p-1">
+                          <span v-if="holidays.some(h => h.date === attData.dates[i-1])" class="text-danger fw-bold ms-2">{{ holidays.find(h => h.date === attData.dates[i-1]).desc }}</span>
+                          <textarea v-else v-model="reportActData.activities[i-1]" class="form-control border-0 bg-transparent p-0 w-100" style="resize: none; font-size:13px; line-height:1.4;" rows="2" placeholder="ระบุรายละเอียดกิจกรรม..."></textarea>
+                        </td>
                       </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <div class="mb-5 page-break-before pt-4">
+                  <h4 class="fw-bold mb-3 border-bottom border-dark pb-2">๓. แบบบันทึกเวลาเข้าร่วมกิจกรรม</h4>
+                  <div style="font-size: 8.5pt;">
+                    <table class="table-report" style="table-layout: fixed;">
+                      <thead>
+                        <tr>
+                          <th style="width: 4%;">ที่</th>
+                          <th style="width: 30%;">ชื่อ-สกุล</th>
+                          <th style="width: 8%;">ชั้น/ห้อง</th>
+                          <th style="width: 5%;">เลขที่</th>
+                          <th v-for="i in 20" :key="i" style="width: 2.8%; vertical-align: bottom; padding-bottom: 5px;">
+                            <div class="th-rotate-container"><div class="th-rotate">{{ attData.dates[i-1] ? formatDateThai(attData.dates[i-1]) : 'ครั้งที่ ' + i }}</div></div>
+                          </th>
+                          <th style="width: 6%;">รวม</th>
+                        </tr>
+                      </thead>
+                      <tbody style="font-size: 12px;">
+                        <tr v-for="(s, idx) in attStudents" :key="s.id">
+                          <td class="text-center">{{ idx + 1 }}</td>
+                          <td class="ps-1" style="white-space: nowrap; overflow: hidden;">{{ s.name }}</td>
+                          <td class="text-center">{{ s.room }}</td>
+                          <td class="text-center">{{ s.no }}</td>
+                          <td v-for="i in 20" :key="i" class="text-center p-0" style="font-size: 9px; vertical-align: middle;">{{ getStatusSymbol(attData.records[s.id][i-1] || 0) }}</td>
+                          <td class="text-center fw-bold">{{ countSessionPresence(s.id) }}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                    <div class="text-end small mt-2">/ = มา, ล = ลา, ข = ขาด</div>
+                  </div>
+                </div>
+
+                <div class="mb-5 page-break-before pt-4">
+                  <h4 class="fw-bold mb-3 border-bottom border-dark pb-2">๔. สรุปผลการประเมินกิจกรรมชุมนุม</h4>
+                  <table class="table-report">
+                    <thead>
+                      <tr><th style="width: 5%;">ที่</th><th style="width: 31%;">ชื่อ-สกุล</th><th style="width: 8%;">ชั้น/ห้อง</th><th style="width: 4%;">เลขที่</th><th style="width: 12%;">เวลาเรียน(ครั้ง)</th><th style="width: 12%;">เวลาเรียน(80%)</th><th style="width: 13%;">จุดประสงค์</th><th style="width: 15%;">สรุปผล</th></tr>
                     </thead>
                     <tbody style="font-size: 12px;">
                       <tr v-for="(s, idx) in attStudents" :key="s.id">
                         <td class="text-center">{{ idx + 1 }}</td>
-                        <td class="ps-1" style="white-space: nowrap; overflow: hidden;">{{ s.name }}</td>
+                        <td class="ps-2">{{ s.name }}</td>
                         <td class="text-center">{{ s.room }}</td>
                         <td class="text-center">{{ s.no }}</td>
-                        <td v-for="i in 20" :key="i" class="text-center p-0" style="font-size: 9px; vertical-align: middle;">{{ getStatusSymbol(attData.records[s.id][i-1] || 0) }}</td>
                         <td class="text-center fw-bold">{{ countSessionPresence(s.id) }}</td>
+                        <td class="text-center">{{ calculateGrade(s.id) === 'ผ่าน' ? 'ผ่าน' : 'ไม่ผ่าน' }}</td>
+                        <td class="text-center" contenteditable="true">ผ่าน</td>
+                        <td class="text-center fw-bold">{{ calculateGrade(s.id) }}</td>
                       </tr>
                     </tbody>
                   </table>
-                  <div class="text-end small mt-2">/ = มา, ล = ลา, ข = ขาด</div>
-                </div>
-              </div>
-
-              <div class="mb-5 page-break-before pt-4">
-                <h4 class="fw-bold mb-3 border-bottom border-dark pb-2">๔. สรุปผลการประเมินกิจกรรมชุมนุม</h4>
-                <table class="table-report">
-                  <thead>
-                    <tr><th style="width: 5%;">ที่</th><th style="width: 31%;">ชื่อ-สกุล</th><th style="width: 8%;">ชั้น/ห้อง</th><th style="width: 4%;">เลขที่</th><th style="width: 12%;">เวลาเรียน(ครั้ง)</th><th style="width: 12%;">เวลาเรียน(80%)</th><th style="width: 13%;">จุดประสงค์</th><th style="width: 15%;">สรุปผล</th></tr>
-                  </thead>
-                  <tbody style="font-size: 12px;">
-                    <tr v-for="(s, idx) in attStudents" :key="s.id">
-                      <td class="text-center">{{ idx + 1 }}</td>
-                      <td class="ps-2">{{ s.name }}</td>
-                      <td class="text-center">{{ s.room }}</td>
-                      <td class="text-center">{{ s.no }}</td>
-                      <td class="text-center fw-bold">{{ countSessionPresence(s.id) }}</td>
-                      <td class="text-center">{{ calculateGrade(s.id) === 'ผ่าน' ? 'ผ่าน' : 'ไม่ผ่าน' }}</td>
-                      <td class="text-center" contenteditable="true">ผ่าน</td>
-                      <td class="text-center fw-bold">{{ calculateGrade(s.id) }}</td>
-                    </tr>
-                  </tbody>
-                </table>
-                <div class="mt-4 p-3 bg-light border border-dark small" style="border-radius: 5px;">
-                  <b>เกณฑ์การประเมิน:</b><br>๑. เวลาเรียนต้องไม่น้อยกว่าร้อยละ ๘๐ ของเวลาเรียนทั้งหมด<br>๒. ผ่านจุดประสงค์การเรียนรู้ที่สำคัญของกิจกรรมตามที่ครูที่ปรึกษากำหนด
-                </div>
-              </div>
-            </div>
-
-            <div class="a4-container page-break-before shadow-sm">
-              <div class="text-center mb-5"><h3 class="fw-bold text-decoration-underline">ประมวลภาพกิจกรรม</h3></div>
-                <div class="photo-grid">
-                  <div class="photo-slot rounded-3" v-for="n in 4" :key="n" @click="$refs['photoInput'+n][0].click()" style="position: relative;">
-                    <img v-if="reportData.photos[n]" :src="reportData.photos[n]" style="object-fit: cover;">
-                    <div v-else class="text-center text-muted"><i class="fas fa-camera fa-2x mb-2 opacity-25"></i><br><span class="small">เพิ่มรูปภาพกิจกรรม ({{n}})</span></div>
-                    <input type="file" :ref="'photoInput'+n" class="d-none" @change="uploadPhoto($event, n)" accept="image/*">
-                    <button v-if="reportData.photos[n]" @click.stop="removePhoto(n)" class="btn btn-danger btn-sm rounded-circle position-absolute top-0 end-0 m-2 shadow-sm no-print" style="width: 26px; height: 26px; padding: 0; display: flex; align-items: center; justify-content: center; z-index: 10;" title="ลบรูปภาพนี้">
-                      <i class="fas fa-times" style="font-size: 12px;"></i>
-                    </button>
+                  <div class="mt-4 p-3 bg-light border border-dark small" style="border-radius: 5px;">
+                    <b>เกณฑ์การประเมิน:</b><br>๑. เวลาเรียนต้องไม่น้อยกว่าร้อยละ ๘๐ ของเวลาเรียนทั้งหมด<br>๒. ผ่านจุดประสงค์การเรียนรู้ที่สำคัญของกิจกรรมตามที่ครูที่ปรึกษากำหนด
                   </div>
                 </div>
-              <div class="text-center mt-5 fs-5">
-                <span class="editable w-100 border-bottom py-2 d-block" contenteditable="true">คำอธิบายภาพกิจกรรม: บรรยากาศการเรียนการสอนและการทำกิจกรรมร่วมกันของนักเรียน</span>
+              </div>
+
+              <div class="a4-container page-break-before shadow-sm">
+                <div class="text-center mb-5"><h3 class="fw-bold text-decoration-underline">ประมวลภาพกิจกรรม</h3></div>
+                  <div class="photo-grid">
+                    <div class="photo-slot rounded-3" v-for="n in 4" :key="n" @click="$refs['photoInput'+n][0].click()" style="position: relative;">
+                      <img v-if="reportData.photos[n]" :src="reportData.photos[n]" style="object-fit: cover;">
+                      <div v-else class="text-center text-muted"><i class="fas fa-camera fa-2x mb-2 opacity-25"></i><br><span class="small">เพิ่มรูปภาพกิจกรรม ({{n}})</span></div>
+                      <input type="file" :ref="'photoInput'+n" class="d-none" @change="uploadPhoto($event, n)" accept="image/*">
+                      <button v-if="reportData.photos[n]" @click.stop="removePhoto(n)" class="btn btn-danger btn-sm rounded-circle position-absolute top-0 end-0 m-2 shadow-sm no-print" style="width: 26px; height: 26px; padding: 0; display: flex; align-items: center; justify-content: center; z-index: 10;" title="ลบรูปภาพนี้">
+                        <i class="fas fa-times" style="font-size: 12px;"></i>
+                      </button>
+                    </div>
+                  </div>
+                <div class="text-center mt-5 fs-5">
+                  <span class="editable w-100 border-bottom py-2 d-block" contenteditable="true">คำอธิบายภาพกิจกรรม: บรรยากาศการเรียนการสอนและการทำกิจกรรมร่วมกันของนักเรียน</span>
+                </div>
               </div>
             </div>
-          </div> <!-- ปิด report-print-area -->
-        </div>
-      </transition>
+          </div>
+        </transition>
 
+      </div> <!-- ปิด flex-grow-1 -->
+
+      <!-- ========================================== -->
       <!-- โครงสร้าง Modals ทั้งหมด (ถูกจัดให้อยู่ก่อนปิด /app) -->
+      <!-- ========================================== -->
       
       <!-- Modal จัดการชุมนุม -->
       <div class="modal fade" id="clubModal" tabindex="-1">
@@ -1049,6 +1050,42 @@
         </div>
       </div>
 
+      <!-- Modal ลบข้อมูลนักเรียนรายกลุ่ม -->
+      <div class="modal fade" id="bulkDeleteModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+          <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
+            <div class="modal-body p-4 p-md-5">
+              <div class="d-flex align-items-center gap-2 mb-4">
+                <div class="bg-danger bg-opacity-10 p-2 rounded-3 text-danger"><i class="fas fa-users-slash fa-lg"></i></div>
+                <h5 class="fw-bold m-0">ลบข้อมูลนักเรียนรายกลุ่ม/ชั้น/ห้อง คำเตือน! ข้อมูลการสมัครชุมนุมจะถูกลบด้วย </h5>
+              </div>
+              <p class="text-muted small">โปรดระบุเงื่อนไขกลุ่มนักเรียนที่คุณครูต้องการลบข้อมูลสัมพันธ์ในทุกระบบ (Students, Registration, Attendance)</p>
+              <div class="row g-3 mb-4 align-items-end">
+                <div class="col-md-5">
+                  <label class="small text-secondary fw-bold mb-1">เลือกรูปแบบกลุ่มเป้าหมาย</label>
+                  <select v-model="bulkAction.target" class="form-select form-fast">
+                    <option value="ม.ต้น">นักเรียน ม.ต้น ทั้งหมด</option>
+                    <option value="ม.ปลาย">นักเรียน ม.ปลาย ทั้งหมด</option>
+                    <option value="ระบุห้อง">ระบุเฉพาะห้อง (เช่น ม.1/1)</option>
+                  </select>
+                </div>
+                <div class="col-md-5">
+                  <label class="small text-secondary fw-bold mb-1">ระบุรายละเอียดเพิ่มเติม</label>
+                  <input v-if="bulkAction.target === 'ระบุห้อง'" type="text" v-model="bulkAction.room" class="form-control form-fast animate__animated animate__fadeIn" placeholder="ระบุห้อง เช่น ม.1/1" @keyup.enter="handleBulkDelete">
+                  <input v-else type="text" class="form-control form-fast text-center" disabled value="- ทั้งระดับชั้น -">
+                </div>
+                <div class="col-md-2">
+                  <button type="button" class="btn btn-danger w-100 btn-fast py-2" @click="handleBulkDelete" :disabled="loading"><i class="fas fa-search me-1"></i> ตรวจสอบ</button>
+                </div>
+              </div>
+              <div class="modal-footer border-0 p-0 pt-3">
+                <button type="button" class="btn btn-white text-muted px-4" data-bs-dismiss="modal" :disabled="loading">ปิดเครื่องมือ</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Modal รีเซ็ตระบบ -->
       <div class="modal fade" id="resetSystemModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered modal-lg">
@@ -1057,6 +1094,7 @@
               <h4 class="fw-bold text-danger mb-4"><i class="fas fa-skull-crossbones me-2"></i> ยืนยันการรีเซ็ตระบบขึ้นเทอมใหม่</h4>
               <p class="text-muted mb-4">โปรดทำเครื่องหมายในส่วนที่คุณต้องการล้างค่าอย่างระมัดระวัง ข้อมูลที่ถูกล้างจะหายไปจากหน้าแดชบอร์ดทันที</p>
               <div class="bg-light p-4 rounded-3 border mb-4">
+                <div class="form-check mb-3"><input class="form-check-input" type="checkbox" v-model="resetOptions.doBackup" id="optBackup"><label class="form-check-label fw-bold text-success" for="optBackup">สำรองข้อมูลการสมัครและส่งเข้า Google Drive</label></div>
                 <div class="form-check mb-3"><input class="form-check-input" type="checkbox" v-model="resetOptions.resetRegistrations" id="optReg"><label class="form-check-label fw-bold text-danger" for="optReg">ล้างข้อมูลการสมัครเข้าชุมนุมของนักเรียนทุกคน</label></div>
                 <div class="form-check mb-3"><input class="form-check-input" type="checkbox" v-model="resetOptions.resetAttendance" id="optAtt"><label class="form-check-label fw-bold text-warning" for="optAtt">ล้างประวัติการเช็คชื่อทั้งหมดของนักเรียนทุกคน</label></div>
                 <div class="form-check mb-3"><input class="form-check-input" type="checkbox" v-model="resetOptions.resetReports" id="optReport"><label class="form-check-label fw-bold" for="optReport">ล้างหน้ารายงานกิจกรรมและรูปภาพของเทอมเดิมทิ้ง</label></div>
@@ -1077,23 +1115,43 @@
         </div>
       </div>
 
+      <!-- Modal ประวัติแบคอัป -->
+      <div class="modal fade" id="backupHistoryModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+          <div class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
+            <div class="modal-header bg-light">
+              <h5 class="modal-title fw-bold"><i class="fas fa-history text-secondary me-2"></i> ประวัติการสำรองข้อมูล (แบคอัป)</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+              <div v-if="loadingBackup" class="text-center py-4"><div class="spinner-border text-primary" role="status"></div><div class="mt-2 text-muted small">กำลังดึงข้อมูลจาก Google Drive...</div></div>
+              <div v-else-if="backupFiles.length === 0" class="text-center py-4 text-muted"><i class="fas fa-folder-open fs-1 text-light mb-3"></i><p>ยังไม่มีประวัติการสำรองข้อมูล</p></div>
+              <div v-else class="list-group">
+                <a v-for="file in backupFiles" :key="file.url" :href="file.url" target="_blank" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center p-3">
+                  <div><div class="fw-bold text-primary"><i class="fas fa-file-excel me-2 text-success"></i>{{ file.name }}</div><small class="text-muted"><i class="far fa-clock me-1"></i> สำรองข้อมูลเมื่อ: {{ file.dateText }}</small></div>
+                  <button class="btn btn-sm btn-light border"><i class="fas fa-external-link-alt text-muted"></i> เปิดดู</button>
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
     </div> <!-- ปิด d-flex flex-column vh-100 -->
   </div> <!-- ปิด div id="app" v-cloak -->
 
-  <!-- ========================================== -->
-  <!-- โค้ดส่วน Script API คุยกับ Supabase และ GAS -->
-  <!-- ========================================== -->
   <script>
-    // **********************************************
-    // ตั้งค่า URL / KEY ที่นี่
-    // **********************************************
-    const SUPABASE_URL = 'https://oigggpdambseabrezhuh.supabase.co'; // เปลี่ยนเป็น URL ของคุณ
-    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9pZ2dncGRhbWJzZWFicmV6aHVoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE0MzQyNjQsImV4cCI6MjEwNzAxMDI2NH0.YEnpBEqfybFOw2VbMLGw1qtUKj8pMBUI8FZIT6yFlM0'; // เปลี่ยนเป็น Key ของคุณ
-    const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbya8N3NC_QbN9diZRcX6_che3lEDO-su7KQqR4R3PKM6g5cPI54NFTsRkj6cSlBds6j/exec'; // เปลี่ยนเป็น Web App URL
+    // ==========================================
+    // ตั้งค่าการเชื่อมต่อฐานข้อมูล
+    // ==========================================
+    const SUPABASE_URL = 'https://oigggpdambseabrezhuh.supabase.co'; // URL จาก Supabase
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9pZ2dncGRhbWJzZWFicmV6aHVoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE0MzQyNjQsImV4cCI6MjEwNzAxMDI2NH0.YEnpBEqfybFOw2VbMLGw1qtUKj8pMBUI8FZIT6yFlM0'; // KEY จาก Supabase
+    const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbya8N3NC_QbN9diZRcX6_che3lEDO-su7KQqR4R3PKM6g5cPI54NFTsRkj6cSlBds6j/exec'; // Web App URL
 
+    // เปลี่ยนชื่อตัวแปรจาก supabase เป็น db เพื่อไม่ให้ชื่อชนกับ Library
     const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    // ยิงไปเซฟรูปหรือส่งอีเมลที่ GAS
+    // ฟังก์ชันเรียก API เฉพาะส่งรูป/อีเมลไป Google Apps Script (เพิ่ม redirect: 'follow' แล้ว)
     async function fetchGAS(action, payload = {}) {
       try {
         const response = await fetch(GAS_API_URL, {
@@ -1102,9 +1160,9 @@
           redirect: 'follow'
         });
         return await response.json();
-      } catch (error) { 
-        console.error('API Error:', error); 
-        throw error; 
+      } catch (error) {
+        console.error('API Error:', error);
+        throw error;
       }
     }
 
@@ -1777,15 +1835,15 @@
         getBtnText(c) { if (c.current_count >= c.max_capacity && this.user.clubId !== c.id) return 'เต็มแล้ว'; if (this.user.clubId === c.id) return 'ลงทะเบียนแล้ว'; if (this.user.clubId) { return this.config.allow_transfer === 'true' ? 'ย้ายชุมนุม' : 'ปิดย้ายชุมนุม'; } return this.config.open_reg === 'true' ? 'สมัครชุมนุม' : 'ปิดรับสมัคร'; },
         getBtnClass(c) { if (this.user.clubId === c.id) return 'btn-registered'; if (c.current_count >= c.max_capacity && this.user.clubId !== c.id) return 'btn-full disabled'; if (this.user.clubId) { if (this.config.allow_transfer !== 'true') return 'btn-closed disabled'; } else { if (this.config.open_reg !== 'true') return 'btn-closed disabled'; } return 'btn-enroll'; },
         isBtnDisabled(c) { if (c.current_count >= c.max_capacity && this.user.clubId !== c.id) return true; if (this.user.clubId === c.id) return true; if (!this.user.clubId && this.config.open_reg !== 'true') return true; if (this.user.clubId && this.config.allow_transfer !== 'true') return true; return false; },
-        openAddModal() { this.isEditMode=false; this.clubForm={ id: '', name: '', level: 'ทั้งหมด', owner_ids: [this.user.id.toString()], max_capacity: 30, location: '', comment: '' }; new bootstrap.Modal(document.getElementById('clubModal')).show(); },
-        openEditModal(c) { this.isEditMode=true; this.clubForm={ ...c, owner_ids: c.owner_id.toString().split(','), location: c.location || '', comment: c.comment || '' }; new bootstrap.Modal(document.getElementById('clubModal')).show(); },
+        openAddModal() { this.isEditMode=false; this.clubForm={ id: '', name: '', level: 'ทั้งหมด', owner_ids: [this.user.id.toString()], max_capacity: 30, location: '', comment: '' }; bootstrap.Modal.getOrCreateInstance(document.getElementById('clubModal')).show(); },
+        openEditModal(c) { this.isEditMode=true; this.clubForm={ ...c, owner_ids: c.owner_id.toString().split(','), location: c.location || '', comment: c.comment || '' }; bootstrap.Modal.getOrCreateInstance(document.getElementById('clubModal')).show(); },
         checkHoliday(dateStr) { if (!dateStr || !this.holidays) return false; return this.holidays.some(h => h.date === dateStr); },
         getHolidayDesc(dateStr) { if (!dateStr || !this.holidays) return ''; let h = this.holidays.find(h => h.date === dateStr); return h ? h.desc : ''; },
         formatShortDateThaiObj(dateStr) { if (!dateStr) return { day: '', month: '', year: '' }; const d = new Date(dateStr); const months = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.']; const yearShort = (d.getFullYear() + 543).toString().slice(-2); return { day: d.getDate().toString().padStart(2, '0'), month: months[d.getMonth()], year: yearShort }; },
         openResetModal() { const currentSem = (this.adminSettings && this.adminSettings.semester) ? this.adminSettings.semester : '1'; const currentYear = (this.adminSettings && this.adminSettings.academicYear) ? this.adminSettings.academicYear : '2569'; this.resetOptions.newSemester = currentSem === '1' ? '2' : '1'; let nextYear = Number(currentYear); if (this.resetOptions.newSemester === '1') nextYear += 1; this.resetOptions.newYear = nextYear.toString(); const modalElement = document.getElementById('resetSystemModal'); if (modalElement) { const modal = bootstrap.Modal.getOrCreateInstance(modalElement); modal.show(); } else { Swal.fire('ระบบขัดข้อง', 'หาหน้าต่าง Modal ไม่พบ', 'error'); } },
         removePhoto(index) { Swal.fire({ title: 'ต้องการลบรูปภาพนี้?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', cancelButtonColor: '#6c757d', confirmButtonText: 'ลบรูปภาพ', cancelButtonText: 'ยกเลิก' }).then((result) => { if (result.isConfirmed) { this.reportData.photos[index] = ""; this.saveCurrentReportSilently(); Swal.fire({toast:true, position:'top-end', icon:'success', title:'ลบรูปภาพเรียบร้อย', showConfirmButton:false, timer:1500}); } }); },
         promptSendEmail() { Swal.fire({ title: 'ส่งรายงานผ่านอีเมล', html: `<div class="text-start mb-3"><label class="small fw-bold text-secondary mb-1">อีเมลผู้รับปลายทาง</label><input type="email" id="swal-input-email" class="form-control" placeholder="example@email.com" value="${this.adminSettings.reportEmail || ''}"><div class="form-text text-success mt-2" style="font-size: 13px;"><i class="fas fa-magic"></i> ระบบจะทำการสร้างไฟล์ PDF หน้าเว็บและแนบส่งให้อัตโนมัติ</div></div>`, showCancelButton: true, confirmButtonColor: '#0dcaf0', cancelButtonColor: '#6c757d', confirmButtonText: '<i class="fas fa-paper-plane me-1"></i> ยืนยันส่งอีเมล', cancelButtonText: 'ยกเลิก', preConfirm: () => { const email = document.getElementById('swal-input-email').value; if (!email) { Swal.showValidationMessage('กรุณาระบุอีเมลผู้รับปลายทาง!'); return false; } return email; } }).then((result) => { if (result.isConfirmed) { this.generatePDFAndSend(result.value); } }); },
-        generatePDFAndSend(email) { Swal.fire({ title: 'กำลังสร้าง PDF และส่งอีเมล...', html: 'กระบวนการนี้อาจใช้เวลา 10-15 วินาที โปรดห้ามปิดหน้าต่าง', allowOutsideClick: false, didOpen: () => Swal.showLoading() }); const element = document.getElementById('report-print-area'); const opt = { margin: [10, 0, 10, 0], filename: `รายงานชุมนุม_${this.currentClubName}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } }; html2pdf().set(opt).from(element).outputPdf('datauristring').then((pdfBase64) => { const payload = { clubName: this.currentClubName, teacher: this.reportData.teacher, semester: this.adminSettings.semester, academicYear: this.adminSettings.academicYear, totalStudents: this.attStudents.length, passCount: this.countPass(), failCount: this.countFail(), pdfFile: pdfBase64, fileName: `รายงานชุมนุม_${this.currentClubName}_ภาคเรียนที่${this.adminSettings.semester}_${this.adminSettings.academicYear}.pdf` }; fetchGAS('sendEmail', { emailAddress: email, data: payload }).then(res => { if(res.success) { Swal.fire('สำเร็จ', `ส่งรายงานพร้อมไฟล์แนบ <b>${email}</b> เรียบร้อยแล้ว`, 'success'); } else { Swal.fire('ข้อผิดพลาด', res.message, 'error'); } }).catch(err => { Swal.fire('การเชื่อมต่อขัดข้อง', 'Error: ' + err, 'error'); }); }); },
+        generatePDFAndSend(email) { Swal.fire({ title: 'กำลังสร้าง PDF และส่งอีเมล...', html: 'กระบวนการนี้อาจใช้เวลา 10-15 วินาที โปรดห้ามปิดหน้าต่าง', allowOutsideClick: false, didOpen: () => Swal.showLoading() }); const element = document.getElementById('report-print-area'); const opt = { margin: [10, 0, 10, 0], filename: `รายงานชุมนุม_${this.currentClubName}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } }; html2pdf().set(opt).from(element).outputPdf('datauristring').then((pdfBase64) => { const payload = { clubName: this.currentClubName, teacher: this.reportData.teacher, semester: this.adminSettings.semester, academicYear: this.adminSettings.academicYear, totalStudents: this.attStudents.length, passCount: this.countPass(), failCount: this.countFail(), pdfFile: pdfBase64, fileName: `รายงานชุมนุม_${this.currentClubName}_ภาคเรียนที่${this.adminSettings.semester}_${this.adminSettings.academicYear}.pdf` }; fetchGAS('sendEmail', { emailAddress: email, data: payload }).then(res => { if(res.success) { Swal.fire('สำเร็จ', `สร้างไฟล์ PDF และส่งรายงานเข้าอีเมล <b>${email}</b> เรียบร้อยแล้ว`, 'success'); } else { Swal.fire('ข้อผิดพลาด', res.message, 'error'); } }).catch(err => { Swal.fire('การเชื่อมต่อขัดข้อง', 'Error: ' + err, 'error'); }); }); },
         downloadPDF() { Swal.fire({ title: 'กำลังสร้างไฟล์ PDF...', html: 'กรุณารอสักครู่ (ห้ามปิดหน้าต่างนี้)', allowOutsideClick: false, didOpen: () => Swal.showLoading() }); const element = document.getElementById('report-print-area'); const opt = { margin: [10, 0, 10, 0], filename: `รายงานชุมนุม_${this.currentClubName}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } }; html2pdf().set(opt).from(element).save().then(() => { Swal.close(); Swal.fire({toast: true, position: 'top-end', icon: 'success', title: 'ดาวน์โหลดไฟล์ PDF สำเร็จ', showConfirmButton: false, timer: 2000}); }); },
         downloadUsersCSV() { if(!this.usersList || this.usersList.length === 0) { Swal.fire('แจ้งเตือน', 'ไม่มีข้อมูลให้ดาวน์โหลด', 'info'); return; } let csvContent = "data:text/csv;charset=utf-8,\uFEFF"; if(this.manageRole === 'teacher') { csvContent += "id,name,username,password,role\n"; this.usersList.forEach(u => { const row = [u.id, u.name, u.username, u.password || u.id, u.role].map(e => `"${e}"`).join(","); csvContent += row + "\n"; }); } else { csvContent += "id,name,level,room,no,password\n"; this.usersList.forEach(u => { const row = [u.id, u.name, u.level, u.room, u.no, u.password || u.id].map(e => `"${e}"`).join(","); csvContent += row + "\n"; }); } const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", `${this.manageRole}_list.csv`); document.body.appendChild(link); link.click(); document.body.removeChild(link); },
         downloadCSVTemplate() { let csvContent = "data:text/csv;charset=utf-8,\uFEFF"; let fileName = ""; if (this.manageRole === 'teacher') { csvContent += "id,name,username,password,role\n"; csvContent += "T001,ชื่อ นามสกุล,user001,pass001,teacher\n"; fileName = "template_teachers.csv"; } else { csvContent += "id,name,level,room,no,password\n"; csvContent += "69001,เด็กชายสมชาย ใจดี,ม.1,1/1,1,69001\n"; fileName = "template_students.csv"; } const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", fileName); document.body.appendChild(link); link.click(); document.body.removeChild(link); Swal.fire({ icon: 'info', title: 'ดาวน์โหลดต้นแบบแล้ว', text: 'กรุณากรอกข้อมูลตามลำดับคอลัมน์ในไฟล์ตัวอย่าง', timer: 2000, showConfirmButton: false }); },
@@ -1811,4 +1869,3 @@
   </script>
 </body>
 </html>
-      
