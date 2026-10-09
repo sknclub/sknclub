@@ -2,8 +2,7 @@
 <!-- const SUPABASE_URL = 'https://oigggpdambseabrezhuh.supabase.co'; // URL จาก Supabase
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9pZ2dncGRhbWJzZWFicmV6aHVoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE0MzQyNjQsImV4cCI6MjEwNzAxMDI2NH0.YEnpBEqfybFOw2VbMLGw1qtUKj8pMBUI8FZIT6yFlM0'; // KEY จาก Supabase
 const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbya8N3NC_QbN9diZRcX6_che3lEDO-su7KQqR4R3PKM6g5cPI54NFTsRkj6cSlBds6j/exec' -->
-
-
+v.02
 <!DOCTYPE html>
 <!-- <marquee behavior="alternate" >ทดสอบ ระบบชุมนุม SKN โรงเรียนสมุทรสาครบูรณะ ประจำภาคเรียนที่ 1/2569</marquee> -->
 <html>
@@ -577,6 +576,27 @@ const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbya8N3NC_QbN9diZRcX
     }
 
 
+
+    .signature-upload-slot {
+      width: 220px; max-width: 100%; min-height: 48px; margin: 0 auto 5px; padding: 2px 4px;
+      border: 1px dashed #cbd5e1; border-bottom: 1px dotted #000; border-radius: 4px 4px 0 0;
+      background: rgba(248,250,252,.75); display: flex; align-items: center;
+      justify-content: center; position: relative; cursor: pointer; color: #64748b;
+      font-size: 10px; line-height: 1.1; text-align: center;
+    }
+    .signature-upload-slot img { max-width: 100%; max-height: 42px; object-fit: contain; display: block; }
+    .signature-upload-slot .sig-hint { background: rgba(255,255,255,.88); padding: 3px 5px; }
+    .signature-upload-slot:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+    .period-picker { min-width: 145px; max-width: 190px; font-size: 12px; }
+    .historical-banner { border-left: 4px solid #f59e0b; background: #fffbeb; color: #92400e; }
+    .readonly-period [contenteditable="true"] { pointer-events: none; background: transparent !important; border-bottom-color: transparent !important; }
+    .readonly-period .signature-upload-slot { cursor: default; }
+    .readonly-period input:not([type="hidden"]), .readonly-period textarea, .readonly-period select, .readonly-period .photo-slot { pointer-events: none !important; }
+    .readonly-period input[type="file"] { display: none !important; }
+    @media (max-width: 768px) {
+      .period-picker { min-width: 118px; max-width: 145px; }
+      .signature-upload-slot { width: 180px; }
+    }
   </style>
 </head>
 
@@ -666,6 +686,12 @@ const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbya8N3NC_QbN9diZRcX
           
             <!-- ข้อความ SKN CLUBS -->
             <span>SKN CLUBS</span>
+            <div class="ms-2 ms-md-3 d-flex align-items-center gap-1" style="font-size:12px; font-weight:500;">
+              <i class="fas fa-calendar-alt text-secondary d-none d-sm-inline"></i>
+              <select v-model="selectedPeriodKey" @change="changeAcademicPeriod" class="form-select form-select-sm period-picker" aria-label="เลือกภาคเรียนย้อนหลัง" :disabled="loading">
+                <option v-for="period in academicPeriods" :key="period.key" :value="period.key">{{ period.label }}</option>
+              </select>
+            </div>
           </div>
 
         <div class="d-flex align-items-center gap-2 gap-md-3">
@@ -685,7 +711,14 @@ const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbya8N3NC_QbN9diZRcX
         </div>
       </nav>
 
-      <div class="flex-grow-1 overflow-auto p-3 p-md-4" style="background-color: #f8fafc;">
+      <div class="flex-grow-1 overflow-auto p-3 p-md-4" :class="{'readonly-period': isHistoricalView && user && user.role !== 'admin'}" style="background-color: #f8fafc;">
+        <div v-if="isHistoricalView" class="container-xl mb-3">
+          <div class="historical-banner rounded-3 p-2 small">
+            <i class="fas fa-history me-1"></i> กำลังดูข้อมูลย้อนหลัง ภาคเรียนที่ {{ activeTerm }}/{{ activeYear }}
+            <span v-if="user && user.role !== 'admin'"> — โหมดดูอย่างเดียว ไม่สามารถแก้ไขข้อมูลได้</span>
+            <span v-else> — ผู้ดูแลระบบสามารถแก้ไขข้อมูลของภาคเรียนนี้ได้</span>
+          </div>
+        </div>
 
 
 
@@ -722,7 +755,7 @@ const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbya8N3NC_QbN9diZRcX
       <div class="text-center mb-4">
         <img src="https://lh3.googleusercontent.com/d/1c1KrXHS8EW5ORMBPFQaYg4wCU8XjPhcO=s500" style="width: 80px; height: 80px; object-fit: contain; margin-bottom: 15px;">
         <h4 class="fw-bold mb-1">สรุปผลการจัดกิจกรรมชุมนุม</h4>
-        <div style="font-size: 14pt;">โรงเรียนสมุทรสาครบูรณะ ภาคเรียนที่ <span class="editable" contenteditable="true">1/2569</span></div>
+        <div style="font-size: 14pt;">โรงเรียนสมุทรสาครบูรณะ ภาคเรียนที่ <span class="editable" contenteditable="true">{{ activeTerm }}/{{ activeYear }}</span></div>
       </div>
 
       <!-- สรุปสถิติภาพรวม -->
@@ -786,21 +819,27 @@ const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbya8N3NC_QbN9diZRcX
       <div class="signature-grid px-3 mt-5" style="page-break-inside: avoid;">
         <div class="row text-center mb-4">
           <div class="col-6">
-            <div style="height: 35px;"></div>
-            <div style="border-bottom: 1px dotted #000; width: 180px; margin: 0 auto 5px;"></div>
+            <div class="signature-upload-slot" role="button" tabindex="0" title="หัวหน้างานกิจกรรมชุมนุม" @click="clickSignature('headClub')" @keydown.enter.prevent="clickSignature('headClub')">
+                        <img v-if="adminSettings.signatures.headClub" :src="adminSettings.signatures.headClub" alt="ลายเซ็น หัวหน้างานกิจกรรมชุมนุม">
+                        <span v-else class="sig-hint">{{ (user && user.role === 'admin') || canEditSelectedTerm ? 'คลิกเพื่อเพิ่มรูปลายเซ็น' : 'ไม่มีรูปลายเซ็น' }}</span>
+                      </div>
             <span class="small fw-bold">( {{ adminSettings.sigHeadClub }} )</span><br>
             <span style="font-size: 9pt;">หัวหน้างานกิจกรรมชุมนุม</span>
           </div>
           <div class="col-6">
-            <div style="height: 35px;"></div>
-            <div style="border-bottom: 1px dotted #000; width: 180px; margin: 0 auto 5px;"></div>
+            <div class="signature-upload-slot" role="button" tabindex="0" title="หัวหน้ากิจกรรมพัฒนาผู้เรียน" @click="clickSignature('headDev')" @keydown.enter.prevent="clickSignature('headDev')">
+                        <img v-if="adminSettings.signatures.headDev" :src="adminSettings.signatures.headDev" alt="ลายเซ็น หัวหน้ากิจกรรมพัฒนาผู้เรียน">
+                        <span v-else class="sig-hint">{{ (user && user.role === 'admin') || canEditSelectedTerm ? 'คลิกเพื่อเพิ่มรูปลายเซ็น' : 'ไม่มีรูปลายเซ็น' }}</span>
+                      </div>
             <span class="small fw-bold">( {{ adminSettings.sigHeadDev }} )</span><br>
             <span style="font-size: 9pt;">หัวหน้ากิจกรรมพัฒนาผู้เรียน</span>
           </div>
         </div>
         <div class="text-center mt-5">
-          <div style="height: 35px;"></div>
-          <div style="border-bottom: 1px dotted #000; width: 220px; margin: 0 auto 5px;"></div>
+          <div class="signature-upload-slot" role="button" tabindex="0" title="ผู้อำนวยการ" @click="clickSignature('director')" @keydown.enter.prevent="clickSignature('director')">
+                        <img v-if="adminSettings.signatures.director" :src="adminSettings.signatures.director" alt="ลายเซ็น ผู้อำนวยการ">
+                        <span v-else class="sig-hint">{{ (user && user.role === 'admin') || canEditSelectedTerm ? 'คลิกเพื่อเพิ่มรูปลายเซ็น' : 'ไม่มีรูปลายเซ็น' }}</span>
+                      </div>
           <div class="fw-bold" style="font-size: 11pt;">( {{ adminSettings.sigDirector }} )</div>
           <div style="font-size: 9pt;">ผู้อำนวยการ{{ adminSettings.schoolName }}</div>
         </div>
@@ -1249,6 +1288,11 @@ const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbya8N3NC_QbN9diZRcX
               <label class="small fw-bold text-muted">Google Drive Folder ID (สำหรับเก็บไฟล์แบคอัปฐานข้อมูล)</label>
               <input type="text" v-model="adminSettings.driveFolderId" class="form-control form-fast">
             </div>
+            <div class="col-12">
+              <label class="small fw-bold text-muted">Google Drive Folder ID (สำหรับเก็บรูปกิจกรรม/โลโก้/ลายเซ็น — ใช้โฟลเดอร์ที่บัญชี Apps Script เข้าถึงได้)</label>
+              <input type="text" v-model="adminSettings.driveImageFolderId" class="form-control form-fast" placeholder="เว้นว่างเพื่อให้ระบบสร้างโฟลเดอร์อัตโนมัติ">
+              <div class="form-text">หากเป็น Shared Drive ให้ใช้บัญชีที่มีสิทธิ์ Contributor/Content manager และเปิด Advanced Drive service</div>
+            </div>
           </div>
         </div>
       </div>
@@ -1278,27 +1322,11 @@ const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbya8N3NC_QbN9diZRcX
         </div>
       </div>
 
-      <!-- ตั้งค่าวันหยุด -->
-      <div class="col-md-5">
-        <div class="card-clean p-4 bg-white border-0 shadow-sm h-100">
-          <div class="d-flex justify-content-between align-items-center mb-3 border-bottom pb-2">
-             <h6 class="fw-bold text-danger m-0">๓. กำหนดวันหยุด (ยกเว้นกิจกรรม)</h6>
-             <button class="btn btn-sm btn-outline-danger" @click="addHoliday"><i class="fas fa-plus"></i> เพิ่มวันหยุด</button>
-          </div>
-          <div v-for="(h, idx) in holidays" :key="'hol'+idx" class="d-flex gap-2 mb-2 align-items-center">
-            <input type="date" v-model="h.date" class="form-control form-fast form-control-sm" style="width: 130px;">
-            <input type="text" v-model="h.desc" class="form-control form-fast form-control-sm" placeholder="รายละเอียดวันหยุด">
-            <button class="btn btn-sm btn-light text-danger" @click="removeHoliday(idx)"><i class="fas fa-trash"></i></button>
-          </div>
-          <div v-if="holidays.length===0" class="small text-muted text-center py-3">ยังไม่มีการตั้งค่าวันหยุด</div>
-        </div>
-      </div>
-
       <!-- ตั้งค่า 20 สัปดาห์ -->
       <div class="col-md-7">
         <div class="card-clean p-4 bg-white border-0 shadow-sm h-100">
           <div class="d-flex justify-content-between align-items-center mb-3 border-bottom pb-2">
-             <h6 class="fw-bold text-success m-0">๔. กำหนดวันที่จัดกิจกรรมชุมนุม (20 สัปดาห์)</h6>
+             <h6 class="fw-bold text-success m-0">๓. กำหนดวันที่จัดกิจกรรมชุมนุม (20 สัปดาห์)</h6>
              <div class="d-flex gap-2">
                <input type="date" v-model="calcStartDate" class="form-control form-control-sm border-success text-success fw-bold" style="width:130px;" title="เลือกวันที่เริ่มต้นสัปดาห์ที่ 1">
                <button class="btn btn-sm btn-success" @click="autoCalcDates"><i class="fas fa-magic"></i> คำนวณอัตโนมัติ</button>
@@ -1318,6 +1346,23 @@ const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbya8N3NC_QbN9diZRcX
         </div>
       </div>
 
+
+
+      <!-- ตั้งค่าวันหยุด -->
+      <div class="col-md-5">
+        <div class="card-clean p-4 bg-white border-0 shadow-sm h-100">
+          <div class="d-flex justify-content-between align-items-center mb-3 border-bottom pb-2">
+             <h6 class="fw-bold text-danger m-0">๔. กำหนดวันหยุด (ยกเว้นกิจกรรม)</h6>
+             <button class="btn btn-sm btn-outline-danger" @click="addHoliday"><i class="fas fa-plus"></i> เพิ่มวันหยุด</button>
+          </div>
+          <div v-for="(h, idx) in holidays" :key="'hol'+idx" class="d-flex gap-2 mb-2 align-items-center">
+            <input type="date" v-model="h.date" class="form-control form-fast form-control-sm" style="width: 130px;">
+            <input type="text" v-model="h.desc" class="form-control form-fast form-control-sm" placeholder="รายละเอียดวันหยุด">
+            <button class="btn btn-sm btn-light text-danger" @click="removeHoliday(idx)"><i class="fas fa-trash"></i></button>
+          </div>
+          <div v-if="holidays.length===0" class="small text-muted text-center py-3">ยังไม่มีการตั้งค่าวันหยุด</div>
+        </div>
+      </div>
 
       <!-- ระบบขึ้นภาคเรียนใหม่ -->
       <div class="col-md-12">
@@ -1738,6 +1783,7 @@ const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbya8N3NC_QbN9diZRcX
                   <span v-if="loading" class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
                   {{ loading ? 'กำลังบันทึก...' : 'บันทึกรายงานลงระบบ' }}
                 </button>
+                <button v-if="reportSavedSnapshot" @click="discardPendingReportImages" type="button" class="btn btn-outline-secondary btn-fast me-2" :disabled="loading" title="คืนภาพที่บันทึกไว้ล่าสุด">ยกเลิกการเปลี่ยนรูป</button>
                   <button @click="downloadWordReport" class="btn btn-primary btn-fast shadow-sm px-4">
                       <i class="fas fa-file-word me-2"></i>ดาวน์โหลด Word
                   </button>
@@ -1772,16 +1818,12 @@ const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbya8N3NC_QbN9diZRcX
 
 
 
-                <div class="mb-3">
-
-                  <!-- <img :src="reportData.logo || 'https://via.placeholder.com/120x120.png?text=LOGO'" -->
+                <div class="mb-3 position-relative d-inline-block">
+                  <!-- โลโก้รายงาน: เลือกรูปใหม่ได้ และลบได้โดยยืนยันผ่านปุ่มบันทึกรายงาน -->
                   <img :src="reportData.logo || 'https://lh3.googleusercontent.com/d/1c1KrXHS8EW5ORMBPFQaYg4wCU8XjPhcO=s500'"
-                  
-
-                 @click="$refs.logoInput.click()"
-
-                 style="width: 80px; height: 80px; object-fit: contain; cursor: pointer;">
-
+                       @click="clickLogoInput()"
+                       :style="{width:'80px',height:'80px',objectFit:'contain',cursor:canEditSelectedTerm?'pointer':'default'}">
+                  <button v-if="reportData.logo && canEditSelectedTerm" type="button" class="btn btn-danger btn-sm rounded-circle position-absolute top-0 end-0 no-print" style="width:24px;height:24px;padding:0;transform:translate(35%,-25%)" title="นำโลโก้ออกจากรายงาน" @click.stop="clearReportLogo"><i class="fas fa-times"></i></button>
                 </div>
 
 
@@ -1789,7 +1831,7 @@ const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbya8N3NC_QbN9diZRcX
                 <div style="font-size: 18pt; font-weight: bold; line-height: 1.2;">แบบรายงานการจัดกิจกรรมชุมนุม</div>
 
                 <div style="font-size: 14pt; margin-bottom: 20px;">
-                  ประจำภาคเรียนที่ <b>{{ adminSettings.semester }}</b> ปีการศึกษา <b>{{ adminSettings.academicYear }}</b>
+                  ประจำภาคเรียนที่ <b>{{ activeTerm }}</b> ปีการศึกษา <b>{{ activeYear }}</b>
                 </div>
 
 
@@ -1846,14 +1888,18 @@ const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbya8N3NC_QbN9diZRcX
                 <div class="signature-grid px-3">
                   <div class="row text-center mb-4">
                     <div class="col-6">
-                      <div style="height: 35px;"></div>
-                      <div style="border-bottom: 1px dotted #000; width: 180px; margin: 0 auto 5px;"></div>
+                      <div class="signature-upload-slot" role="button" tabindex="0" title="ครูที่ปรึกษาชุมนุม" @click="clickSignature('teacher')" @keydown.enter.prevent="clickSignature('teacher')">
+                        <img v-if="reportData.signatures.teacher" :src="reportData.signatures.teacher" alt="ลายเซ็น ครูที่ปรึกษาชุมนุม">
+                        <span v-else class="sig-hint">{{ (user && user.role === 'admin') || canEditSelectedTerm ? 'คลิกเพื่อเพิ่มรูปลายเซ็น' : 'ไม่มีรูปลายเซ็น' }}</span>
+                      </div>
                       <span class="small fw-bold">( <span class="editable" contenteditable="true">{{ reportData.teacher }}</span> )</span><br>
                       <span style="font-size: 9pt;">ครูที่ปรึกษาชุมนุม</span>
                     </div>
                     <div class="col-6">
-                      <div style="height: 35px;"></div>
-                      <div style="border-bottom: 1px dotted #000; width: 180px; margin: 0 auto 5px;"></div>
+                      <div class="signature-upload-slot" role="button" tabindex="0" title="หัวหน้างานกิจกรรมชุมนุม" @click="clickSignature('headClub')" @keydown.enter.prevent="clickSignature('headClub')">
+                        <img v-if="adminSettings.signatures.headClub" :src="adminSettings.signatures.headClub" alt="ลายเซ็น หัวหน้างานกิจกรรมชุมนุม">
+                        <span v-else class="sig-hint">{{ (user && user.role === 'admin') || canEditSelectedTerm ? 'คลิกเพื่อเพิ่มรูปลายเซ็น' : 'ไม่มีรูปลายเซ็น' }}</span>
+                      </div>
                       <span class="small fw-bold">( {{ adminSettings.sigHeadClub }} )</span><br>
                       <span style="font-size: 9pt;">หัวหน้างานกิจกรรมชุมนุม</span>
                     </div>
@@ -1861,14 +1907,18 @@ const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbya8N3NC_QbN9diZRcX
 
                   <div class="row text-center mb-4">
                     <div class="col-6">
-                      <div style="height: 35px;"></div>
-                      <div style="border-bottom: 1px dotted #000; width: 180px; margin: 0 auto 5px;"></div>
+                      <div class="signature-upload-slot" role="button" tabindex="0" title="หัวหน้ากิจกรรมพัฒนาผู้เรียน" @click="clickSignature('headDev')" @keydown.enter.prevent="clickSignature('headDev')">
+                        <img v-if="adminSettings.signatures.headDev" :src="adminSettings.signatures.headDev" alt="ลายเซ็น หัวหน้ากิจกรรมพัฒนาผู้เรียน">
+                        <span v-else class="sig-hint">{{ (user && user.role === 'admin') || canEditSelectedTerm ? 'คลิกเพื่อเพิ่มรูปลายเซ็น' : 'ไม่มีรูปลายเซ็น' }}</span>
+                      </div>
                       <span class="small fw-bold">( {{ adminSettings.sigHeadDev }} )</span><br>
                       <span style="font-size: 9pt;">หัวหน้ากิจกรรมพัฒนาผู้เรียน</span>
                     </div>
                     <div class="col-6">
-                      <div style="height: 35px;"></div>
-                      <div style="border-bottom: 1px dotted #000; width: 180px; margin: 0 auto 5px;"></div>
+                      <div class="signature-upload-slot" role="button" tabindex="0" title="รองผู้อำนวยการ" @click="clickSignature('deputy')" @keydown.enter.prevent="clickSignature('deputy')">
+                        <img v-if="adminSettings.signatures.deputy" :src="adminSettings.signatures.deputy" alt="ลายเซ็น รองผู้อำนวยการ">
+                        <span v-else class="sig-hint">{{ (user && user.role === 'admin') || canEditSelectedTerm ? 'คลิกเพื่อเพิ่มรูปลายเซ็น' : 'ไม่มีรูปลายเซ็น' }}</span>
+                      </div>
                       <span class="small fw-bold">( {{ adminSettings.sigDeputy }} )</span><br>
                       <span style="font-size: 9pt;">รองผู้อำนวยการกลุ่มบริหารงานวิชาการ</span>
                     </div>
@@ -1878,8 +1928,10 @@ const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbya8N3NC_QbN9diZRcX
                     <div style="border: 1px solid #000; display: inline-block; padding: 4px 15px; border-radius: 4px; font-size: 10pt;" class="mb-2">
                       <input type="checkbox"> อนุมัติ &nbsp;&nbsp; <input type="checkbox"> ไม่อนุมัติ
                     </div><br>
-                    <div style="height: 30px;"></div>
-                    <div style="border-bottom: 1px dotted #000; width: 200px; margin: 0 auto 5px;"></div>
+                    <div class="signature-upload-slot" role="button" tabindex="0" title="ผู้อำนวยการ" @click="clickSignature('director')" @keydown.enter.prevent="clickSignature('director')">
+                        <img v-if="adminSettings.signatures.director" :src="adminSettings.signatures.director" alt="ลายเซ็น ผู้อำนวยการ">
+                        <span v-else class="sig-hint">{{ (user && user.role === 'admin') || canEditSelectedTerm ? 'คลิกเพื่อเพิ่มรูปลายเซ็น' : 'ไม่มีรูปลายเซ็น' }}</span>
+                      </div>
                     <div class="fw-bold" style="font-size: 11pt;">( {{ adminSettings.sigDirector }} )</div>
                     <div style="font-size: 9pt;">ผู้อำนวยการ{{ adminSettings.schoolName }}</div>
                   </div>
@@ -2334,6 +2386,13 @@ const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbya8N3NC_QbN9diZRcX
 
 
 
+      <div class="d-none" aria-hidden="true">
+        <input ref="signatureTeacherInput" type="file" accept="image/*" @change="onSignatureSelected($event, 'teacher')">
+        <input ref="signatureHeadClubInput" type="file" accept="image/*" @change="onSignatureSelected($event, 'headClub')">
+        <input ref="signatureHeadDevInput" type="file" accept="image/*" @change="onSignatureSelected($event, 'headDev')">
+        <input ref="signatureDeputyInput" type="file" accept="image/*" @change="onSignatureSelected($event, 'deputy')">
+        <input ref="signatureDirectorInput" type="file" accept="image/*" @change="onSignatureSelected($event, 'director')">
+      </div>
     </div> <!-- ปิด div id="app" v-cloak -->
 
 
@@ -2396,6 +2455,35 @@ async function fetchGAS(action, payload = {}) {
 function escapeHTML(value) {
   return String(value == null ? '' : value).replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 }
+function extractDriveFileId(value) {
+  const text=String(value||''); if(!text) return '';
+  const patterns=[/[?&]id=([a-zA-Z0-9_-]+)/,/\/file\/d\/([a-zA-Z0-9_-]+)/,/\/d\/([a-zA-Z0-9_-]+)/,/drive\.google\.com\/open\?id=([a-zA-Z0-9_-]+)/];
+  for(const pattern of patterns){const match=text.match(pattern);if(match)return match[1];}
+  return /^[a-zA-Z0-9_-]{20,}$/.test(text)?text:'';
+}
+function csvEscape(value) {
+  const text = String(value == null ? '' : value);
+  return /[",\r\n;]/.test(text) ? '"' + text.replace(/"/g, '""') + '"' : text;
+}
+function parseCSVText(text, delimiter=',') {
+  const rows=[]; let row=[],field='',quoted=false;
+  for(let i=0;i<String(text).length;i++) {
+    const ch=String(text)[i];
+    if(quoted) {
+      if(ch==='"' && String(text)[i+1]==='"'){field+='"';i++;}
+      else if(ch==='"') quoted=false;
+      else field+=ch;
+    } else if(ch==='"' && field==='') quoted=true;
+    else if(ch===delimiter){row.push(field);field='';}
+    else if(ch==='\n' || ch==='\r') {
+      if(ch==='\r' && String(text)[i+1]==='\n') i++;
+      row.push(field);rows.push(row);row=[];field='';
+    } else field+=ch;
+  }
+  if(quoted) throw new Error('พบเครื่องหมายอัญประกาศในไฟล์ CSV ที่ไม่ปิดคู่กัน');
+  if(field!=='' || row.length){row.push(field);rows.push(row);}
+  return rows;
+}
 
 
       const { createApp } = Vue;
@@ -2423,7 +2511,11 @@ data() {
     currentClubName: '',
     attStudents: [], 
     attData: { dates: [], records: {} },
-    reportData: { teacher: '', photos: {}, logo: '' },
+    reportData: { teacher: '', photos: {}, logo: '', signatures: { teacher: '' } },
+    reportSavedSnapshot: null,
+    selectedPeriodKey: '',
+    academicPeriods: [{key:'1/2569',term:'1',year:'2569',label:'ภาคเรียน 1/2569'}],
+    periodRows: [],
     manageRole: 'student', 
     usersList: [], 
     searchClubQuery: '',
@@ -2447,6 +2539,8 @@ data() {
       studentQuota: 20, // โควตาต่อครู 1 คน
       reportEmail: '',
       driveFolderId: '',
+      driveImageFolderId: '',
+      signatures: { headClub: '', headDev: '', deputy: '', director: '' },
       sigDirector: 'ดร.อรรณพ ชุ่มเพ็งพันธ์',
       sigDeputy: '(ชื่อรองผู้อำนวยการ)',
       sigHeadDev: '(ชื่อหัวหน้ากิจกรรมพัฒนาผู้เรียน)',
@@ -2468,7 +2562,7 @@ data() {
       resetRegistrations: true, // บังคับ
       resetAttendance: true,    // <--- เพิ่มตัวแปรใหม่: ล้างการเช็คชื่อ
       resetReports: true,
-      clearStudents: true, // ให้ลบทิ้งเป็นค่าเริ่มต้น
+      clearStudents: false, // ปลอดภัย: เก็บบัญชีนักเรียนไว้ เว้นแต่ Admin จะเลือกเอง
       clearClubs: false,   // ปกติชุมนุมมักจะเหมือนเดิม เลยตั้งไม่ลบ
       newSemester: '2',
       newYear: '2569'
@@ -2520,6 +2614,22 @@ data() {
     },
     computed: {
 
+
+// Active period comes from the top-bar selector; adminSettings keeps the configured current period.
+  activeTerm() {
+    const parts = String(this.selectedPeriodKey || '').split('/');
+    return parts.length === 2 && parts[0] ? parts[0] : String(this.adminSettings.semester || '1');
+  },
+  activeYear() {
+    const parts = String(this.selectedPeriodKey || '').split('/');
+    return parts.length === 2 && parts[1] ? parts[1] : String(this.adminSettings.academicYear || '2569');
+  },
+  isHistoricalView() {
+    return String(this.activeTerm) !== String(this.adminSettings.semester || '1') || String(this.activeYear) !== String(this.adminSettings.academicYear || '2569');
+  },
+  canEditSelectedTerm() {
+    return !!this.user && (this.user.role === 'admin' || !this.isHistoricalView);
+  },
 
 //อัพเดท ดูข้อมูลชุมนุมและสถานที่เรียน
 // 1. ค้นหาข้อมูลชุมนุมที่นักเรียนสังกัดอยู่แบบละเอียด
@@ -2666,6 +2776,14 @@ methods: {
         // ==========================================
         // ฟังก์ชันนำทาง (Navigation) ที่เติมกลับเข้ามา
         // ==========================================
+        async changeAcademicPeriod() {
+          await this.refreshData();
+          if (this.view === 'attendance' || this.view === 'report') {
+            const club = this.clubs.find(c => String(c.id) === String(this.currentClubId));
+            if (club) await this.loadClubData(club, this.view); else this.view = 'dashboard';
+          }
+          if (this.view === 'insight_report' || this.view === 'admin_report') await this.loadFailedData();
+        },
         goToInsight() { this.view = 'insight_report'; this.refreshData(); this.loadFailedData(); },
         goToManageUsers() { this.manageRole = 'student'; this.fetchUsers('student'); this.view = 'manage_users'; },
         switchManageRole(role) { this.manageRole = role; this.fetchUsers(role); },
@@ -2679,22 +2797,29 @@ methods: {
         // ฟังก์ชันระบบอื่นๆ
         // ==========================================
         syncAdvancedSettings() {
-          if (this.config) {
-            if (this.config.adminSettings && this.config.adminSettings.startsWith('{')) { this.adminSettings = Object.assign({}, this.adminSettings, JSON.parse(this.config.adminSettings)); }
-            if (this.config.systemDates && this.config.systemDates.startsWith('[')) { this.systemDates = JSON.parse(this.config.systemDates); }
-            if (this.config.holidays && this.config.holidays.startsWith('[')) { this.holidays = JSON.parse(this.config.holidays); }
-            if (!this.systemDates || this.systemDates.length === 0) { this.systemDates = Array(20).fill(''); }
-          }
+          if (!this.config) return;
+          try {
+            if (this.config.adminSettings) {
+              const saved = typeof this.config.adminSettings === 'string' ? JSON.parse(this.config.adminSettings) : this.config.adminSettings;
+              this.adminSettings = Object.assign({}, this.adminSettings, saved || {});
+              this.adminSettings.signatures = Object.assign({ headClub: '', headDev: '', deputy: '', director: '' }, (saved && saved.signatures) || this.adminSettings.signatures || {});
+            }
+            if (this.config.systemDates) this.systemDates = typeof this.config.systemDates === 'string' ? JSON.parse(this.config.systemDates) : this.config.systemDates;
+            if (this.config.holidays) this.holidays = typeof this.config.holidays === 'string' ? JSON.parse(this.config.holidays) : this.config.holidays;
+          } catch (error) { console.error('อ่านการตั้งค่าขั้นสูงไม่สำเร็จ', error); }
+          if (!Array.isArray(this.systemDates) || this.systemDates.length === 0) this.systemDates = Array(20).fill('');
+          if (!Array.isArray(this.holidays)) this.holidays = [];
         },
-        addHoliday() { this.holidays.push({ date: '', desc: '' }); },
-        removeHoliday(index) { this.holidays.splice(index, 1); },
+        addHoliday() { if(!this.user || this.user.role!=='admin'){Swal.fire('ไม่มีสิทธิ์','เฉพาะ Admin เท่านั้น','warning');return;} this.holidays.push({ date: '', desc: '' }); },
+        removeHoliday(index) { if(!this.user || this.user.role!=='admin'){Swal.fire('ไม่มีสิทธิ์','เฉพาะ Admin เท่านั้น','warning');return;} this.holidays.splice(index, 1); },
         autoCalcDates() {
+          if(!this.user || this.user.role!=='admin'){Swal.fire('ไม่มีสิทธิ์','เฉพาะ Admin เท่านั้น','warning');return;}
           if (!this.calcStartDate) { Swal.fire('แจ้งเตือน', 'กรุณาเลือกวันที่เริ่มต้นสัปดาห์ที่ 1', 'warning'); return; }
           let currentDate = new Date(this.calcStartDate); let datesArray = []; let loopCount = 0; const holidayStrs = (this.holidays || []).filter(h => h.date).map(h => h.date);
           while (datesArray.length < 20 && loopCount < 50) { let dateStr = currentDate.toISOString().split('T')[0]; if (!holidayStrs.includes(dateStr)) { datesArray.push(dateStr); } currentDate.setDate(currentDate.getDate() + 7); loopCount++; }
           this.systemDates = datesArray; Swal.fire('สำเร็จ', 'คำนวณวันกิจกรรมอัตโนมัติครบ 20 ครั้งเรียบร้อย', 'success');
         },
-        clearSystemDates() { this.systemDates = Array(20).fill(''); },
+        clearSystemDates() { if(!this.user || this.user.role!=='admin'){Swal.fire('ไม่มีสิทธิ์','เฉพาะ Admin เท่านั้น','warning');return;} this.systemDates = Array(20).fill(''); },
         
         async doLogin() {
           this.loading = true;
@@ -2711,178 +2836,322 @@ methods: {
           if (!this.user && !this.isLoggedIn) return;
           if (!isSilent) this.loading = true;
           try {
-            // 1) Load configuration first; semester/year are stored inside adminSettings.
             const { data: confData } = await db.from('config').select('*');
-            const cfg = {};
-            (confData || []).forEach(row => { cfg[row.key] = row.value; });
+            const cfg = {}; (confData || []).forEach(row => { cfg[row.key] = row.value; });
             this.config = cfg;
             this.syncAdvancedSettings();
 
-            const term = String(this.adminSettings.semester || '1');
-            const year = String(this.adminSettings.academicYear || '2569');
-            const [{ data: clubsData }, { data: teachersData }, { data: studentsBrief }] = await Promise.all([
-              db.from('clubs').select('*').eq('term', term).eq('year', year),
-              db.from('teachers').select('id, name'),
-              db.from('students').select('id, club_id')
+            const currentKey = `${String(this.adminSettings.semester || '1')}/${String(this.adminSettings.academicYear || '2569')}`;
+            const periodResults = await Promise.allSettled([
+              db.from('clubs').select('term,year'),
+              db.from('registrations').select('term,year'),
+              db.from('attendance_data').select('term,year'),
+              db.from('club_reports').select('term,year')
             ]);
+            const periodMap = new Map();
+            const addPeriod = (row) => {
+              if (!row || row.term == null || row.year == null || String(row.term).trim() === '' || String(row.year).trim() === '') return;
+              const term = String(row.term), year = String(row.year), key = `${term}/${year}`;
+              periodMap.set(key, { key, term, year, label: `ภาคเรียน ${term}/${year}` });
+            };
+            periodResults.forEach(result => { if (result.status === 'fulfilled') (result.value.data || []).forEach(addPeriod); });
+            addPeriod({term:this.adminSettings.semester, year:this.adminSettings.academicYear});
+            this.academicPeriods = [...periodMap.values()].sort((a,b) => Number(b.year)-Number(a.year) || Number(b.term)-Number(a.term));
+            if (!this.selectedPeriodKey || !periodMap.has(this.selectedPeriodKey)) this.selectedPeriodKey = currentKey;
 
-            const registeredRows = studentsBrief || [];
-            this.clubs = (clubsData || []).map(club => ({
-              ...club,
-              current_count: registeredRows.filter(student => String(student.club_id || '') === String(club.id)).length
-            }));
+            const term = String(this.activeTerm), year = String(this.activeYear);
+            const [{ data: clubsData }, { data: teachersData }, { data: studentsData }, { data: registrationsData }] = await Promise.all([
+              db.from('clubs').select('*').eq('term', term).eq('year', year),
+              db.from('teachers').select('id, name, role'),
+              db.from('students').select('*'),
+              db.from('registrations').select('*').eq('term', term).eq('year', year)
+            ]);
+            const allStudents = studentsData || [];
+            const termRegs = registrationsData || [];
+            const currentClubByStudent = new Map();
+            termRegs.forEach(reg => currentClubByStudent.set(String(reg.student_id), String(reg.club_id)));
+            // Backward compatibility for current term data that predates the registrations table.
+            if (!this.isHistoricalView) allStudents.forEach(st => { if (!currentClubByStudent.has(String(st.id)) && st.club_id) currentClubByStudent.set(String(st.id), String(st.club_id)); });
+            const regCounts = {};
+            currentClubByStudent.forEach(clubId => { regCounts[clubId] = (regCounts[clubId] || 0) + 1; });
+            this.clubs = (clubsData || []).map(club => ({ ...club, current_count: regCounts[String(club.id)] || 0 }));
             this.teachersList = teachersData || [];
-            this.clubMap = {};
-            this.clubs.forEach(club => { this.clubMap[String(club.id)] = club; });
-
+            this.masterStudents = allStudents;
+            this.periodRows = termRegs;
+            this.clubMap = {}; this.clubs.forEach(club => { this.clubMap[String(club.id)] = club; });
             if (this.user && this.user.role === 'student') {
-              const current = registeredRows.find(student => String(student.id) === String(this.user.id));
-              if (current) this.user.clubId = current.club_id || '';
+              const periodClubId = currentClubByStudent.get(String(this.user.id));
+              this.user.clubId = periodClubId || (!this.isHistoricalView ? (allStudents.find(st=>String(st.id)===String(this.user.id)) || {}).club_id || '' : '');
             }
             if (this.user && this.user.role === 'teacher') {
-              const myId = String(this.user.id);
-              this.user.hasClub = this.clubs.some(club => String(club.owner_id || '').split(',').map(id => id.trim()).includes(myId));
+              const id = String(this.user.id);
+              this.user.hasClub = this.clubs.some(club => String(club.owner_id || '').split(',').map(v=>v.trim()).includes(id));
             }
             if (this.user && this.user.role === 'admin') {
-              const totalStudents = registeredRows.length;
-              const registeredStudents = registeredRows.filter(student => student.club_id && String(student.club_id).trim() !== '').length;
-              const ownerIds = this.clubs.flatMap(club => String(club.owner_id || '').split(',').map(id => id.trim()).filter(Boolean));
+              const totalStudents = this.isHistoricalView ? new Set(termRegs.map(r=>String(r.student_id))).size : allStudents.length;
+              const registeredStudents = new Set(termRegs.map(r=>String(r.student_id))).size || (!this.isHistoricalView ? allStudents.filter(st=>st.club_id).length : 0);
+              const ownerIds = this.clubs.flatMap(club => String(club.owner_id || '').split(',').map(id=>id.trim()).filter(Boolean));
               const uniqueOwners = [...new Set(ownerIds)];
-              const teachersWithClub = this.teachersList.filter(teacher => uniqueOwners.includes(String(teacher.id))).length;
-              this.summary = {
-                student: { total: totalStudents, registered: registeredStudents, unregistered: totalStudents - registeredStudents },
-                teacher: { total: this.teachersList.length, hasClub: teachersWithClub, noClub: this.teachersList.length - teachersWithClub },
-                clubsCount: this.clubs.length
-              };
+              const teachersWithClub = this.teachersList.filter(teacher=>uniqueOwners.includes(String(teacher.id))).length;
+              this.summary = { student:{total:totalStudents, registered:registeredStudents, unregistered:Math.max(0,totalStudents-registeredStudents)}, teacher:{total:this.teachersList.length, hasClub:teachersWithClub, noClub:this.teachersList.length-teachersWithClub}, clubsCount:this.clubs.length };
             }
           } catch (e) {
             if (!isSilent) Swal.fire('โหลดข้อมูลไม่สำเร็จ', e.message || String(e), 'error');
-          } finally {
-            this.loading = false;
-          }
+          } finally { this.loading = false; }
         },
         fetchData() { return this.refreshData(); },
-        async saveConfig() { 
-          try { const payloads = Object.keys(this.config).map(k => ({ key: k, value: String(this.config[k]) })); await db.from('config').upsert(payloads, { onConflict: 'key' }); const Toast = Swal.mixin({toast: true, position: 'top-end', showConfirmButton: false, timer: 1500}); Toast.fire({ icon: 'success', title: 'บันทึกค่าแล้ว' }); } catch(e) { Swal.fire('Error', e.message, 'error'); }
-        },
-        async saveAdminSettingsData() { this.loading = true; this.config.adminSettings = JSON.stringify(this.adminSettings); this.config.systemDates = JSON.stringify(this.systemDates); this.config.holidays = JSON.stringify(this.holidays); this.config.quota_per_teacher = this.adminSettings.studentQuota; await this.saveConfig(); this.loading = false; },
-        async submitClub() {
-          if (!this.clubForm.owner_ids || this.clubForm.owner_ids.length === 0) { Swal.fire({ icon: 'warning', title: 'ข้อมูลไม่ครบถ้วน', text: 'กรุณาเลือกครูที่ปรึกษา', confirmButtonColor: '#2563eb' }); return; }
-          this.loading = true; 
+        async saveConfig(showToast = true) {
           try {
-              const term = this.adminSettings.semester || '1'; const year = this.adminSettings.academicYear || '2569';
-              let capacity = (this.user.role === 'admin') ? Number(this.clubForm.max_capacity) : (this.clubForm.owner_ids.length * 20);
-              const getTeacherNames = (ids) => ids.map(id => (this.teachersList.find(t => t.id === String(id)) || {}).name || "").join(", ");
-              const payload = { name: this.clubForm.name, max_capacity: capacity, level: this.clubForm.level, owner_id: this.clubForm.owner_ids.join(","), teacher_name: getTeacherNames(this.clubForm.owner_ids), location: this.clubForm.location || "", comment: this.clubForm.comment || "", term: term, year: year };
-              if (this.isEditMode) { await db.from('clubs').update(payload).eq('id', this.clubForm.id); await db.from('registrations').update({club_name: this.clubForm.name}).eq('club_id', this.clubForm.id); } 
-              else { payload.id = "C" + Date.now().toString().slice(-6); payload.current_count = 0; await db.from('clubs').insert(payload); }
-              bootstrap.Modal.getInstance(document.getElementById('clubModal')).hide(); await this.refreshData(); Swal.fire('สำเร็จ', 'บันทึกข้อมูลชุมนุมเรียบร้อยแล้ว', 'success');
-          } catch(e) { Swal.fire('ข้อผิดพลาด', e.message, 'error'); } finally { this.loading = false; }
+            const payloads = Object.keys(this.config).map(key => ({ key, value: String(this.config[key]) }));
+            await db.from('config').upsert(payloads, { onConflict: 'key' });
+            if (showToast) Swal.mixin({toast:true,position:'top-end',showConfirmButton:false,timer:1500}).fire({icon:'success',title:'บันทึกค่าแล้ว'});
+            return true;
+          } catch (error) { Swal.fire('บันทึกการตั้งค่าไม่สำเร็จ', error.message || String(error), 'error'); return false; }
+        },
+        async saveAdminSettingsData() {
+          if(!this.user || this.user.role!=='admin') { Swal.fire('ไม่มีสิทธิ์','เฉพาะ Admin เท่านั้น','warning'); return; }
+          this.loading=true;
+          try {
+            this.config.adminSettings=JSON.stringify(this.adminSettings);
+            this.config.systemDates=JSON.stringify(this.systemDates);
+            this.config.holidays=JSON.stringify(this.holidays);
+            this.config.quota_per_teacher=String(this.adminSettings.studentQuota||20);
+            const ok=await this.saveConfig();
+            if(ok) Swal.fire({toast:true,position:'top-end',icon:'success',title:'บันทึกค่าระบบสำเร็จ',showConfirmButton:false,timer:1600});
+          } finally { this.loading=false; }
+        },
+        async submitClub() {
+          if (!this.canEditSelectedTerm) { Swal.fire('ดูข้อมูลย้อนหลัง', 'ผู้ใช้ทั่วไปแก้ไขได้เฉพาะภาคเรียนปัจจุบัน', 'warning'); return; }
+          if (!this.clubForm.owner_ids || this.clubForm.owner_ids.length === 0) { Swal.fire({icon:'warning',title:'ข้อมูลไม่ครบถ้วน',text:'กรุณาเลือกครูที่ปรึกษา',confirmButtonColor:'#2563eb'}); return; }
+          this.loading = true;
+          try {
+            const term = String(this.activeTerm), year = String(this.activeYear);
+            const capacity = this.user.role === 'admin' ? Number(this.clubForm.max_capacity) : this.clubForm.owner_ids.length * Number(this.adminSettings.studentQuota || 20);
+            const getTeacherNames = ids => ids.map(id => (this.teachersList.find(t=>String(t.id)===String(id))||{}).name || '').join(', ');
+            const payload = {name:this.clubForm.name,max_capacity:capacity,level:this.clubForm.level,owner_id:this.clubForm.owner_ids.join(','),teacher_name:getTeacherNames(this.clubForm.owner_ids),location:this.clubForm.location||'',comment:this.clubForm.comment||'',term,year};
+            if (this.isEditMode) {
+              await db.from('clubs').update(payload).eq('id',this.clubForm.id).eq('term',term).eq('year',year);
+              await db.from('registrations').update({club_name:this.clubForm.name}).eq('club_id',this.clubForm.id).eq('term',term).eq('year',year);
+            } else {
+              payload.id = 'C' + Date.now().toString(36).toUpperCase(); payload.current_count = 0;
+              await db.from('clubs').insert(payload);
+            }
+            const modal = bootstrap.Modal.getInstance(document.getElementById('clubModal')); if (modal) modal.hide();
+            await this.refreshData(); Swal.fire('สำเร็จ','บันทึกข้อมูลชุมนุมเรียบร้อยแล้ว','success');
+          } catch (error) { Swal.fire('ข้อผิดพลาด', error.message || String(error), 'error'); }
+          finally { this.loading = false; }
         },
         async confirmDeleteClub(club) {
-          Swal.fire({ title: 'ยืนยันการลบชุมนุม?', html: `คุณกำลังจะลบชุมนุม <b>"${club.name}"</b><br><span class="text-danger small">ชื่อนักเรียนทุกคนในชุมนุมนี้จะถูกล้างออกทันที</span>`, icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc3545', cancelButtonColor: '#6c757d', confirmButtonText: 'ยืนยันการลบถาวร', cancelButtonText: 'ยกเลิก' }).then(async (result) => {
-            if (result.isConfirmed) {
-              this.loading = true;
-              try { await db.from('students').update({club_id: null}).eq('club_id', club.id); await db.from('registrations').delete().eq('club_id', club.id); await db.from('attendance_data').delete().eq('club_id', club.id); await db.from('club_reports').delete().eq('club_id', club.id); await db.from('clubs').delete().eq('id', club.id); Swal.fire('ลบสำเร็จ!', 'ลบชุมนุมเรียบร้อยแล้ว', 'success'); await this.refreshData(); } 
-              catch(e) { Swal.fire('ผิดพลาด', e.message, 'error'); } finally { this.loading = false; }
+          if (!this.user || this.user.role !== 'admin') { Swal.fire('ไม่มีสิทธิ์','เฉพาะผู้ดูแลระบบเท่านั้นที่ลบชุมนุมได้','warning'); return; }
+          if (!this.canEditSelectedTerm) { Swal.fire('ดูข้อมูลย้อนหลัง','ไม่สามารถลบข้อมูลของภาคเรียนย้อนหลังได้จากหน้านี้','warning'); return; }
+          const term=String(this.activeTerm), year=String(this.activeYear);
+          const result = await Swal.fire({title:'ยืนยันการลบชุมนุม?',html:`ต้องการลบชุมนุม <b>"${escapeHTML(club.name)}"</b> เฉพาะภาคเรียน ${term}/${year} หรือไม่`,icon:'warning',showCancelButton:true,confirmButtonColor:'#dc3545',confirmButtonText:'ยืนยันการลบ',cancelButtonText:'ยกเลิก'});
+          if (!result.isConfirmed) return;
+          this.loading=true;
+          try {
+            // Only detach active-period assignments; never erase another term's attendance/report history.
+            const {data: regs}=await db.from('registrations').select('student_id').eq('club_id',club.id).eq('term',term).eq('year',year);
+            const ids=(regs||[]).map(r=>r.student_id);
+            for (const studentId of ids) {
+              const {data: student}=await db.from('students').select('club_id').eq('id',studentId).maybeSingle();
+              if (student && String(student.club_id||'')===String(club.id)) await db.from('students').update({club_id:null}).eq('id',studentId);
             }
-          });
+            await db.from('registrations').delete().eq('club_id',club.id).eq('term',term).eq('year',year);
+            await db.from('attendance_data').delete().eq('club_id',club.id).eq('term',term).eq('year',year);
+            await db.from('club_reports').delete().eq('club_id',club.id).eq('term',term).eq('year',year);
+            await db.from('clubs').delete().eq('id',club.id).eq('term',term).eq('year',year);
+            await this.refreshData(); Swal.fire('ลบสำเร็จ','ลบข้อมูลชุมนุมเฉพาะภาคเรียนที่เลือกแล้ว','success');
+          } catch(error) { Swal.fire('ลบไม่สำเร็จ',error.message||String(error),'error'); }
+          finally { this.loading=false; }
         },
         async enroll(c) {
-          const isTransfer = !!this.user.clubId;
-          Swal.fire({ title: isTransfer ? 'ยืนยันย้าย?' : 'ยืนยันสมัคร?', text: c.name, icon: 'question', showCancelButton: true, confirmButtonColor: '#2563eb' }).then(async r => {
-            if(r.isConfirmed) {
-              this.loading = true;
-              try {
-                  const {data: club} = await db.from('clubs').select('current_count, max_capacity').eq('id', c.id).single();
-                  if(club.current_count >= club.max_capacity) throw new Error("ชุมนุมเต็มแล้ว");
-                  if(this.user.clubId) { await db.from('registrations').delete().eq('student_id', this.user.id); const {data: oldClub} = await db.from('clubs').select('current_count').eq('id', this.user.clubId).single(); await db.from('clubs').update({current_count: Math.max(0, oldClub.current_count - 1)}).eq('id', this.user.clubId); }
-                  await db.from('students').update({club_id: c.id}).eq('id', this.user.id);
-                  await db.from('registrations').insert({ reg_id: "REG-" + Date.now(), student_id: this.user.id, student_name: this.user.name, room: this.user.room, no: this.user.no, club_id: c.id, club_name: c.name, term: this.adminSettings.semester, year: this.adminSettings.academicYear });
-                  await db.from('clubs').update({current_count: club.current_count + 1}).eq('id', c.id);
-                  this.user.clubId = c.id; await this.refreshData(); Swal.fire('สำเร็จ', 'ลงทะเบียนสำเร็จ', 'success');
-              } catch(e) { Swal.fire('Error', e.message, 'error'); } finally { this.loading = false; }
+          if (!this.user || this.user.role !== 'student') return;
+          if (this.isHistoricalView) { Swal.fire('ข้อมูลย้อนหลัง','นักเรียนสามารถสมัครหรือย้ายได้เฉพาะภาคเรียนปัจจุบัน','warning'); return; }
+          const isTransfer=!!this.user.clubId;
+          const confirmation=await Swal.fire({title:isTransfer?'ยืนยันย้ายชุมนุม?':'ยืนยันสมัครชุมนุม?',text:c.name,icon:'question',showCancelButton:true,confirmButtonColor:'#2563eb',confirmButtonText:'ยืนยัน',cancelButtonText:'ยกเลิก'});
+          if(!confirmation.isConfirmed) return;
+          this.loading=true;
+          const term=String(this.adminSettings.semester||'1'), year=String(this.adminSettings.academicYear||'2569');
+          const studentId=String(this.user.id), oldClubId=this.user.clubId ? String(this.user.clubId) : '';
+          let oldRegs=[], oldStudent=null, oldClub=null, targetClub=null, oldAtt=null, targetAtt=null, newRegId=null;
+          let targetAttJson=null, oldAttJson=null, wroteStudent=false, wroteTargetReg=false, wroteOldRegDelete=false, wroteOldCount=false, wroteTargetCount=false;
+          try {
+            const [{data: student}, {data: target}, {data: currentRegs}] = await Promise.all([
+              db.from('students').select('*').eq('id',studentId).single(),
+              db.from('clubs').select('*').eq('id',c.id).eq('term',term).eq('year',year).single(),
+              db.from('registrations').select('*').eq('student_id',studentId).eq('term',term).eq('year',year)
+            ]);
+            oldStudent=student; targetClub=target; oldRegs=currentRegs||[];
+            if(String(target.id)===oldClubId) { Swal.fire('ข้อมูลชุมนุม','นักเรียนอยู่ในชุมนุมนี้อยู่แล้ว','info'); return; }
+            if(Number(target.current_count||0)>=Number(target.max_capacity||0)) throw new Error('ชุมนุมเต็มแล้ว');
+            if(oldClubId) {
+              const [{data: oldC},{data: a}] = await Promise.all([
+                db.from('clubs').select('*').eq('id',oldClubId).eq('term',term).eq('year',year).single(),
+                db.from('attendance_data').select('*').eq('club_id',oldClubId).eq('term',term).eq('year',year).maybeSingle()
+              ]);
+              oldClub=oldC; oldAtt=a;
             }
-          });
+            const {data: ta}=await db.from('attendance_data').select('*').eq('club_id',c.id).eq('term',term).eq('year',year).maybeSingle(); targetAtt=ta;
+            oldAttJson=oldAtt && oldAtt.data_json ? JSON.parse(JSON.stringify(oldAtt.data_json)) : null;
+            targetAttJson=targetAtt && targetAtt.data_json ? JSON.parse(JSON.stringify(targetAtt.data_json)) : null;
+
+            // Change registration for current term only; preserve all previous terms untouched.
+            if(oldRegs.length) { await db.from('registrations').delete().eq('student_id',studentId).eq('term',term).eq('year',year); wroteOldRegDelete=true; }
+            newRegId='REG-'+Date.now()+'-'+studentId;
+            await db.from('registrations').insert({reg_id:newRegId,student_id:studentId,student_name:student.name||this.user.name,room:student.room||'',no:student.no||'',club_id:c.id,club_name:c.name,term,year});
+            wroteTargetReg=true;
+            await db.from('students').update({club_id:c.id}).eq('id',studentId); wroteStudent=true;
+            if(oldClubId && oldClub) { await db.from('clubs').update({current_count:Math.max(0,Number(oldClub.current_count||0)-1)}).eq('id',oldClubId).eq('term',term).eq('year',year); wroteOldCount=true; }
+            await db.from('clubs').update({current_count:Number(target.current_count||0)+1}).eq('id',c.id).eq('term',term).eq('year',year); wroteTargetCount=true;
+
+            // Delete only this student's key from the old and destination attendance JSON records.
+            if(oldAttJson && oldAttJson.records) { delete oldAttJson.records[studentId]; await db.from('attendance_data').update({data_json:oldAttJson}).eq('club_id',oldClubId).eq('term',term).eq('year',year); }
+            if(targetAttJson && targetAttJson.records && Object.prototype.hasOwnProperty.call(targetAttJson.records,studentId)) { delete targetAttJson.records[studentId]; await db.from('attendance_data').update({data_json:targetAttJson}).eq('club_id',c.id).eq('term',term).eq('year',year); }
+            this.user.clubId=c.id; await this.refreshData();
+            Swal.fire('สำเร็จ',isTransfer?'ย้ายชุมนุมสำเร็จ และล้างข้อมูลเช็กชื่อของนักเรียนออกจากชุมนุมเดิมแล้ว':'ลงทะเบียนชุมนุมสำเร็จ','success');
+          } catch(error) {
+            // Best-effort rollback of the live enrollment if one of the writes failed.
+            try {
+              if(wroteStudent && oldStudent) await db.from('students').update({club_id:oldStudent.club_id||null}).eq('id',studentId);
+              if(wroteTargetReg && newRegId) await db.from('registrations').delete().eq('reg_id',newRegId);
+              if(wroteOldRegDelete && oldRegs.length) await db.from('registrations').insert(oldRegs);
+              if(wroteOldCount && oldClub) await db.from('clubs').update({current_count:oldClub.current_count}).eq('id',oldClub.id).eq('term',term).eq('year',year);
+              if(wroteTargetCount && targetClub) await db.from('clubs').update({current_count:targetClub.current_count}).eq('id',targetClub.id).eq('term',term).eq('year',year);
+              if(oldAttJson && oldClubId) await db.from('attendance_data').upsert({club_id:oldClubId,term,year,data_json:oldAttJson},{onConflict:'club_id,term,year'});
+              if(targetAttJson) await db.from('attendance_data').upsert({club_id:c.id,term,year,data_json:targetAttJson},{onConflict:'club_id,term,year'});
+            } catch(rollbackError) { console.error('Enrollment rollback incomplete',rollbackError); }
+            Swal.fire('ทำรายการไม่สำเร็จ', (error.message||String(error))+'\nระบบพยายามคืนค่าการสมัครก่อนทำรายการแล้ว หากพบข้อมูลไม่ตรงให้ผู้ดูแลตรวจสอบฐานข้อมูล', 'error');
+          } finally { this.loading=false; }
         },
         async loadClubData(club, viewName) {
-          this.currentClubId = club.id; this.currentClubName = club.name; this.attStudents = []; this.attData = { dates: new Array(20).fill(""), records: {} };
-          this.reportActData = { objectives: ['ส่งเสริมให้นักเรียนใช้เวลาว่างให้เกิดประโยชน์และสร้างสรรค์', 'เพื่อพัฒนาทักษะทางด้าน...', 'เพื่อให้ผู้เรียนมีความรับผิดชอบและฝึกการทำงานร่วมกับผู้อื่น'], committees: ['','','','',''], activities: Array(20).fill(''), remark: 'ไม่มี', caption: 'บรรยากาศการเรียนการสอนและการทำกิจกรรมร่วมกันของนักเรียน' };
-          this.reportData.photos = {}; this.reportData.logo = ''; this.reportData.teacher = club.teacher_name;
-          Swal.fire({ title: 'กำลังโหลด...', didOpen: () => Swal.showLoading() });
+          this.currentClubId=club.id; this.currentClubName=club.name; this.attStudents=[]; this.attData={dates:Array(20).fill(''),records:{}};
+          this.reportActData={objectives:['ส่งเสริมให้นักเรียนใช้เวลาว่างให้เกิดประโยชน์และสร้างสรรค์','เพื่อพัฒนาทักษะทางด้าน...','เพื่อให้ผู้เรียนมีความรับผิดชอบและฝึกการทำงานร่วมกับผู้อื่น'],committees:['','','','',''],activities:Array(20).fill(''),remark:'ไม่มี',caption:'บรรยากาศการเรียนการสอนและการทำกิจกรรมร่วมกันของนักเรียน'};
+          this.reportData.photos={}; this.reportData.logo=''; this.reportData.teacher=club.teacher_name; this.reportData.signatures={teacher:''}; this.reportSavedSnapshot=null;
+          Swal.fire({title:'กำลังโหลดข้อมูล...',allowOutsideClick:false,didOpen:()=>Swal.showLoading()});
           try {
-              const term = this.adminSettings.semester; const year = this.adminSettings.academicYear;
-              const [{data: attRecords}, {data: students}] = await Promise.all([ db.from('attendance_data').select('*').eq('club_id', club.id).eq('term', term).eq('year', year), db.from('students').select('*').eq('club_id', club.id) ]);
-              if(attRecords && attRecords.length > 0 && attRecords[0].data_json) { this.attData = attRecords[0].data_json; }
-              this.attStudents = students || [];
-              this.attStudents.sort((a, b) => { const roomA = (a.room||'').toString(); const roomB = (b.room||'').toString(); if(roomA !== roomB) return roomA.localeCompare(roomB, undefined, {numeric: true}); return Number(a.no) - Number(b.no); });
-              for(let i = 0; i < 20; i++) { if (!this.attData.dates[i] && this.systemDates[i]) { this.attData.dates[i] = this.systemDates[i]; } }
-              this.attStudents.forEach(s => { if (!this.attData.records[s.id]) { this.attData.records[s.id] = new Array(20).fill(0); } });
-              if (viewName === 'report') {
-                  const {data: reportRes} = await db.from('club_reports').select('*').eq('club_id', club.id).eq('term', term).eq('year', year).maybeSingle();
-                  if (reportRes) {
-                      if (reportRes.report_json?.actData) this.reportActData = Object.assign(this.reportActData, reportRes.report_json.actData);
-                      if (reportRes.report_json?.teacher) this.reportData.teacher = reportRes.report_json.teacher;
-                      if (reportRes.logo) this.reportData.logo = reportRes.logo;
-                      this.reportData.photos = { 1: reportRes.photo_1||"", 2: reportRes.photo_2||"", 3: reportRes.photo_3||"", 4: reportRes.photo_4||"" };
-                  }
+            const term=String(this.activeTerm), year=String(this.activeYear);
+            const [{data:attRows},{data:regRows},{data:reportRow}] = await Promise.all([
+              db.from('attendance_data').select('*').eq('club_id',club.id).eq('term',term).eq('year',year),
+              db.from('registrations').select('*').eq('club_id',club.id).eq('term',term).eq('year',year),
+              viewName==='report' ? db.from('club_reports').select('*').eq('club_id',club.id).eq('term',term).eq('year',year).maybeSingle() : Promise.resolve({data:null})
+            ]);
+            if(attRows && attRows[0] && attRows[0].data_json) this.attData=JSON.parse(JSON.stringify(attRows[0].data_json));
+            if(!Array.isArray(this.attData.dates)) this.attData.dates=Array(20).fill('');
+            if(!this.attData.records || typeof this.attData.records!=='object') this.attData.records={};
+
+            const rosterMap=new Map();
+            (regRows||[]).forEach(r=> { const id=String(r.student_id); rosterMap.set(id,{id,name:r.student_name||id,level:r.student_level||'',room:r.room||'',no:r.no||'',club_id:club.id}); });
+            // Attendance keys and registration snapshots preserve historical roster after master records change/delete.
+            Object.keys(this.attData.records||{}).forEach(id=> { if(!rosterMap.has(String(id))) rosterMap.set(String(id),{id:String(id),name:String(id),level:'',room:'',no:'',club_id:club.id}); });
+            const ids=[...rosterMap.keys()];
+            if(ids.length) {
+              const {data:masterRows}=await db.from('students').select('*').in('id',ids);
+              (masterRows||[]).forEach(st=>rosterMap.set(String(st.id),{...(rosterMap.get(String(st.id))||{}),...st,club_id:club.id}));
+            } else if(!this.isHistoricalView) {
+              const {data:currentStudents}=await db.from('students').select('*').eq('club_id',club.id);
+              (currentStudents||[]).forEach(st=>rosterMap.set(String(st.id),st));
+            }
+            this.attStudents=[...rosterMap.values()].sort((a,b)=>String(a.room||'').localeCompare(String(b.room||''),'th',{numeric:true})||(Number(a.no)||0)-(Number(b.no)||0));
+            for(let i=0;i<20;i++) if(!this.attData.dates[i] && this.systemDates[i] && !this.isHistoricalView) this.attData.dates[i]=this.systemDates[i];
+            this.attStudents.forEach(st=>{if(!this.attData.records[st.id])this.attData.records[st.id]=Array(20).fill(0);});
+            if(viewName==='report') {
+              if(reportRow) {
+                if(reportRow.report_json && reportRow.report_json.actData) this.reportActData=Object.assign(this.reportActData,reportRow.report_json.actData);
+                if(reportRow.report_json && reportRow.report_json.teacher) this.reportData.teacher=reportRow.report_json.teacher;
+                this.reportData.signatures={teacher:(reportRow.report_json&&reportRow.report_json.signatures&&reportRow.report_json.signatures.teacher)||''};
+                this.reportData.logo=reportRow.logo||'';
+                this.reportData.photos={1:reportRow.photo_1||'',2:reportRow.photo_2||'',3:reportRow.photo_3||'',4:reportRow.photo_4||''};
               }
-              Swal.close(); this.view = viewName;
-          } catch(e) { Swal.close(); Swal.fire('Error', e.message, 'error'); }
+              this.reportSavedSnapshot=this.getReportImageSnapshot();
+            }
+            Swal.close(); this.view=viewName;
+          } catch(error) { Swal.close(); Swal.fire('โหลดข้อมูลไม่สำเร็จ',error.message||String(error),'error'); }
         },
         async saveAttendance() {
-            Swal.fire({ title: 'กำลังบันทึก...', didOpen: () => Swal.showLoading() });
-            try { const payload = { club_id: this.currentClubId, term: this.adminSettings.semester, year: this.adminSettings.academicYear, data_json: this.attData }; await db.from('attendance_data').upsert(payload, { onConflict: 'club_id,term,year' }); Swal.fire({ icon: 'success', title: 'บันทึกเรียบร้อย', timer: 1500, showConfirmButton: false }); } catch(e) { Swal.fire('Error', e.message, 'error'); }
+          if (!this.canEditSelectedTerm) { Swal.fire('ดูอย่างเดียว','ไม่มีสิทธิ์แก้ไขข้อมูลเช็กชื่อในภาคเรียนนี้','warning'); return; }
+          Swal.fire({title:'กำลังบันทึก...',allowOutsideClick:false,didOpen:()=>Swal.showLoading()});
+          try {
+            const payload={club_id:this.currentClubId,term:String(this.activeTerm),year:String(this.activeYear),data_json:this.attData};
+            await db.from('attendance_data').upsert(payload,{onConflict:'club_id,term,year'});
+            Swal.fire({icon:'success',title:'บันทึกเรียบร้อย',timer:1500,showConfirmButton:false});
+          } catch(error) { Swal.fire('บันทึกไม่สำเร็จ',error.message||String(error),'error'); }
         },
         async saveCurrentReport() {
-          this.loading = true; Swal.fire({ title: 'กำลังอัปโหลดรูปและบันทึก...', didOpen: () => Swal.showLoading() });
-          try {
-              const term = this.adminSettings.semester; const year = this.adminSettings.academicYear; const uploadPromises = [];
-              if(this.reportData.logo && this.reportData.logo.startsWith('data:')) { uploadPromises.push(fetchGAS('uploadImage', { base64Data: this.reportData.logo, fileName: `Logo_${this.currentClubId}.png`, term, year }).then(r => { if (!r || !r.url) throw new Error('อัปโหลดโลโก้ไป Drive ไม่สำเร็จ'); this.reportData.logo = r.url; })); }
-              for(let i=1; i<=4; i++) { if(this.reportData.photos[i] && this.reportData.photos[i].startsWith('data:')) { uploadPromises.push(fetchGAS('uploadImage', { base64Data: this.reportData.photos[i], fileName: `P${i}_${this.currentClubId}.jpg`, term, year }).then(r => { if (!r || !r.url) throw new Error('อัปโหลดรูปกิจกรรมหมายเลข ' + i + ' ไป Drive ไม่สำเร็จ'); this.reportData.photos[i] = r.url; })); } }
-              await Promise.all(uploadPromises); 
-              const payload = { club_id: this.currentClubId, term: term, year: year, report_json: { teacher: this.reportData.teacher, actData: this.reportActData }, logo: this.reportData.logo || '', photo_1: this.reportData.photos[1] || '', photo_2: this.reportData.photos[2] || '', photo_3: this.reportData.photos[3] || '', photo_4: this.reportData.photos[4] || '' };
-              await db.from('club_reports').upsert(payload, { onConflict: 'club_id,term,year' }); Swal.fire({toast: true, position: 'top-end', icon:'success', title:'บันทึกรายงานลงฐานข้อมูลสำเร็จ', showConfirmButton: false, timer: 2000});
-          } catch(e) { Swal.fire('ข้อผิดพลาด', e.message, 'error'); } finally { this.loading = false; }
+          const ok=await this.persistCurrentReport(true);
+          if(ok) Swal.fire({toast:true,position:'top-end',icon:'success',title:'บันทึกรายงานและรูปภาพสำเร็จ',showConfirmButton:false,timer:1800});
         },
-        async saveCurrentReportSilently() {
+        discardPendingReportImages() {
+          if(!this.reportSavedSnapshot) return;
+          const saved=this.reportSavedSnapshot;
+          this.reportData.logo=saved.logo||'';
+          this.reportData.photos=Object.assign({},saved.photos||{});
+          this.reportData.signatures=this.reportData.signatures||{};
+          this.reportData.signatures.teacher=saved.teacherSignature||'';
+          Swal.fire({toast:true,position:'top-end',icon:'info',title:'คืนรูปเดิมที่บันทึกไว้แล้ว',showConfirmButton:false,timer:1800});
+        },
+        clickLogoInput() {
+          if(!this.canEditSelectedTerm) { Swal.fire('ดูอย่างเดียว','ไม่มีสิทธิ์แก้ไขโลโก้ของภาคเรียนนี้','warning'); return; }
+          if(this.$refs.logoInput) this.$refs.logoInput.click();
+        },
+        async clearReportLogo() {
+          if(!this.canEditSelectedTerm) { Swal.fire('ดูอย่างเดียว','ไม่มีสิทธิ์แก้ไขโลโก้ของภาคเรียนนี้','warning'); return; }
+          const result=await Swal.fire({title:'นำโลโก้ออกจากรายงาน?',text:'ไฟล์เดิมใน Google Drive จะถูกย้ายไปถังขยะหลังบันทึกรายงานสำเร็จ',icon:'warning',showCancelButton:true,confirmButtonText:'นำออก',cancelButtonText:'ยกเลิก',confirmButtonColor:'#dc3545'});
+          if(!result.isConfirmed) return;
+          this.reportData.logo='';
+          Swal.fire({toast:true,position:'top-end',icon:'info',title:'นำโลโก้ออกชั่วคราว — กดบันทึกรายงานเพื่อยืนยัน',showConfirmButton:false,timer:2400});
+        },
+        getReportImageSnapshot() {
+          return { logo:this.reportData.logo||'', photos:Object.assign({},this.reportData.photos||{}), teacherSignature:(this.reportData.signatures&&this.reportData.signatures.teacher)||'' };
+        },
+        async uploadImageToDrive(dataUrl, fileName, assetType='image') {
+          const res=await fetchGAS('uploadImage',{base64Data:dataUrl,fileName,assetType,term:String(this.activeTerm),year:String(this.activeYear),folderId:this.adminSettings.driveImageFolderId||''});
+          if(!res || !res.success || !res.url || !(res.fileId||res.id)) throw new Error(`อัปโหลด ${fileName} ไป Google Drive ไม่สำเร็จ: ${res&&res.message||'ไม่ได้รับ fileId/url กลับมา'}`);
+          return {url:res.url,fileId:res.fileId||res.id};
+        },
+        async deleteDriveUrl(url) {
+          const fileId=extractDriveFileId(url); if(!fileId) return;
+          await fetchGAS('deleteDriveFile',{fileId,assetType:'image',folderId:this.adminSettings.driveImageFolderId||''});
+        },
+        async persistCurrentReport(showLoading=true) {
+          if(!this.canEditSelectedTerm) { Swal.fire('ดูอย่างเดียว','ไม่มีสิทธิ์แก้ไขรายงานของภาคเรียนนี้','warning'); return false; }
+          if(!this.currentClubId) { Swal.fire('ไม่พบชุมนุม','กรุณาเปิดรายงานจากชุมนุมก่อนบันทึก','warning'); return false; }
+          const old=JSON.parse(JSON.stringify(this.reportSavedSnapshot||this.getReportImageSnapshot()));
+          const staged={logo:this.reportData.logo||'',photos:Object.assign({},this.reportData.photos||{}),teacherSignature:(this.reportData.signatures&&this.reportData.signatures.teacher)||''};
+          const uploaded=[];
+          if(showLoading) Swal.fire({title:'กำลังอัปโหลดรูปและบันทึกรายงาน...',allowOutsideClick:false,didOpen:()=>Swal.showLoading()});
           try {
-            const term = String(this.adminSettings.semester || '1');
-            const year = String(this.adminSettings.academicYear || '2569');
-            const uploads = [];
-            if (this.reportData.logo && this.reportData.logo.startsWith('data:')) {
-              uploads.push(fetchGAS('uploadImage', { base64Data: this.reportData.logo, fileName: `Logo_${this.currentClubId}.png`, term, year }).then(res => {
-                if (!res || !res.url) throw new Error('อัปโหลดโลโก้ไป Drive ไม่สำเร็จ');
-                this.reportData.logo = res.url;
-              }));
-            }
-            for (let i = 1; i <= 4; i++) {
-              if (this.reportData.photos[i] && this.reportData.photos[i].startsWith('data:')) {
-                uploads.push(fetchGAS('uploadImage', { base64Data: this.reportData.photos[i], fileName: `P${i}_${this.currentClubId}.jpg`, term, year }).then(res => {
-                  if (!res || !res.url) throw new Error(`อัปโหลดรูปกิจกรรมหมายเลข ${i} ไป Drive ไม่สำเร็จ`);
-                  this.reportData.photos[i] = res.url;
-                }));
-              }
-            }
-            await Promise.all(uploads);
-            const payload = {
-              club_id: this.currentClubId, term, year,
-              report_json: { teacher: this.reportData.teacher, actData: this.reportActData },
-              logo: this.reportData.logo || '',
-              photo_1: this.reportData.photos[1] || '', photo_2: this.reportData.photos[2] || '',
-              photo_3: this.reportData.photos[3] || '', photo_4: this.reportData.photos[4] || ''
-            };
-            await db.from('club_reports').upsert(payload, { onConflict: 'club_id,term,year' });
+            const uploadIfData=async(value,name)=>{if(!value||!String(value).startsWith('data:'))return value||'';const out=await this.uploadImageToDrive(value,name,'image');uploaded.push(out.fileId);return out.url;};
+            staged.logo=await uploadIfData(staged.logo,`SKN_Logo_Club_${this.currentClubId}_T${this.activeTerm}_${this.activeYear}.jpg`);
+            for(let i=1;i<=4;i++) staged.photos[i]=await uploadIfData(staged.photos[i],`SKN_Activity_${this.currentClubId}_${i}_T${this.activeTerm}_${this.activeYear}.jpg`);
+            staged.teacherSignature=await uploadIfData(staged.teacherSignature,`SKN_Signature_Teacher_${this.currentClubId}_T${this.activeTerm}_${this.activeYear}.jpg`);
+            const payload={club_id:this.currentClubId,term:String(this.activeTerm),year:String(this.activeYear),report_json:{teacher:this.reportData.teacher,actData:this.reportActData,signatures:{teacher:staged.teacherSignature}},logo:staged.logo||'',photo_1:staged.photos[1]||'',photo_2:staged.photos[2]||'',photo_3:staged.photos[3]||'',photo_4:staged.photos[4]||''};
+            await db.from('club_reports').upsert(payload,{onConflict:'club_id,term,year'});
+            // Commit UI state only after Supabase confirms that the report was stored.
+            this.reportData.logo=staged.logo; this.reportData.photos=staged.photos; this.reportData.signatures.teacher=staged.teacherSignature;
+            this.reportSavedSnapshot=this.getReportImageSnapshot();
+            const newUrls=[staged.logo,...Object.values(staged.photos),staged.teacherSignature].filter(Boolean);
+            const oldUrls=[old.logo,...Object.values(old.photos||{}),old.teacherSignature].filter(Boolean);
+            const toDelete=[...new Set(oldUrls.filter(url=>!newUrls.includes(url)&&extractDriveFileId(url)))];
+            const deleteErrors=[];
+            for(const url of toDelete){try{await this.deleteDriveUrl(url);}catch(err){deleteErrors.push(err.message||String(err));}}
+            if(showLoading) Swal.close();
+            if(deleteErrors.length) console.warn('รายงานบันทึกสำเร็จ แต่ลบไฟล์เก่าบางไฟล์ไม่ได้',deleteErrors);
             return true;
-          } catch (e) {
-            Swal.fire('บันทึกรายงานไม่สำเร็จ', e.message || String(e), 'error');
+          } catch(error) {
+            // Remove new files if a partial upload/DB save failed and keep the last committed photos visible.
+            for(const fileId of uploaded){try{await fetchGAS('deleteDriveFile',{fileId,assetType:'image',folderId:this.adminSettings.driveImageFolderId||''});}catch(cleanupError){console.error('Drive cleanup failed',cleanupError);}}
+            this.reportData.logo=old.logo; this.reportData.photos=Object.assign({},old.photos||{}); this.reportData.signatures=this.reportData.signatures||{}; this.reportData.signatures.teacher=old.teacherSignature||'';
+            this.reportSavedSnapshot=old;
+            if(showLoading) Swal.close();
+            Swal.fire('บันทึกรายงานไม่สำเร็จ',error.message||String(error),'error');
             return false;
           }
         },
+        async saveCurrentReportSilently() { return this.persistCurrentReport(false); },
         async getGlobalFailedSummary() {
-           const term = this.adminSettings.semester; const year = this.adminSettings.academicYear;
-           const [{data: students}, {data: clubs}, {data: attData}] = await Promise.all([ db.from('students').select('*'), db.from('clubs').select('*').eq('term', term).eq('year', year), db.from('attendance_data').select('*').eq('term', term).eq('year', year) ]);
-           const studentMap = {}; (students||[]).forEach(s => studentMap[s.id] = s); const clubMap = {}; (clubs||[]).forEach(c => clubMap[c.id] = c.name); let failedList = [];
+           const term = String(this.activeTerm); const year = String(this.activeYear);
+           const [{data: students}, {data: registrations}, {data: clubs}, {data: attData}] = await Promise.all([ db.from('students').select('*'), db.from('registrations').select('*').eq('term',term).eq('year',year), db.from('clubs').select('*').eq('term', term).eq('year', year), db.from('attendance_data').select('*').eq('term', term).eq('year', year) ]);
+           const studentMap = {}; (students||[]).forEach(s => studentMap[String(s.id)] = s); (registrations||[]).forEach(r => { const id=String(r.student_id||''); if(id && !studentMap[id]) studentMap[id]={id,name:r.student_name||id,level:r.student_level||'',room:r.room||'',no:r.no||''}; }); const clubMap = {}; (clubs||[]).forEach(c => clubMap[c.id] = c.name); let failedList = [];
            (attData||[]).forEach(att => {
               const clubName = clubMap[att.club_id] || "ไม่ระบุ"; const records = att.data_json?.records || {};
               for (let stdId in records) { const row = records[stdId]; const present = row.filter(x => x === 1).length; const absent = row.filter(x => x === 3).length; if (present === 0 || absent > 3) { const s = studentMap[stdId]; if (s) failedList.push({ id: stdId, name: s.name, level: s.level, room: s.room, no: s.no, clubName: clubName, present: present, absent: absent }); } }
@@ -2890,8 +3159,8 @@ methods: {
         },
         async loadFailedData() { this.loading = true; try { this.globalFailedList = await this.getGlobalFailedSummary(); if (this.globalFailedList.length === 0) { Swal.fire({toast: true, position: 'top-end', showConfirmButton: false, timer: 2000, icon: 'success', title: 'ทุกคนผ่านกิจกรรมครบถ้วน' }); } } catch(e) {} finally { this.loading = false; } },
         async openAdminPrintReport() { Swal.fire({ title: 'กำลังเตรียมข้อมูลสรุป...', didOpen: () => Swal.showLoading() }); this.globalFailedList = await this.getGlobalFailedSummary(); Swal.close(); this.view = 'admin_report'; },
-        async fetchUsers(role) { Swal.fire({ toast: true, position: 'top-end', title: 'กำลังโหลด...', showConfirmButton: false, didOpen: () => Swal.showLoading() }); const table = role === 'teacher' ? 'teachers' : 'students'; const {data} = await db.from(table).select('*'); this.usersList = data || []; Swal.close(); },
-        async submitUser() {
+        async fetchUsers(role) { if(!this.user || this.user.role!=='admin') { Swal.fire('ไม่มีสิทธิ์','เฉพาะ Admin เท่านั้น','warning'); return; } Swal.fire({ toast: true, position: 'top-end', title: 'กำลังโหลด...', showConfirmButton: false, didOpen: () => Swal.showLoading() }); const table = role === 'teacher' ? 'teachers' : 'students'; const {data} = await db.from(table).select('*'); this.usersList = data || []; Swal.close(); },
+        async submitUser() { if(!this.user || this.user.role!=='admin') { Swal.fire('ไม่มีสิทธิ์','เฉพาะ Admin เท่านั้น','warning'); return; }
             this.loading = true; 
             try {
                 const table = this.manageRole === 'teacher' ? 'teachers' : 'students';
@@ -2930,48 +3199,99 @@ methods: {
               });
           } catch(e) { Swal.fire('ข้อผิดพลาด', e.message, 'error'); this.loading = false; }
         },
-        processCSV(e) {
-            if (this.loading) return; const file = e.target.files[0]; if (!file) return;
-            const reader = new FileReader(); const app = this;
-            reader.onload = async (evt) => {
-                const csvData = evt.target.result; this.loading = true;
-                Swal.fire({ title: 'กำลังตรวจสอบและนำเข้าข้อมูล...', html: 'ขั้นตอนนี้อาจใช้เวลาสักครู่ ขึ้นอยู่กับจำนวนข้อมูล', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-                try {
-                    let cleanCsvData = csvData.replace(/^\ufeff/, ""); let delimiter = (cleanCsvData.split('\n')[0].split(';').length > cleanCsvData.split('\n')[0].split(',').length) ? ";" : ",";
-                    const parseCSV = (text, sep) => { const result = []; const lines = text.split('\n'); for(let i=0; i<lines.length; i++) { const line = lines[i].trim(); if(line === '') continue; result.push(line.split(sep)); } return result; };
-                    const rows = parseCSV(cleanCsvData, delimiter); const table = app.manageRole === 'teacher' ? 'teachers' : 'students'; const payloads = []; let duplicateInCsvCount = 0; const processedIds = new Set();
-                    rows.forEach((row, index) => {
-                        if (index === 0 || !row[0] || row[0].toString().toLowerCase().includes('id')) return;
-                        const cleanRow = row.map(cell => String(cell || "").replace(/"/g, "").trim()); const id = cleanRow[0]; const name = cleanRow[1] || "";
-                        if (processedIds.has(id)) { duplicateInCsvCount++; return; } processedIds.add(id);
-                        const p = { id: id, name: name };
-                        if (app.manageRole === 'teacher') { p.username = cleanRow[2] || id; p.password = cleanRow[3] || id; p.role = cleanRow[4] || 'teacher'; } else { p.level = cleanRow[2] || null; p.room = cleanRow[3] || null; p.no = cleanRow[4] || null; p.password = cleanRow[5] || id; } payloads.push(p);
-                    });
-                    if(payloads.length > 0) { const { error } = await db.from(table).upsert(payloads); if(error) throw error; }
-                    Swal.fire({ title: 'อัปเดตฐานข้อมูลสำเร็จ!', width: '650px', html: `<div class="text-start" style="font-size: 13px;"><p class="text-success mb-1"><b>นำเข้า/อัปเดต ทั้งหมด ${payloads.length} รายการ</b></p>${duplicateInCsvCount > 0 ? `<div class="alert alert-warning py-1 px-2 mt-2 mb-0 small" style="font-size:11px;"><i class="fas fa-exclamation-triangle"></i> ข้ามข้อมูลที่ซ้ำกันในไฟล์ CSV จำนวน ${duplicateInCsvCount} รายการ</div>` : ''}</div>`, confirmButtonText: 'ปิดหน้าต่าง', confirmButtonColor: '#2563eb', allowOutsideClick: false }).then(() => { app.fetchUsers(app.manageRole); });
-                } catch(err) { Swal.fire('เกิดข้อผิดพลาด', err.message, 'error'); } finally { this.loading = false; }
-            }; reader.readAsText(file); e.target.value = '';
+        async processCSV(e) {
+          if(this.loading) return;
+          if(!this.user || this.user.role!=='admin') { Swal.fire('ไม่มีสิทธิ์','เฉพาะ Admin เท่านั้นที่นำเข้า CSV ได้','warning'); e.target.value=''; return; }
+          const file=e.target.files&&e.target.files[0]; if(!file) return;
+          if(!/\.csv$/i.test(file.name)) { Swal.fire('ไฟล์ไม่ถูกต้อง','กรุณาเลือกไฟล์ .csv','warning'); e.target.value=''; return; }
+          this.loading=true;
+          const reader=new FileReader();
+          reader.onerror=()=>{this.loading=false; e.target.value=''; Swal.fire('อ่านไฟล์ไม่สำเร็จ','กรุณาบันทึกไฟล์เป็น UTF-8 CSV แล้วลองอีกครั้ง','error');};
+          reader.onload=async evt=>{
+            try {
+              const raw=String(evt.target.result||'').replace(/^﻿/,'');
+              const firstLine=(raw.split(/\r?\n/,1)[0]||'');
+              const delimiter=(firstLine.split(';').length>firstLine.split(',').length)?';':',';
+              const rows=parseCSVText(raw,delimiter).filter(row=>row.some(cell=>String(cell||'').trim()!==''));
+              if(rows.length<2) throw new Error('ไฟล์ CSV ต้องมีแถวหัวตารางและข้อมูลอย่างน้อย 1 แถว');
+              const table=this.manageRole==='teacher'?'teachers':'students', expected=this.manageRole==='teacher'?5:6;
+              const header=rows[0].map(v=>String(v||'').trim().toLowerCase());
+              if(header.length<expected || header[0]!=='id') throw new Error('หัวตารางไม่ตรงรูปแบบ กรุณาดาวน์โหลดไฟล์ตัวอย่างและใช้ลำดับคอลัมน์ตามตัวอย่าง');
+              const payloads=[], seen=new Set(); let duplicates=0, invalid=0;
+              rows.slice(1).forEach(row=>{
+                while(row.length<expected) row.push('');
+                const cells=row.slice(0,expected).map(v=>String(v==null?'':v).trim());
+                const id=cells[0]; if(!id || id.toLowerCase()==='id') {invalid++;return;}
+                if(seen.has(id)){duplicates++;return;} seen.add(id);
+                if(this.manageRole==='teacher') payloads.push({id,name:cells[1],username:cells[2]||id,password:cells[3]||id,role:cells[4]||'teacher'});
+                else payloads.push({id,name:cells[1],level:cells[2]||null,room:cells[3]||null,no:cells[4]||null,password:cells[5]||id});
+              });
+              if(!payloads.length) throw new Error('ไม่พบแถวข้อมูลที่มีรหัส ID ถูกต้อง');
+              await db.from(table).upsert(payloads,{onConflict:'id'});
+              Swal.fire({title:'นำเข้า CSV สำเร็จ',icon:'success',html:`<div class="text-start"><p>บันทึก/อัปเดต ${payloads.length} รายการ</p><p>ข้ามรหัสซ้ำในไฟล์ ${duplicates} รายการ</p><p>ข้ามแถวว่างหรือไม่มี ID ${invalid} รายการ</p></div>`,confirmButtonText:'ปิด'}).then(()=>this.fetchUsers(this.manageRole));
+            } catch(error) { Swal.fire('นำเข้า CSV ไม่สำเร็จ',error.message||String(error),'error'); }
+            finally { this.loading=false; e.target.value=''; }
+          };
+          reader.readAsText(file,'UTF-8');
         },
         async executeSystemReset() {
-          if (!this.resetOptions.newSemester || !this.resetOptions.newYear) { Swal.fire('ข้อมูลไม่ครบ', 'กรุณาระบุภาคเรียนและปีการศึกษาที่จะขึ้นใหม่', 'warning'); return; }
-          Swal.fire({ title: 'คำเตือนขั้นสุดท้าย!', text: "ข้อมูลเก่าจะถูกลบออกจากหน้าจอทั้งหมดและไม่สามารถย้อนกลับได้ คุณแน่ใจหรือไม่?", icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', cancelButtonColor: '#3085d6', confirmButtonText: 'ตกลง, ล้างระบบเดี๋ยวนี้' }).then(async (result) => {
-            if (result.isConfirmed) {
-              this.loading = true; Swal.fire({ title: 'ระบบกำลังดำเนินการ...', html: 'กำลังเคลียร์ตารางฐานข้อมูล<br><br><b>ห้ามปิดหน้าต่างนี้เด็ดขาด</b>', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-              try {
-                  if (this.resetOptions.doBackup) await this.downloadSupabaseBackup();
-                  const settings = { ...this.adminSettings, semester: this.resetOptions.newSemester, academicYear: this.resetOptions.newYear };
-                  await db.from('config').upsert({key: 'adminSettings', value: JSON.stringify(settings)}, { onConflict: 'key' });
-                  this.adminSettings = settings;
-                  if(this.resetOptions.clearStudents) { await db.from('students').delete().not('id', 'is', null); } else if(this.resetOptions.resetRegistrations) { await db.from('students').update({club_id: null}).not('id', 'is', null); }
-                  if(this.resetOptions.resetRegistrations) await db.from('registrations').delete().not('reg_id', 'is', null);
-                  if(this.resetOptions.clearStudents || this.resetOptions.resetRegistrations) await db.from('clubs').update({current_count: 0}).not('id', 'is', null);
-                  if(this.resetOptions.resetAttendance) await db.from('attendance_data').delete().not('club_id', 'is', null);
-                  if(this.resetOptions.resetReports) await db.from('club_reports').delete().not('club_id', 'is', null);
-                  if(this.resetOptions.clearClubs) await db.from('clubs').delete().not('id', 'is', null);
-                  Swal.fire({ title: 'สำเร็จ!', text: 'ระบบพร้อมสำหรับการใช้งานในภาคเรียนที่ ' + this.resetOptions.newSemester + '/' + this.resetOptions.newYear + ' แล้ว', icon: 'success', confirmButtonText: 'เริ่มใช้งาน' }).then(() => { window.location.reload(); });
-              } catch(err) { Swal.fire('Error', err.message, 'error'); } finally { this.loading = false; bootstrap.Modal.getInstance(document.getElementById('resetSystemModal')).hide(); }
+          if(!this.user || this.user.role!=='admin') { Swal.fire('ไม่มีสิทธิ์','เฉพาะ Admin เท่านั้น','warning'); return; }
+          const targetTerm=String(this.resetOptions.newSemester||''), targetYear=String(this.resetOptions.newYear||'');
+          const sourceTerm=String(this.adminSettings.semester||'1'), sourceYear=String(this.adminSettings.academicYear||'2569');
+          if(!targetTerm || !targetYear) { Swal.fire('ข้อมูลไม่ครบ','กรุณาระบุภาคเรียนและปีการศึกษาที่จะขึ้นใหม่','warning'); return; }
+          if(targetTerm===sourceTerm && targetYear===sourceYear) { Swal.fire('ภาคเรียนซ้ำ','ภาคเรียนใหม่ต้องแตกต่างจากภาคเรียนปัจจุบัน','warning'); return; }
+          const result=await Swal.fire({title:'ยืนยันการสร้างภาคเรียนใหม่?',html:`จะสร้างภาคเรียน <b>${targetTerm}/${targetYear}</b> โดยเก็บข้อมูลของภาคเรียนเดิม ${sourceTerm}/${sourceYear} ไว้เป็นประวัติ${this.resetOptions.doBackup?' และสำรองข้อมูลขึ้น Google Drive ก่อน':''}`,icon:'warning',showCancelButton:true,confirmButtonColor:'#dc3545',confirmButtonText:'ดำเนินการ',cancelButtonText:'ยกเลิก'});
+          if(!result.isConfirmed) return;
+          this.loading=true; Swal.fire({title:'กำลังเตรียมข้อมูล...',html:'กำลังสำรองข้อมูลและสร้างภาคเรียนใหม่ กรุณาอย่าปิดหน้าต่าง',allowOutsideClick:false,didOpen:()=>Swal.showLoading()});
+          try {
+            if(this.resetOptions.doBackup) await this.downloadSupabaseBackup(); // thrown error prevents destructive operations
+            const [{data:sourceClubs},{data:sourceRegs},{data:targetClubs}] = await Promise.all([
+              db.from('clubs').select('*').eq('term',sourceTerm).eq('year',sourceYear),
+              db.from('registrations').select('*').eq('term',sourceTerm).eq('year',sourceYear),
+              db.from('clubs').select('*').eq('term',targetTerm).eq('year',targetYear)
+            ]);
+            // Only clear data belonging to the target period, never the archived source period.
+            if(this.resetOptions.clearClubs && targetClubs && targetClubs.length) {
+              const targetIds=targetClubs.map(c=>c.id);
+              await db.from('registrations').delete().eq('term',targetTerm).eq('year',targetYear);
+              await db.from('attendance_data').delete().eq('term',targetTerm).eq('year',targetYear);
+              await db.from('club_reports').delete().eq('term',targetTerm).eq('year',targetYear);
+              await db.from('clubs').delete().eq('term',targetTerm).eq('year',targetYear);
+            } else {
+              if(this.resetOptions.resetRegistrations) await db.from('registrations').delete().eq('term',targetTerm).eq('year',targetYear);
+              if(this.resetOptions.resetAttendance) await db.from('attendance_data').delete().eq('term',targetTerm).eq('year',targetYear);
+              if(this.resetOptions.resetReports) await db.from('club_reports').delete().eq('term',targetTerm).eq('year',targetYear);
+              if(targetClubs && targetClubs.length) await db.from('clubs').update({current_count:0}).eq('term',targetTerm).eq('year',targetYear);
             }
-          });
+            let clonedClubs=[];
+            const haveTarget= !this.resetOptions.clearClubs && targetClubs && targetClubs.length>0;
+            if(!haveTarget && !this.resetOptions.clearClubs) {
+              const idMap={};
+              clonedClubs=(sourceClubs||[]).map((club,index)=>{
+                const newId=`C${targetYear}${targetTerm}${Date.now().toString(36).slice(-4)}${index}`;
+                idMap[String(club.id)]=newId;
+                const copy={...club,id:newId,term:targetTerm,year:targetYear,current_count:0}; delete copy.created_at; delete copy.updated_at; return copy;
+              });
+              if(clonedClubs.length) await db.from('clubs').insert(clonedClubs);
+              if(!this.resetOptions.resetRegistrations && !this.resetOptions.clearStudents) {
+                const copiedRegs=(sourceRegs||[]).filter(r=>idMap[String(r.club_id)]).map((r,i)=>{const copy={...r,reg_id:`REG-${targetYear}-${targetTerm}-${Date.now()}-${i}`,club_id:idMap[String(r.club_id)],term:targetTerm,year:targetYear,club_name:(sourceClubs||[]).find(c=>String(c.id)===String(r.club_id))?.name||r.club_name};delete copy.id;delete copy.created_at;delete copy.updated_at;return copy;});
+                if(copiedRegs.length) await db.from('registrations').insert(copiedRegs);
+                const counts={}; copiedRegs.forEach(r=>counts[String(r.club_id)]=(counts[String(r.club_id)]||0)+1);
+                for(const newClub of clonedClubs) await db.from('clubs').update({current_count:counts[String(newClub.id)]||0}).eq('id',newClub.id);
+                for(const reg of copiedRegs) await db.from('students').update({club_id:reg.club_id}).eq('id',reg.student_id);
+              }
+            }
+            // These checkboxes operate on the student master table only; historical snapshots stay in registrations/reports.
+            if(this.resetOptions.clearStudents) await db.from('students').delete().not('id','is',null);
+            else if(this.resetOptions.resetRegistrations) await db.from('students').update({club_id:null}).not('id','is',null);
+            const settings={...this.adminSettings,semester:targetTerm,academicYear:targetYear};
+            this.config.adminSettings=JSON.stringify(settings);
+            await db.from('config').upsert({key:'adminSettings',value:JSON.stringify(settings)},{onConflict:'key'});
+            this.adminSettings=settings; this.selectedPeriodKey=`${targetTerm}/${targetYear}`;
+            const modal=bootstrap.Modal.getInstance(document.getElementById('resetSystemModal')); if(modal) modal.hide();
+            Swal.fire({title:'สร้างภาคเรียนใหม่สำเร็จ',html:`พร้อมใช้งานภาคเรียน <b>${targetTerm}/${targetYear}</b><br>ข้อมูลของภาคเรียน ${sourceTerm}/${sourceYear} ยังคงอยู่ในฐานข้อมูลเพื่อดูย้อนหลัง`,icon:'success',confirmButtonText:'เริ่มใช้งาน'}).then(()=>window.location.reload());
+          } catch(error) { Swal.fire('ดำเนินการไม่สำเร็จ',error.message||String(error),'error'); }
+          finally { this.loading=false; }
         },
         async searchByRoom() {
           if (!this.lookup.room) { Swal.fire('แจ้งเตือน', 'กรุณาระบุห้องที่ต้องการค้นหา', 'warning'); return; }
@@ -3004,21 +3324,18 @@ methods: {
         getBtnText(c) { if (c.current_count >= c.max_capacity && this.user.clubId !== c.id) return 'เต็มแล้ว'; if (this.user.clubId === c.id) return 'ลงทะเบียนแล้ว'; if (this.user.clubId) { return this.config.allow_transfer === 'true' ? 'ย้ายชุมนุม' : 'ปิดย้ายชุมนุม'; } return this.config.open_reg === 'true' ? 'สมัครชุมนุม' : 'ปิดรับสมัคร'; },
         getBtnClass(c) { if (this.user.clubId === c.id) return 'btn-registered'; if (c.current_count >= c.max_capacity && this.user.clubId !== c.id) return 'btn-full disabled'; if (this.user.clubId) { if (this.config.allow_transfer !== 'true') return 'btn-closed disabled'; } else { if (this.config.open_reg !== 'true') return 'btn-closed disabled'; } return 'btn-enroll'; },
         isBtnDisabled(c) { if (c.current_count >= c.max_capacity && this.user.clubId !== c.id) return true; if (this.user.clubId === c.id) return true; if (!this.user.clubId && this.config.open_reg !== 'true') return true; if (this.user.clubId && this.config.allow_transfer !== 'true') return true; return false; },
-        openAddModal() { this.isEditMode=false; this.clubForm={ id: '', name: '', level: 'ทั้งหมด', owner_ids: [this.user.id.toString()], max_capacity: 30, location: '', comment: '' }; new bootstrap.Modal(document.getElementById('clubModal')).show(); },
-        openEditModal(c) { this.isEditMode=true; this.clubForm={ ...c, owner_ids: c.owner_id.toString().split(','), location: c.location || '', comment: c.comment || '' }; new bootstrap.Modal(document.getElementById('clubModal')).show(); },
+        openAddModal() { if(!this.canEditSelectedTerm){Swal.fire('ดูอย่างเดียว','ไม่สามารถสร้างชุมนุมในภาคเรียนย้อนหลังได้','warning');return;} this.isEditMode=false; this.clubForm={ id: '', name: '', level: 'ทั้งหมด', owner_ids: [this.user.id.toString()], max_capacity: 30, location: '', comment: '' }; new bootstrap.Modal(document.getElementById('clubModal')).show(); },
+        openEditModal(c) { if(!this.canEditSelectedTerm){Swal.fire('ดูอย่างเดียว','ไม่สามารถแก้ไขชุมนุมในภาคเรียนย้อนหลังได้','warning');return;} this.isEditMode=true; this.clubForm={ ...c, owner_ids: c.owner_id.toString().split(','), location: c.location || '', comment: c.comment || '' }; new bootstrap.Modal(document.getElementById('clubModal')).show(); },
         checkHoliday(dateStr) { if (!dateStr || !this.holidays) return false; return this.holidays.some(h => h.date === dateStr); },
         getHolidayDesc(dateStr) { if (!dateStr || !this.holidays) return ''; let h = this.holidays.find(h => h.date === dateStr); return h ? h.desc : ''; },
         formatShortDateThaiObj(dateStr) { if (!dateStr) return { day: '', month: '', year: '' }; const d = new Date(dateStr); const months = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.']; const yearShort = (d.getFullYear() + 543).toString().slice(-2); return { day: d.getDate().toString().padStart(2, '0'), month: months[d.getMonth()], year: yearShort }; },
-        openResetModal() { const currentSem = (this.adminSettings && this.adminSettings.semester) ? this.adminSettings.semester : '1'; const currentYear = (this.adminSettings && this.adminSettings.academicYear) ? this.adminSettings.academicYear : '2569'; this.resetOptions.newSemester = currentSem === '1' ? '2' : '1'; let nextYear = Number(currentYear); if (this.resetOptions.newSemester === '1') nextYear += 1; this.resetOptions.newYear = nextYear.toString(); const modalElement = document.getElementById('resetSystemModal'); if (modalElement) { const modal = bootstrap.Modal.getOrCreateInstance(modalElement); modal.show(); } else { Swal.fire('ระบบขัดข้อง', 'หาหน้าต่าง Modal ไม่พบ', 'error'); } },
-        removePhoto(index) {
-          Swal.fire({ title: 'ต้องการลบรูปภาพนี้?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', cancelButtonColor: '#6c757d', confirmButtonText: 'ลบรูปภาพ', cancelButtonText: 'ยกเลิก' }).then(async result => {
-            if (!result.isConfirmed) return;
-            const previous = this.reportData.photos[index] || '';
-            this.reportData.photos[index] = '';
-            const saved = await this.saveCurrentReportSilently();
-            if (!saved) { this.reportData.photos[index] = previous; return; }
-            Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'ลบรูปภาพจากรายงานเรียบร้อย', showConfirmButton: false, timer: 1500 });
-          });
+        openResetModal() { if(!this.user || this.user.role!=='admin'){Swal.fire('ไม่มีสิทธิ์','เฉพาะ Admin เท่านั้น','warning');return;} const currentSem = (this.adminSettings && this.adminSettings.semester) ? this.adminSettings.semester : '1'; const currentYear = (this.adminSettings && this.adminSettings.academicYear) ? this.adminSettings.academicYear : '2569'; this.resetOptions.newSemester = currentSem === '1' ? '2' : '1'; let nextYear = Number(currentYear); if (this.resetOptions.newSemester === '1') nextYear += 1; this.resetOptions.newYear = nextYear.toString(); const modalElement = document.getElementById('resetSystemModal'); if (modalElement) { const modal = bootstrap.Modal.getOrCreateInstance(modalElement); modal.show(); } else { Swal.fire('ระบบขัดข้อง', 'หาหน้าต่าง Modal ไม่พบ', 'error'); } },
+        async removePhoto(index) {
+          if(!this.canEditSelectedTerm) { Swal.fire('ดูอย่างเดียว','ไม่มีสิทธิ์ลบรูปในภาคเรียนนี้','warning'); return; }
+          const result=await Swal.fire({title:'นำรูปออกจากรายงาน?',text:'รูปเดิมใน Google Drive จะถูกลบหลังจากกด “บันทึกรายงานลงระบบ” สำเร็จเท่านั้น',icon:'warning',showCancelButton:true,confirmButtonColor:'#d33',confirmButtonText:'นำรูปออก',cancelButtonText:'ยกเลิก'});
+          if(!result.isConfirmed) return;
+          this.reportData.photos[index]='';
+          Swal.fire({toast:true,position:'top-end',icon:'info',title:'รูปถูกนำออกชั่วคราว — กดบันทึกรายงานเพื่อยืนยัน',showConfirmButton:false,timer:2400});
         },
         promptSendEmail() {
           Swal.fire({
@@ -3047,10 +3364,24 @@ methods: {
             if (result.isConfirmed) this.convertFileAndSend(result.value.email, result.value.file);
           });
         },
-        generatePDFAndSend(email) { Swal.fire({ title: 'กำลังสร้าง PDF และส่งอีเมล...', html: 'กระบวนการนี้อาจใช้เวลา 10-15 วินาที โปรดห้ามปิดหน้าต่าง', allowOutsideClick: false, didOpen: () => Swal.showLoading() }); const element = document.getElementById('report-print-area'); const opt = { margin: [10, 0, 10, 0], filename: `รายงานชุมนุม_${this.currentClubName}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } }; html2pdf().set(opt).from(element).outputPdf('datauristring').then((pdfBase64) => { const payload = { clubName: this.currentClubName, teacher: this.reportData.teacher, semester: this.adminSettings.semester, academicYear: this.adminSettings.academicYear, totalStudents: this.attStudents ? this.attStudents.length : 0, passCount: this.countPass(), failCount: this.countFail(), pdfFile: pdfBase64, fileName: `รายงานชุมนุม_${this.currentClubName}_ภาคเรียนที่${this.adminSettings.semester}_${this.adminSettings.academicYear}.pdf` }; fetchGAS('sendEmail', { emailAddress: email, data: payload }).then(res => { if(res.success) { Swal.fire('สำเร็จ', `ส่งรายงานพร้อมไฟล์แนบ <b>${email}</b> เรียบร้อยแล้ว`, 'success'); } else { Swal.fire('ข้อผิดพลาด', res.message, 'error'); } }).catch(err => { Swal.fire('การเชื่อมต่อขัดข้อง', 'Error: ' + err, 'error'); }); }); },
+        generatePDFAndSend(email) { Swal.fire({ title: 'กำลังสร้าง PDF และส่งอีเมล...', html: 'กระบวนการนี้อาจใช้เวลา 10-15 วินาที โปรดห้ามปิดหน้าต่าง', allowOutsideClick: false, didOpen: () => Swal.showLoading() }); const element = document.getElementById('report-print-area'); const opt = { margin: [10, 0, 10, 0], filename: `รายงานชุมนุม_${this.currentClubName}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } }; html2pdf().set(opt).from(element).outputPdf('datauristring').then((pdfBase64) => { const payload = { clubName: this.currentClubName, teacher: this.reportData.teacher, semester: this.activeTerm, academicYear: this.activeYear, totalStudents: this.attStudents ? this.attStudents.length : 0, passCount: this.countPass(), failCount: this.countFail(), pdfFile: pdfBase64, fileName: `รายงานชุมนุม_${this.currentClubName}_ภาคเรียนที่${this.activeTerm}_${this.activeYear}.pdf` }; fetchGAS('sendEmail', { emailAddress: email, data: payload }).then(res => { if(res.success) { Swal.fire('สำเร็จ', `ส่งรายงานพร้อมไฟล์แนบ <b>${email}</b> เรียบร้อยแล้ว`, 'success'); } else { Swal.fire('ข้อผิดพลาด', res.message, 'error'); } }).catch(err => { Swal.fire('การเชื่อมต่อขัดข้อง', 'Error: ' + err, 'error'); }); }); },
         downloadPDF() { Swal.fire({ title: 'กำลังสร้างไฟล์ PDF...', html: 'กรุณารอสักครู่ (ห้ามปิดหน้าต่างนี้)', allowOutsideClick: false, didOpen: () => Swal.showLoading() }); const element = document.getElementById('report-print-area'); const opt = { margin: [10, 0, 10, 0], filename: `รายงานชุมนุม_${this.currentClubName}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } }; html2pdf().set(opt).from(element).save().then(() => { Swal.close(); Swal.fire({toast: true, position: 'top-end', icon: 'success', title: 'ดาวน์โหลดไฟล์ PDF สำเร็จ', showConfirmButton: false, timer: 2000}); }); },
-        downloadUsersCSV() { if(!this.usersList || this.usersList.length === 0) { Swal.fire('แจ้งเตือน', 'ไม่มีข้อมูลให้ดาวน์โหลด', 'info'); return; } let csvContent = "data:text/csv;charset=utf-8,\uFEFF"; if(this.manageRole === 'teacher') { csvContent += "id,name,username,password,role\n"; this.usersList.forEach(u => { const row = [u.id, u.name, u.username, u.password || u.id, u.role].map(e => `"${e}"`).join(","); csvContent += row + "\n"; }); } else { csvContent += "id,name,level,room,no,password\n"; this.usersList.forEach(u => { const row = [u.id, u.name, u.level, u.room, u.no, u.password || u.id].map(e => `"${e}"`).join(","); csvContent += row + "\n"; }); } const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", `${this.manageRole}_list.csv`); document.body.appendChild(link); link.click(); document.body.removeChild(link); },
-        downloadCSVTemplate() { let csvContent = "data:text/csv;charset=utf-8,\uFEFF"; let fileName = ""; if (this.manageRole === 'teacher') { csvContent += "id,name,username,password,role\n"; csvContent += "T001,ชื่อ นามสกุล,user001,pass001,teacher\n"; fileName = "template_teachers.csv"; } else { csvContent += "id,name,level,room,no,password\n"; csvContent += "69001,เด็กชายสมชาย ใจดี,ม.1,1/1,1,69001\n"; fileName = "template_students.csv"; } const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", fileName); document.body.appendChild(link); link.click(); document.body.removeChild(link); Swal.fire({ icon: 'info', title: 'ดาวน์โหลดต้นแบบแล้ว', text: 'กรุณากรอกข้อมูลตามลำดับคอลัมน์ในไฟล์ตัวอย่าง', timer: 2000, showConfirmButton: false }); },
+        downloadUsersCSV() {
+          if(!this.user || this.user.role!=='admin') { Swal.fire('ไม่มีสิทธิ์','เฉพาะ Admin เท่านั้น','warning'); return; }
+          if(!this.usersList||!this.usersList.length){Swal.fire('แจ้งเตือน','ไม่มีข้อมูลให้ดาวน์โหลด','info');return;}
+          const headers=this.manageRole==='teacher'?['id','name','username','password','role']:['id','name','level','room','no','password'];
+          const rows=[headers,...this.usersList.map(u=>headers.map(h=>u[h]??(h==='password'?u.id:'')))];
+          const csv='\uFEFF'+rows.map(row=>row.map(csvEscape).join(',')).join('\r\n');
+          const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'}),url=URL.createObjectURL(blob),link=document.createElement('a');
+          link.href=url;link.download=`${this.manageRole}_list.csv`;document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+        },
+        downloadCSVTemplate() {
+          const teacher=this.manageRole==='teacher';
+          const rows=teacher?[['id','name','username','password','role'],['T001','ชื่อ นามสกุล','user001','pass001','teacher']]:[['id','name','level','room','no','password'],['69001','เด็กชายสมชาย ใจดี','ม.1','1/1','1','69001']];
+          const blob=new Blob(['\uFEFF'+rows.map(row=>row.map(csvEscape).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8;'});
+          const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=teacher?'template_teachers.csv':'template_students.csv';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+          Swal.fire({icon:'info',title:'ดาวน์โหลดต้นแบบแล้ว',text:'ใช้ UTF-8 CSV และอย่าเปลี่ยนลำดับคอลัมน์',timer:2000,showConfirmButton:false});
+        },
         downloadExcelList(club) { Swal.fire({ title: 'กำลังโหลด...', didOpen: () => Swal.showLoading() }); db.from('students').select('*').eq('club_id', club.id).then(({data: stds}) => { Swal.close(); const students = (stds||[]).sort((a, b) => { const roomA = a.room.toString(); const roomB = b.room.toString(); if(roomA !== roomB) return roomA.localeCompare(roomB, undefined, {numeric: true, sensitivity: 'base'}); return Number(a.no) - Number(b.no); }); let table = `<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"></head><body><h3>รายชื่อสมาชิกชุมนุม: ${club.name}</h3><table border="1"><thead><tr style="background:#ddd;"><th>ลำดับ</th><th>รหัส</th><th>ชื่อ-นามสกุล</th><th>ชั้น</th><th>เลขที่</th></tr></thead><tbody>`; students.forEach((s, idx) => { table += `<tr><td>${idx+1}</td><td style="mso-number-format:'\\@';">${s.id}</td><td>${s.name}</td><td>${s.room}</td><td>${s.no}</td></tr>`; }); table += `</tbody></table></body></html>`; const blob = new Blob([table], { type: "application/vnd.ms-excel" }); const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `รายชื่อ_${club.name}.xls`; link.click(); }); },
         executeDownload(html, fileName) { const blob = new Blob([html], { type: "application/vnd.ms-excel" }); const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = fileName; link.click(); },
         downloadFilteredStudents() { if (this.exportFilter.type === 'ระบุห้อง' && !this.exportFilter.room.trim()) { Swal.fire('แจ้งเตือน', 'กรุณาระบุห้องที่ต้องการดาวน์โหลด', 'warning'); return; } Swal.fire({ title: 'กำลังเตรียมข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() }); db.from('students').select('*').then(({data: students}) => { Swal.close(); let filteredList = (students||[]).filter(s => { const level = String(s.level || '').trim(); const room = String(s.room || '').trim(); if (this.exportFilter.type === 'ทั้งหมด') return true; if (this.exportFilter.type === 'ม.ต้น') return ['ม.1', 'ม.2', 'ม.3', 'ม.ต้น'].some(l => level.includes(l)); if (this.exportFilter.type === 'ม.ปลาย') return ['ม.4', 'ม.5', 'ม.6', 'ม.ปลาย'].some(l => level.includes(l)); if (this.exportFilter.type === 'ระบุห้อง') { const searchRoom = this.exportFilter.room.trim(); if (room.includes(searchRoom)) { const pos = room.indexOf(searchRoom); const charAfter = room.charAt(pos + searchRoom.length); if (!charAfter || !/\d/.test(charAfter)) return true; } return false; } return true; }); if (filteredList.length === 0) { Swal.fire('ไม่พบข้อมูล', 'ไม่มีนักเรียนในเงื่อนไขที่ระบุ', 'info'); return; } filteredList.sort((a, b) => { const roomCompare = (a.room || '').toString().localeCompare((b.room || '').toString(), 'th', {numeric: true}); if (roomCompare !== 0) return roomCompare; return (Number(a.no) || 0) - (Number(b.no) || 0); }); let table = `<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"></head><body><h3>ข้อมูลการสมัครชุมนุมนักเรียน (${this.exportFilter.type}${this.exportFilter.type === 'ระบุห้อง' ? ' ' + this.exportFilter.room : ''})</h3><p>ข้อมูล ณ วันที่: ${new Date().toLocaleString('th-TH')}</p><table border="1"><thead><tr style="background-color: #d1e7dd;"><th>ลำดับ</th><th>รหัสประจำตัว</th><th>ชื่อ-นามสกุล</th><th>ชั้น</th><th>ห้อง</th><th>เลขที่</th><th>ชุมนุม</th></tr></thead><tbody>`; filteredList.forEach((s, idx) => { let clubName = 'ยังไม่ได้สมัครชุมนุม'; if (s.club_id && String(s.club_id).trim() !== '') { if (this.clubMap[s.club_id]) { clubName = this.clubMap[s.club_id].name; } else { clubName = s.club_id; } } table += `<tr><td align="center">${idx + 1}</td><td align="center" style="mso-number-format:'\\@';">${s.id}</td><td>${s.name}</td><td align="center">${s.level}</td><td align="center">${s.room}</td><td align="center">${s.no}</td><td style="${clubName === 'ยังไม่ได้สมัครชุมนุม' ? 'color: red; font-weight: bold;' : ''}">${clubName}</td></tr>`; }); table += `</tbody></table></body></html>`; const fileNameSuffix = this.exportFilter.type === 'ระบุห้อง' ? this.exportFilter.room.replace(/\//g, '-') : this.exportFilter.type; this.executeDownload(table, `รายชื่อนักเรียน_ชุมนุม_${fileNameSuffix}.xls`); }); },
@@ -3064,10 +3395,76 @@ methods: {
         countPass() { return (this.attStudents || []).filter(s => this.calculateGrade(s.id) === 'ผ่าน').length; },
         countFail() { return (this.attStudents || []).filter(s => this.calculateGrade(s.id) === 'ไม่ผ่าน').length; },
         getStatusSymbol(val) { if(val===1) return '/'; if(val===2) return 'ล'; if(val===3) return 'ข'; return ''; },
-        resizeImage(file, maxWidth, initialQuality, callback) { const reader = new FileReader(); reader.onload = (e) => { const img = new Image(); img.onload = () => { const canvas = document.createElement('canvas'); let width = img.width; let height = img.height; const targetMaxWidth = maxWidth || 400; if (width > targetMaxWidth) { height = Math.round((height * targetMaxWidth) / width); width = targetMaxWidth; } canvas.width = width; canvas.height = height; const ctx = canvas.getContext('2d'); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'medium'; ctx.drawImage(img, 0, 0, width, height); let quality = initialQuality || 0.7; let base64Str = canvas.toDataURL('image/jpeg', quality); while (base64Str.length > 30000 && quality > 0.1) { quality -= 0.1; base64Str = canvas.toDataURL('image/jpeg', quality); } callback(base64Str); }; img.src = e.target.result; }; reader.readAsDataURL(file); },
-        uploadPhoto(event, index) { const input = event.target; const file = input.files && input.files[0]; if (!file) return; const previous = this.reportData.photos[index] || ''; Swal.fire({ title: 'กำลังประมวลผลรูปภาพ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() }); this.resizeImage(file, 500, 0.9, async resizedBase64 => { this.reportData.photos[index] = resizedBase64; Swal.close(); const saved = await this.saveCurrentReportSilently(); if (!saved) this.reportData.photos[index] = previous; input.value = ''; }); },
-        onLogoSelected(event) { const input = event.target; const file = input.files && input.files[0]; if (!file) return; const previous = this.reportData.logo || ''; Swal.fire({ title: 'กำลังประมวลผลโลโก้...', allowOutsideClick: false, didOpen: () => Swal.showLoading() }); this.resizeImage(file, 300, 1.0, async resizedBase64 => { this.reportData.logo = resizedBase64; Swal.close(); const saved = await this.saveCurrentReportSilently(); if (!saved) this.reportData.logo = previous; input.value = ''; }); },
-        // ---------- Original functions restored for the full source UI ----------
+        clickSignature(key) {
+          const teacherAllowed = key === 'teacher' && this.canEditSelectedTerm;
+          const adminAllowed = key !== 'teacher' && this.user && this.user.role === 'admin';
+          if (!teacherAllowed && !adminAllowed) {
+            Swal.fire('ไม่มีสิทธิ์แก้ไข', key === 'teacher' ? 'ภาคเรียนนี้เปิดให้ดูอย่างเดียว' : 'เฉพาะ Admin เท่านั้นที่แก้ไขลายเซ็นผู้บริหารได้', 'warning');
+            return;
+          }
+          const refs = { teacher:'signatureTeacherInput', headClub:'signatureHeadClubInput', headDev:'signatureHeadDevInput', deputy:'signatureDeputyInput', director:'signatureDirectorInput' };
+          const input = this.$refs[refs[key]];
+          if (input) input.click();
+        },
+        async onSignatureSelected(event,key) {
+          const input=event.target, file=input.files&&input.files[0]; if(!file) return;
+          if(key==='teacher' && !this.canEditSelectedTerm) { Swal.fire('ดูอย่างเดียว','ไม่มีสิทธิ์เปลี่ยนลายเซ็นในภาคเรียนนี้','warning'); input.value=''; return; }
+          if(key!=='teacher' && (!this.user || this.user.role!=='admin')) { Swal.fire('ไม่มีสิทธิ์','เฉพาะ Admin เท่านั้นที่เปลี่ยนลายเซ็นผู้บริหารได้','warning'); input.value=''; return; }
+          const allowed=['image/png','image/jpeg','image/webp'];
+          if(!allowed.includes(file.type)) { Swal.fire('ชนิดไฟล์ไม่รองรับ','กรุณาเลือกไฟล์ PNG, JPG หรือ WEBP','warning'); input.value=''; return; }
+          if(file.size>8*1024*1024) { Swal.fire('ไฟล์ใหญ่เกินไป','กรุณาเลือกไฟล์ไม่เกิน 8 MB','warning'); input.value=''; return; }
+          const oldValue=key==='teacher' ? ((this.reportData.signatures||{}).teacher||'') : ((this.adminSettings.signatures||{})[key]||'');
+          if(key!=='teacher') Swal.fire({title:'กำลังอัปโหลดลายเซ็น...',allowOutsideClick:false,didOpen:()=>Swal.showLoading()});
+          this.resizeImage(file,700,0.95,async dataUrl=>{
+            let uploaded=null;
+            try {
+              if(key==='teacher') {
+                // Preview now, upload and commit only when the report's Save button is pressed.
+                this.reportData.signatures=this.reportData.signatures||{};
+                this.reportData.signatures.teacher=dataUrl;
+                Swal.close();
+                Swal.fire({toast:true,position:'top-end',icon:'info',title:'ลายเซ็นถูกเตรียมไว้ — กดบันทึกรายงานเพื่อยืนยัน',showConfirmButton:false,timer:2400});
+              } else {
+                uploaded=await this.uploadImageToDrive(dataUrl,`SKN_Signature_${key}_${Date.now()}.jpg`,'image');
+                this.adminSettings.signatures=this.adminSettings.signatures||{}; this.adminSettings.signatures[key]=uploaded.url;
+                this.config.adminSettings=JSON.stringify(this.adminSettings);
+                const saved=await this.saveConfig(false); if(!saved) throw new Error('บันทึกการตั้งค่า Supabase ไม่สำเร็จ');
+                if(oldValue && oldValue!==uploaded.url) { try { await this.deleteDriveUrl(oldValue); } catch(deleteErr) { console.warn('ลายเซ็นเดิมบันทึกแทนแล้ว แต่ลบไฟล์เก่าไม่ได้',deleteErr); } }
+                Swal.close(); Swal.fire({toast:true,position:'top-end',icon:'success',title:'บันทึกลายเซ็นสำเร็จ',showConfirmButton:false,timer:1800});
+              }
+            } catch(error) {
+              if(key==='teacher') { this.reportData.signatures=this.reportData.signatures||{}; this.reportData.signatures.teacher=oldValue; }
+              else { this.adminSettings.signatures=this.adminSettings.signatures||{}; this.adminSettings.signatures[key]=oldValue; this.config.adminSettings=JSON.stringify(this.adminSettings); }
+              if(uploaded) { try { await fetchGAS('deleteDriveFile',{fileId:uploaded.fileId,assetType:'image',folderId:this.adminSettings.driveImageFolderId||''}); } catch(cleanupErr) { console.error(cleanupErr); } }
+              Swal.close(); Swal.fire('อัปโหลดลายเซ็นไม่สำเร็จ',error.message||String(error),'error');
+            } finally { input.value=''; }
+          });
+        },
+        resizeImage(file, maxWidth, initialQuality, callback) { const reader = new FileReader(); reader.onerror = () => Swal.fire('อ่านภาพไม่สำเร็จ','กรุณาเลือกไฟล์ภาพอีกครั้ง','error'); reader.onload = (e) => { const img = new Image(); img.onerror = () => Swal.fire('อ่านภาพไม่สำเร็จ','ไฟล์ภาพอาจเสียหายหรือไม่รองรับ','error'); img.onload = () => { const canvas = document.createElement('canvas'); let width = img.width; let height = img.height; const targetMaxWidth = maxWidth || 400; if (width > targetMaxWidth) { height = Math.round((height * targetMaxWidth) / width); width = targetMaxWidth; } canvas.width = width; canvas.height = height; const ctx = canvas.getContext('2d'); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high'; ctx.fillStyle = '#ffffff'; ctx.fillRect(0,0,width,height); ctx.drawImage(img, 0, 0, width, height); let quality = initialQuality || 0.82; let base64Str = canvas.toDataURL('image/jpeg', quality); const maxChars = targetMaxWidth >= 900 ? 600000 : 350000; while (base64Str.length > maxChars && quality > 0.35) { quality -= 0.08; base64Str = canvas.toDataURL('image/jpeg', quality); } callback(base64Str); }; img.src = e.target.result; }; reader.readAsDataURL(file); },
+        uploadPhoto(event,index) {
+          const input=event.target, file=input.files&&input.files[0]; if(!file) return;
+          if(!this.canEditSelectedTerm) { Swal.fire('ดูอย่างเดียว','ไม่มีสิทธิ์เปลี่ยนรูปในภาคเรียนนี้','warning'); input.value=''; return; }
+          if(!file.type.startsWith('image/')) { Swal.fire('ไฟล์ไม่ถูกต้อง','กรุณาเลือกไฟล์ภาพ','warning'); input.value=''; return; }
+          if(file.size>10*1024*1024) { Swal.fire('ไฟล์ใหญ่เกินไป','กรุณาเลือกภาพไม่เกิน 10 MB','warning'); input.value=''; return; }
+          Swal.fire({title:'กำลังเตรียมรูปภาพ...',allowOutsideClick:false,didOpen:()=>Swal.showLoading()});
+          this.resizeImage(file,1200,0.9,dataUrl=>{
+            this.reportData.photos[index]=dataUrl; Swal.close();
+            Swal.fire({toast:true,position:'top-end',icon:'info',title:'เตรียมรูปแล้ว — กดบันทึกรายงานเพื่ออัปโหลดไป Drive',showConfirmButton:false,timer:2600});
+            input.value='';
+          });
+        },
+        onLogoSelected(event) {
+          const input=event.target, file=input.files&&input.files[0]; if(!file) return;
+          if(!this.canEditSelectedTerm) { Swal.fire('ดูอย่างเดียว','ไม่มีสิทธิ์เปลี่ยนโลโก้รายงานในภาคเรียนนี้','warning'); input.value=''; return; }
+          if(!file.type.startsWith('image/')) { Swal.fire('ไฟล์ไม่ถูกต้อง','กรุณาเลือกไฟล์ภาพ','warning'); input.value=''; return; }
+          if(file.size>8*1024*1024) { Swal.fire('ไฟล์ใหญ่เกินไป','กรุณาเลือกภาพไม่เกิน 8 MB','warning'); input.value=''; return; }
+          Swal.fire({title:'กำลังเตรียมโลโก้...',allowOutsideClick:false,didOpen:()=>Swal.showLoading()});
+          this.resizeImage(file,700,0.94,dataUrl=>{
+            this.reportData.logo=dataUrl; Swal.close();
+            Swal.fire({toast:true,position:'top-end',icon:'info',title:'เตรียมโลโก้แล้ว — กดบันทึกรายงานเพื่ออัปโหลดไป Drive',showConfirmButton:false,timer:2600});
+            input.value='';
+          });
+        },
         openBulkDeleteModal() {
           this.bulkAction = { target: 'ม.ต้น', room: '' };
           const el = document.getElementById('bulkDeleteModal');
@@ -3139,16 +3536,23 @@ methods: {
         },
         printReport() { window.print(); },
         async downloadSupabaseBackup() {
-          const tableNames = ['config', 'clubs', 'teachers', 'students', 'registrations', 'attendance_data', 'club_reports'];
-          const backup = { created_at: new Date().toISOString(), source: 'Supabase', semester: this.adminSettings.semester, academicYear: this.adminSettings.academicYear, tables: {} };
-          for (const tableName of tableNames) {
-            const { data } = await db.from(tableName).select('*');
-            backup.tables[tableName] = data || [];
+          if(!this.user || this.user.role!=='admin') throw new Error('เฉพาะ Admin เท่านั้นที่สำรองข้อมูลได้');
+          const tableNames=['config','clubs','teachers','students','registrations','attendance_data','club_reports'];
+          const backup={schema_version:2,created_at:new Date().toISOString(),source:'SKN Clubs / Supabase',current_period:{term:String(this.adminSettings.semester),year:String(this.adminSettings.academicYear)},tables:{}};
+          for(const tableName of tableNames) {
+            const rows=[]; let offset=0; const pageSize=1000;
+            while(true) {
+              const {data}=await db.from(tableName).select('*').range(offset,offset+pageSize-1);
+              const page=data||[]; rows.push(...page);
+              if(page.length<pageSize) break;
+              offset+=pageSize;
+            }
+            backup.tables[tableName]=rows;
           }
-          const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json;charset=utf-8' });
-          const url = URL.createObjectURL(blob); const a = document.createElement('a');
-          a.href = url; a.download = `SKN_Supabase_Backup_${new Date().toISOString().replace(/[:.]/g,'-')}.json`;
-          document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1500);
+          const safeStamp=new Date().toISOString().replace(/[:.]/g,'-');
+          const res=await fetchGAS('createBackup',{fileName:`SKN_Supabase_Backup_${backup.current_period.term}_${backup.current_period.year}_${safeStamp}.json`,jsonData:JSON.stringify(backup,null,2),folderId:this.adminSettings.driveFolderId||'',term:backup.current_period.term,year:backup.current_period.year});
+          if(!res || !res.success || !(res.url||res.webViewLink)) throw new Error((res&&res.message)||'Google Drive ไม่ยืนยันการสร้างไฟล์สำรอง');
+          return res;
         },
         async openBackupHistoryModal() {
           this.backupFiles = []; this.loadingBackup = true;
@@ -3170,7 +3574,7 @@ methods: {
             try {
               const payload = {
                 clubName: this.currentClubName, teacher: this.reportData.teacher,
-                semester: this.adminSettings.semester, academicYear: this.adminSettings.academicYear,
+                semester: this.activeTerm, academicYear: this.activeYear,
                 totalStudents: this.attStudents ? this.attStudents.length : 0,
                 passCount: this.countPass(), failCount: this.countFail(), actData: this.reportActData,
                 pdfFile: e.target.result, fileName: file.name
@@ -3189,3 +3593,4 @@ methods: {
 </script>
 </body>
 </html>
+
