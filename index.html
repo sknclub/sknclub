@@ -3,19 +3,19 @@
 
 <head>
   <meta charset="UTF-8">
-  <title>ระบบชุมนุม SKN (GitHub Version)</title>
+  <title>ระบบชุมนุม SKN (GitHub + Supabase Version)</title>
   <base target="_top">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   
-  <!-- นำเข้า html2pdf.js สำหรับสร้าง PDF -->
+  <!-- Libraries -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-  <!-- นำเข้า SweetAlert2 -->
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-  <!-- นำเข้า Vue 3 -->
-  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <!-- นำเข้า Supabase JS Library เพื่อคุยกับฐานข้อมูลโดยตรง -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <style>
     /* --- Main Theme --- */
@@ -145,6 +145,7 @@
     .photo-slot { border: 1px dashed #ccc; height: 250px; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; background: #f9f9f9; cursor: pointer; }
     .photo-slot:hover { background: #f0f0f0; border-color: #999; }
     .photo-slot img { width: 100%; height: 100%; object-fit: contain; }
+    .photo-input { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
 
     .th-rotate-container { height: 100px; position: relative; width: 100%; display: flex; justify-content: center; align-items: flex-end; }
     .th-rotate { writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap; font-size: 10px; margin-bottom: 5px; }
@@ -198,19 +199,14 @@
 <body>
   <div id="app" v-cloak>
 
-    <div v-if="!isLoggedIn" class="d-flex align-items-center justify-content-center min-vh-100 p-3 no-print"
-      style="background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);">
-      <div class="card-clean p-4 p-md-5 text-center shadow-lg border-0"
-        style="width: 100%; max-width: 400px; border-radius: 20px;">
+    <div v-if="!isLoggedIn" class="d-flex align-items-center justify-content-center min-vh-100 p-3 no-print" style="background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);">
+      <div class="card-clean p-4 p-md-5 text-center shadow-lg border-0" style="width: 100%; max-width: 400px; border-radius: 20px;">
         <div class="mb-4">
               <div class="mb-3">
-                <img src="https://lh3.googleusercontent.com/d/1c1KrXHS8EW5ORMBPFQaYg4wCU8XjPhcO=s100"
-                    alt="โลโก้โรงเรียนสมุทรสาครบูรณะ"
-                    class="img-fluid"
-                    style="max-width: 100%; height: auto;">
+                <img src="https://lh3.googleusercontent.com/d/1c1KrXHS8EW5ORMBPFQaYg4wCU8XjPhcO=s100" class="img-fluid" style="max-width: 100%; height: auto;">
               </div>
           <h3 class="fw-800 mb-1 text-dark">ระบบชุมนุม SKN</h3>
-          <p class="text-muted small">โรงเรียนสมุทรสาครบูรณะ (GitHub Edition)</p>
+          <p class="text-muted small">โรงเรียนสมุทรสาครบูรณะ</p>
         </div>
         
         <div class="text-start">
@@ -219,17 +215,12 @@
           <label class="small text-secondary mb-1 ms-1">รหัสผ่าน</label>
           <div class="position-relative mb-4">
             <input :type="showPassword ? 'text' : 'password'" v-model="form.pass" class="form-control form-fast py-2 px-3 pe-5" placeholder="Password" @keyup.enter="doLogin">
-            <span class="position-absolute top-50 end-0 translate-middle-y me-3 text-muted" style="cursor: pointer;" @click="showPassword = !showPassword">
-              <i class="fas" :class="showPassword ? 'fa-eye-slash' : 'fa-eye'"></i>
-            </span>
+            <span class="position-absolute top-50 end-0 translate-middle-y me-3 text-muted" style="cursor: pointer;" @click="showPassword = !showPassword"><i class="fas" :class="showPassword ? 'fa-eye-slash' : 'fa-eye'"></i></span>
           </div>
-            <small class="text-danger ms-1 d-block mb-2"style="font-size: 0.70rem;"> 
-              * นักเรียน ระบุรหัสประจำตัว และวันเกิด ตัวอย่าง [01/01/2569] 
-            </small>
+            <small class="text-danger ms-1 d-block mb-2"style="font-size: 0.70rem;">* นักเรียน ระบุรหัสประจำตัว และวันเกิด ตัวอย่าง [01/01/2569]</small>
         </div>
         <button @click="doLogin" class="btn btn-primary-fast btn-fast w-100 py-2 shadow" :disabled="loading">
-          <span v-if="loading" class="spinner-border spinner-border-sm me-2"></span>
-          เข้าสู่ระบบ
+          <span v-if="loading" class="spinner-border spinner-border-sm me-2"></span>เข้าสู่ระบบ
         </button>
       </div>
     </div>
@@ -241,32 +232,23 @@
             <span>SKN CLUBS</span>
           </div>
         <div class="d-flex align-items-center gap-2 gap-md-3">
-          <button class="btn btn-light btn-sm shadow-sm border" @click="refreshData" :disabled="loading">
-            <i class="fas fa-sync-alt" :class="{'fa-spin': loading}"></i>
-            <span class="ms-1 small d-none d-md-inline">{{ loading ? 'กำลังอัปเดต...' : 'รีเฟรช' }}</span>
-          </button>
+          <button class="btn btn-light btn-sm shadow-sm border" @click="refreshData" :disabled="loading"><i class="fas fa-sync-alt" :class="{'fa-spin': loading}"></i><span class="ms-1 small d-none d-md-inline">{{ loading ? 'กำลังอัปเดต...' : 'รีเฟรช' }}</span></button>
           <div class="text-end d-none d-sm-block">
             <div class="fw-bold text-dark small" style="line-height: 1.2;">{{ user.name }}</div>
             <span class="badge bg-light text-primary border-0 fw-normal" style="font-size: 10px;">{{ user.role.toUpperCase() }}</span>
           </div>
-          <button @click="logout" class="btn btn-outline-danger btn-sm rounded-pill px-3 border-0 bg-danger bg-opacity-10">
-            <i class="fas fa-sign-out-alt"></i>
-          </button>
+          <button @click="logout" class="btn btn-outline-danger btn-sm rounded-pill px-3 border-0 bg-danger bg-opacity-10"><i class="fas fa-sign-out-alt"></i></button>
         </div>
       </nav>
 
       <div class="flex-grow-1 overflow-auto p-3 p-md-4" style="background-color: #f8fafc;">
 
-        <!-- หน้า View สำหรับกระดาษ A4 (Admin Report) -->
        <transition name="fade">
           <div v-if="view === 'admin_report'" class="container-fluid px-0">
             <div class="d-flex justify-content-between align-items-center mb-4 container-xl no-print pt-3">
               <div class="d-flex align-items-center gap-3">
                 <button @click="view = 'insight_report'" class="btn btn-white border shadow-sm rounded-circle p-0 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;"><i class="fas fa-arrow-left"></i></button>
-                <div>
-                  <h4 class="fw-800 m-0">เอกสารสรุปผลการดำเนินงาน (Admin)</h4>
-                  <div class="text-muted small">แบบฟอร์มมาตรฐานพิมพ์ลง A4</div>
-                </div>
+                <div><h4 class="fw-800 m-0">เอกสารสรุปผลการดำเนินงาน (Admin)</h4><div class="text-muted small">แบบฟอร์มมาตรฐานพิมพ์ลง A4</div></div>
               </div>
               <div class="d-flex gap-2 no-print">
                 <button @click="downloadAdminWordReport" class="btn btn-primary btn-fast shadow-sm px-4"><i class="fas fa-file-word me-2"></i>ดาวน์โหลด Word</button>
@@ -291,10 +273,7 @@
                   <div class="col-6">๕. ครูที่ปรึกษาชุมนุม: <b>{{ summary ? summary.teacher.hasClub : 0 }}</b> ท่าน</div>
                   <div class="col-6">๖. นักเรียนที่ไม่ผ่านกิจกรรม: <b class="text-danger">{{ globalFailedList.length }}</b> คน</div>
                       <div class="col-12 mt-3 pt-2" style="border-top: 1px dashed #ccc;">
-                        <div class="d-flex align-items-start">
-                          <b class="me-2" style="white-space: nowrap;">หมายเหตุ:</b> 
-                          <div class="editable w-100" contenteditable="true" style="min-height: 24px; line-height: 1.5;">ไม่มี</div>
-                        </div>
+                        <div class="d-flex align-items-start"><b class="me-2" style="white-space: nowrap;">หมายเหตุ:</b><div class="editable w-100" contenteditable="true" style="min-height: 24px; line-height: 1.5;">ไม่มี</div></div>
                       </div>
                 </div>
               </div>
@@ -302,24 +281,10 @@
               <div class="mb-4">
                 <h6 class="fw-bold mb-2">ตารางสรุปข้อมูลรายชุมนุม (รวมผลการประเมิน)</h6>
                 <table class="table-report" style="font-size: 10pt; width: 100%;">
-                  <thead>
-                    <tr style="background-color: #f3f4f6;">
-                      <th style="width: 5%;">ที่</th>
-                      <th style="width: 30%;">ชื่อชุมนุม</th>
-                      <th style="width: 25%;">ครูที่ปรึกษา</th>
-                      <th style="width: 10%;">ระดับชั้น</th>
-                      <th style="width: 10%;">สมัคร(คน)</th>
-                      <th style="width: 10%; color: #15803d;">ผ่าน</th>
-                      <th style="width: 10%; color: #b91c1c;">ไม่ผ่าน</th>
-                    </tr>
-                  </thead>
+                  <thead><tr style="background-color: #f3f4f6;"><th style="width: 5%;">ที่</th><th style="width: 30%;">ชื่อชุมนุม</th><th style="width: 25%;">ครูที่ปรึกษา</th><th style="width: 10%;">ระดับชั้น</th><th style="width: 10%;">สมัคร(คน)</th><th style="width: 10%; color: #15803d;">ผ่าน</th><th style="width: 10%; color: #b91c1c;">ไม่ผ่าน</th></tr></thead>
                   <tbody>
                     <tr v-for="(c, idx) in sortedAdminReportClubs" :key="c.id">
-                      <td class="text-center">{{ idx + 1 }}</td>
-                      <td>{{ c.name }}</td>
-                      <td class="small">{{ c.teacher_name }}</td>
-                      <td class="text-center">{{ c.level }}</td>
-                      <td class="text-center fw-bold">{{ c.current_count }}</td>
+                      <td class="text-center">{{ idx + 1 }}</td><td>{{ c.name }}</td><td class="small">{{ c.teacher_name }}</td><td class="text-center">{{ c.level }}</td><td class="text-center fw-bold">{{ c.current_count }}</td>
                       <td class="text-center fw-bold text-success">{{ c.current_count - getClubFailCount(c.name) }}</td>
                       <td class="text-center fw-bold text-danger">{{ getClubFailCount(c.name) }}</td>
                     </tr>
@@ -329,25 +294,11 @@
 
               <div class="signature-grid px-3 mt-5" style="page-break-inside: avoid;">
                 <div class="row text-center mb-4">
-                  <div class="col-6">
-                    <div style="height: 35px;"></div>
-                    <div style="border-bottom: 1px dotted #000; width: 180px; margin: 0 auto 5px;"></div>
-                    <span class="small fw-bold">( {{ adminSettings.sigHeadClub }} )</span><br><span style="font-size: 9pt;">หัวหน้างานกิจกรรมชุมนุม</span>
-                  </div>
-                  <div class="col-6">
-                    <div style="height: 35px;"></div>
-                    <div style="border-bottom: 1px dotted #000; width: 180px; margin: 0 auto 5px;"></div>
-                    <span class="small fw-bold">( {{ adminSettings.sigHeadDev }} )</span><br><span style="font-size: 9pt;">หัวหน้ากิจกรรมพัฒนาผู้เรียน</span>
-                  </div>
+                  <div class="col-6"><div style="height: 35px;"></div><div style="border-bottom: 1px dotted #000; width: 180px; margin: 0 auto 5px;"></div><span class="small fw-bold">( {{ adminSettings.sigHeadClub }} )</span><br><span style="font-size: 9pt;">หัวหน้างานกิจกรรมชุมนุม</span></div>
+                  <div class="col-6"><div style="height: 35px;"></div><div style="border-bottom: 1px dotted #000; width: 180px; margin: 0 auto 5px;"></div><span class="small fw-bold">( {{ adminSettings.sigHeadDev }} )</span><br><span style="font-size: 9pt;">หัวหน้ากิจกรรมพัฒนาผู้เรียน</span></div>
                 </div>
-                <div class="text-center mt-5">
-                  <div style="height: 35px;"></div>
-                  <div style="border-bottom: 1px dotted #000; width: 220px; margin: 0 auto 5px;"></div>
-                  <div class="fw-bold" style="font-size: 11pt;">( {{ adminSettings.sigDirector }} )</div>
-                  <div style="font-size: 9pt;">ผู้อำนวยการ{{ adminSettings.schoolName }}</div>
-                </div>
+                <div class="text-center mt-5"><div style="height: 35px;"></div><div style="border-bottom: 1px dotted #000; width: 220px; margin: 0 auto 5px;"></div><div class="fw-bold" style="font-size: 11pt;">( {{ adminSettings.sigDirector }} )</div><div style="font-size: 9pt;">ผู้อำนวยการ{{ adminSettings.schoolName }}</div></div>
               </div>
-
             </div>
           </div>
         </transition> 
@@ -682,11 +633,12 @@
             <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
                <h6 class="fw-bold text-danger m-0"><i class="fas fa-exclamation-triangle me-2"></i>๕. เริ่มภาคเรียนใหม่ / ล้างข้อมูลระบบ</h6>
                <div>
-                 <button class="btn btn-sm btn-outline-secondary px-3 me-2" @click="openBackupHistoryModal"><i class="fas fa-history me-1"></i> ประวัติแบคอัป</button>
+                 <!-- ปิดปุ่มแบคอัปในเวอร์ชัน Supabase -->
+                 <!-- <button class="btn btn-sm btn-outline-secondary px-3 me-2" @click="openBackupHistoryModal"><i class="fas fa-history me-1"></i> ประวัติแบคอัป</button> -->
                  <button class="btn btn-sm btn-danger px-4" @click="openResetModal"><i class="fas fa-power-off me-2"></i>เริ่มดำเนินการล้างระบบ</button>
                </div>
             </div>
-            <div class="text-muted small">เครื่องมือนี้ใช้สำหรับล้างประวัติการทำกิจกรรมเก่าทั้งหมดเพื่อเตรียมพร้อมสำหรับเทอมถัดไป ระบบจะทำการแบ็กอัปข้อมูลการสมัครเดิมซ่อนไว้ในฐานข้อมูลให้โดยอัตโนมัติก่อนลบ</div>
+            <div class="text-muted small">เครื่องมือนี้ใช้สำหรับล้างประวัติการทำกิจกรรมเก่าทั้งหมดเพื่อเตรียมพร้อมสำหรับเทอมถัดไป ระบบจะทำการเคลียร์ข้อมูลในฐานข้อมูลให้ทันที</div>
           </div>
         </div>
       </div>
@@ -1124,8 +1076,6 @@
           </div>
         </transition>
 
-      </div>
-
       <div class="modal fade" id="clubModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered">
           <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
@@ -1206,7 +1156,6 @@
               <h4 class="fw-bold text-danger mb-4"><i class="fas fa-skull-crossbones me-2"></i> ยืนยันการรีเซ็ตระบบขึ้นเทอมใหม่</h4>
               <p class="text-muted mb-4">โปรดทำเครื่องหมายในส่วนที่คุณต้องการล้างค่าอย่างระมัดระวัง ข้อมูลที่ถูกล้างจะหายไปจากหน้าแดชบอร์ดทันที</p>
               <div class="bg-light p-4 rounded-3 border mb-4">
-                <div class="form-check mb-3"><input class="form-check-input" type="checkbox" v-model="resetOptions.doBackup" id="optBackup"><label class="form-check-label fw-bold text-success" for="optBackup">สำรองข้อมูลการสมัครและส่งเข้า Google Drive</label></div>
                 <div class="form-check mb-3"><input class="form-check-input" type="checkbox" v-model="resetOptions.resetRegistrations" id="optReg"><label class="form-check-label fw-bold text-danger" for="optReg">ล้างข้อมูลการสมัครเข้าชุมนุมของนักเรียนทุกคน</label></div>
                 <div class="form-check mb-3"><input class="form-check-input" type="checkbox" v-model="resetOptions.resetAttendance" id="optAtt"><label class="form-check-label fw-bold text-warning" for="optAtt">ล้างประวัติการเช็คชื่อทั้งหมดของนักเรียนทุกคน</label></div>
                 <div class="form-check mb-3"><input class="form-check-input" type="checkbox" v-model="resetOptions.resetReports" id="optReport"><label class="form-check-label fw-bold" for="optReport">ล้างหน้ารายงานกิจกรรมและรูปภาพของเทอมเดิมทิ้ง</label></div>
@@ -1227,49 +1176,28 @@
         </div>
       </div>
 
-    <div class="modal fade" id="backupHistoryModal" tabindex="-1">
-      <div class="modal-dialog modal-dialog-centered modal-lg">
-        <div class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
-          <div class="modal-header bg-light">
-            <h5 class="modal-title fw-bold"><i class="fas fa-history text-secondary me-2"></i> ประวัติการสำรองข้อมูล (แบคอัป)</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-          </div>
-          <div class="modal-body p-4">
-            <div v-if="loadingBackup" class="text-center py-4"><div class="spinner-border text-primary" role="status"></div><div class="mt-2 text-muted small">กำลังดึงข้อมูลจาก Google Drive...</div></div>
-            <div v-else-if="backupFiles.length === 0" class="text-center py-4 text-muted"><i class="fas fa-folder-open fs-1 text-light mb-3"></i><p>ยังไม่มีประวัติการสำรองข้อมูล</p></div>
-            <div v-else class="list-group">
-              <a v-for="file in backupFiles" :key="file.url" :href="file.url" target="_blank" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center p-3">
-                <div><div class="fw-bold text-primary"><i class="fas fa-file-excel me-2 text-success"></i>{{ file.name }}</div><small class="text-muted"><i class="far fa-clock me-1"></i> สำรองข้อมูลเมื่อ: {{ file.dateText }}</small></div>
-                <button class="btn btn-sm btn-light border"><i class="fas fa-external-link-alt text-muted"></i> เปิดดู</button>
-              </a>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
     </div> <!-- ปิด div id="app" v-cloak -->
 
     <script>
       // ==========================================
-      // ตั้งค่า URL ของ Web App จาก Google Apps Script
+      // ตั้งค่าการเชื่อมต่อฐานข้อมูล
       // ==========================================
-      const API_URL = 'https://script.google.com/macros/s/AKfycbya8N3NC_QbN9diZRcX6_che3lEDO-su7KQqR4R3PKM6g5cPI54NFTsRkj6cSlBds6j/exec'; // *** คัดลอก URL ของ Web app มาใส่ตรงนี้ ***
+      const SUPABASE_URL = 'https://oigggpdambseabrezhuh.supabase.co'; // *** แก้ไข 1: URL จาก Supabase ของคุณ ***
+      const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9pZ2dncGRhbWJzZWFicmV6aHVoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE0MzQyNjQsImV4cCI6MjEwNzAxMDI2NH0.YEnpBEqfybFOw2VbMLGw1qtUKj8pMBUI8FZIT6yFlM0'; // *** แก้ไข 2: ANON/PUBLIC KEY จาก Supabase ของคุณ ***
+      const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbya8N3NC_QbN9diZRcX6_che3lEDO-su7KQqR4R3PKM6g5cPI54NFTsRkj6cSlBds6j/exec'; // *** แก้ไข 3: Web App URL ของ Google Apps Script ***
 
-      // ฟังก์ชันช่วยยิง API กลับไปหา GAS 
-      async function fetchAPI(action, payload = {}) {
+      const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+      // ฟังก์ชันเรียก API เฉพาะส่งรูป/อีเมลไป Google Apps Script
+      async function fetchGAS(action, payload = {}) {
         try {
-          const response = await fetch(API_URL, {
+          const response = await fetch(GAS_API_URL, {
             method: 'POST',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // ใช้ text/plain เลี่ยงปัญหา CORS 
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
             body: JSON.stringify({ action: action, payload: payload })
           });
-          const result = await response.json();
-          return result;
-        } catch (error) {
-          console.error('API Error:', error);
-          throw error;
-        }
+          return await response.json();
+        } catch (error) { throw error; }
       }
 
       const { createApp } = Vue;
@@ -1311,17 +1239,10 @@
             holidays: [],
             reportActData: {
               objectives: ['ส่งเสริมให้นักเรียนใช้เวลาว่างให้เกิดประโยชน์และสร้างสรรค์', 'เพื่อพัฒนาทักษะทางด้าน...', 'เพื่อให้ผู้เรียนมีความรับผิดชอบและฝึกการทำงานร่วมกับผู้อื่น'],
-              committees: ['','','','',''],
-              activities: Array(20).fill(''),
-              remark: 'ไม่มี',
-              caption: 'บรรยากาศการเรียนการสอนและการทำกิจกรรมร่วมกันของนักเรียน'
+              committees: ['','','','',''], activities: Array(20).fill(''), remark: 'ไม่มี', caption: 'บรรยากาศการเรียนการสอนและการทำกิจกรรมร่วมกันของนักเรียน'
             },
-            resetOptions: { doBackup: true, resetRegistrations: true, resetAttendance: true, resetReports: true, clearStudents: true, clearClubs: false, newSemester: '2', newYear: '2569' },
-            backupFiles: [],
-            loadingBackup: false,
-            calcStartDate: '',
+            resetOptions: { doBackup: false, resetRegistrations: true, resetAttendance: true, resetReports: true, clearStudents: true, clearClubs: false, newSemester: '2', newYear: '2569' },
             exportFilter: { type: 'ทั้งหมด', room: '' },
-            masterStudents: [],
             clubMap: {}         
           }
         },
@@ -1386,12 +1307,10 @@
                 if (room.includes(search)) {
                   const pos = room.indexOf(search); const charAfter = room.charAt(pos + search.length);
                   if (!charAfter || !/\d/.test(charAfter)) return true;
-                }
-                return false;
+                } return false;
               }).sort((a, b) => {
                 const roomCompare = (a.room || '').toString().localeCompare((b.room || '').toString(), 'th', {numeric: true});
-                if (roomCompare !== 0) return roomCompare;
-                return (Number(a.no) || 0) - (Number(b.no) || 0);
+                if (roomCompare !== 0) return roomCompare; return (Number(a.no) || 0) - (Number(b.no) || 0);
               });
           },
           sortedAdminReportClubs() {
@@ -1426,651 +1345,572 @@
               currentDate.setDate(currentDate.getDate() + 7); loopCount++;
             }
             this.systemDates = datesArray;
-            Swal.fire('สำเร็จ', 'คำนวณวันกิจกรรมอัตโนมัติครบ 20 ครั้งเรียบร้อย (ระบบข้ามวันหยุดที่ตั้งไว้ให้อัตโนมัติ)', 'success');
+            Swal.fire('สำเร็จ', 'คำนวณวันกิจกรรมอัตโนมัติครบ 20 ครั้งเรียบร้อย', 'success');
           },
           clearSystemDates() { this.systemDates = Array(20).fill(''); },
           
           // ==============================
-          // ฟังก์ชันดึงข้อมูลทั้งหมดผ่าน API 
+          // ฟังก์ชันหลักที่คุยกับ Supabase ตรง
           // ==============================
-          saveAdminSettingsData() {
+          async doLogin() {
             this.loading = true;
-            const settingsPayload = { adminSettings: this.adminSettings, systemDates: this.systemDates, holidays: this.holidays, quota_per_teacher: this.adminSettings.studentQuota };
-            fetchAPI('saveAdvancedSystemSettings', { settingsObj: settingsPayload }).then(res => {
-              this.loading = false;
-              if(res.success) Swal.fire({toast: true, position: 'top-end', icon: 'success', title: 'บันทึกการตั้งค่าระบบเรียบร้อย', showConfirmButton: false, timer: 2000});
-              else Swal.fire('Error', res.message, 'error');
-              this.refreshData(true);
-            }).catch(err => { this.loading = false; Swal.fire('Error', String(err), 'error'); });
+            try {
+                const username = this.form.user.toLowerCase().trim();
+                const password = this.form.pass.trim();
+
+                const { data: teachers } = await supabase.from('teachers').select('*').eq('id', username).eq('password', password);
+                if(teachers && teachers.length > 0) {
+                    this.user = { id: teachers[0].id, name: teachers[0].name, role: teachers[0].role };
+                    this.isLoggedIn = true;
+                    await this.refreshData();
+                    return;
+                }
+
+                const { data: students } = await supabase.from('students').select('*').eq('id', username).eq('password', password);
+                if(students && students.length > 0) {
+                    this.user = { id: students[0].id, name: students[0].name, level: students[0].level, room: students[0].room, no: students[0].no, role: 'student', clubId: students[0].club_id || "" };
+                    this.isLoggedIn = true;
+                    await this.refreshData();
+                    return;
+                }
+
+                Swal.fire('Error', 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง', 'error');
+            } catch(e) { Swal.fire('Error', e.message, 'error'); } 
+            finally { this.loading = false; }
           },
-          saveCurrentReport() {
-            if (this.loading) return; this.loading = true;
-            Swal.fire({ toast: true, position: 'top-end', title: 'กำลังบันทึกข้อมูลรายงาน...', showConfirmButton: false, didOpen: () => Swal.showLoading() });
-            const payload = { teacher: this.reportData.teacher, actData: this.reportActData, logo: this.reportData.logo, photos: this.reportData.photos };
-            fetchAPI('saveClubReportData', { clubId: this.currentClubId, reportDataObj: payload }).then(res => {
-              this.loading = false; Swal.close(); 
-              if (res.success) { Swal.fire({toast: true, position: 'top-end', icon:'success', title:'บันทึกรายงานลงฐานข้อมูลสำเร็จ', showConfirmButton: false, timer: 2000}); } 
-              else { Swal.fire('ข้อผิดพลาด', res.message, 'error'); }
-            }).catch(err => {
-              this.loading = false; Swal.close();
-              Swal.fire('การเชื่อมต่อขัดข้อง', 'ไม่สามารถบันทึกได้ โปรดลองอีกครั้ง (Error: ' + err + ')', 'error');
+          async refreshData(isSilent = false) {
+            if (!isSilent) this.loading = true;
+            try {
+                const term = this.adminSettings.semester || '1';
+                const year = this.adminSettings.academicYear || '2569';
+
+                const [{data: confData}, {data: clubsData}, {data: teachersData}] = await Promise.all([
+                    supabase.from('config').select('*'),
+                    supabase.from('clubs').select('*').eq('term', term).eq('year', year),
+                    supabase.from('teachers').select('id, name')
+                ]);
+
+                let cfg = {};
+                if(confData) confData.forEach(c => cfg[c.key] = c.value);
+                this.config = cfg;
+                this.clubs = clubsData || [];
+                this.teachersList = teachersData || [];
+                
+                const map = {}; this.clubs.forEach(c => map[String(c.id)] = c); this.clubMap = map;
+
+                if (this.user && this.user.role === 'admin') {
+                    const {data: studentsData} = await supabase.from('students').select('id, club_id');
+                    const totalStudents = studentsData ? studentsData.length : 0;
+                    const registeredStudents = studentsData ? studentsData.filter(s => s.club_id).length : 0;
+                    
+                    const allOwnerIds = this.clubs.reduce((acc, club) => {
+                      if(!club.owner_id) return acc;
+                      return acc.concat(club.owner_id.toString().split(',').map(id => id.trim()));
+                    }, []);
+                    const uniqueOwners = [...new Set(allOwnerIds)];
+                    const teachersWithClub = this.teachersList.filter(t => uniqueOwners.includes(t.id)).length;
+
+                    this.summary = {
+                        student: { total: totalStudents, registered: registeredStudents, unregistered: totalStudents - registeredStudents },
+                        teacher: { total: this.teachersList.length, hasClub: teachersWithClub, noClub: this.teachersList.length - teachersWithClub },
+                        clubsCount: this.clubs.length
+                    };
+                }
+
+                if (this.user && this.user.role === 'teacher') {
+                    this.user.hasClub = this.clubs.some(c => String(c.owner_id).split(',').map(id => id.trim()).includes(String(this.user.id)));
+                }
+
+                this.syncAdvancedSettings();
+            } catch(e) { if(!isSilent) Swal.fire('Error', e.message, 'error'); } 
+            finally { this.loading = false; }
+          },
+          async saveConfig() { 
+            try {
+               const payloads = Object.keys(this.config).map(k => ({ key: k, value: String(this.config[k]) }));
+               await supabase.from('config').upsert(payloads);
+               const Toast = Swal.mixin({toast: true, position: 'top-end', showConfirmButton: false, timer: 1500}); Toast.fire({ icon: 'success', title: 'บันทึกค่าแล้ว' }); 
+            } catch(e) { Swal.fire('Error', e.message, 'error'); }
+          },
+          async saveAdminSettingsData() {
+            this.loading = true;
+            this.config.adminSettings = JSON.stringify(this.adminSettings);
+            this.config.systemDates = JSON.stringify(this.systemDates);
+            this.config.holidays = JSON.stringify(this.holidays);
+            this.config.quota_per_teacher = this.adminSettings.studentQuota;
+            await this.saveConfig();
+            this.loading = false;
+          },
+          async submitClub() {
+            if (!this.clubForm.owner_ids || this.clubForm.owner_ids.length === 0) { Swal.fire({ icon: 'warning', title: 'ข้อมูลไม่ครบถ้วน', text: 'กรุณาเลือกครูที่ปรึกษา', confirmButtonColor: '#2563eb' }); return; }
+            this.loading = true; 
+            try {
+                const term = this.adminSettings.semester || '1';
+                const year = this.adminSettings.academicYear || '2569';
+                let capacity = (this.user.role === 'admin') ? Number(this.clubForm.max_capacity) : (this.clubForm.owner_ids.length * 20);
+                
+                const getTeacherNames = (ids) => ids.map(id => (this.teachersList.find(t => t.id === String(id)) || {}).name || "").join(", ");
+
+                const payload = {
+                    name: this.clubForm.name,
+                    max_capacity: capacity,
+                    level: this.clubForm.level,
+                    owner_id: this.clubForm.owner_ids.join(","),
+                    teacher_name: getTeacherNames(this.clubForm.owner_ids),
+                    location: this.clubForm.location || "",
+                    comment: this.clubForm.comment || "",
+                    term: term, year: year
+                };
+
+                if (this.isEditMode) {
+                    await supabase.from('clubs').update(payload).eq('id', this.clubForm.id);
+                    await supabase.from('registrations').update({club_name: this.clubForm.name}).eq('club_id', this.clubForm.id);
+                } else {
+                    payload.id = "C" + Date.now().toString().slice(-6);
+                    payload.current_count = 0;
+                    await supabase.from('clubs').insert(payload);
+                }
+
+                bootstrap.Modal.getInstance(document.getElementById('clubModal')).hide();
+                await this.refreshData();
+                Swal.fire('สำเร็จ', 'บันทึกข้อมูลชุมนุมเรียบร้อยแล้ว', 'success');
+            } catch(e) { Swal.fire('ข้อผิดพลาด', e.message, 'error'); } 
+            finally { this.loading = false; }
+          },
+          async confirmDeleteClub(club) {
+            Swal.fire({
+              title: 'ยืนยันการลบชุมนุม?', html: `คุณกำลังจะลบชุมนุม <b>"${club.name}"</b><br><span class="text-danger small">ชื่อนักเรียนทุกคนในชุมนุมนี้จะถูกล้างออกทันที</span>`,
+              icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc3545', cancelButtonColor: '#6c757d', confirmButtonText: 'ยืนยันการลบถาวร', cancelButtonText: 'ยกเลิก'
+            }).then(async (result) => {
+              if (result.isConfirmed) {
+                this.loading = true;
+                try {
+                    await supabase.from('students').update({club_id: null}).eq('club_id', club.id);
+                    await supabase.from('registrations').delete().eq('club_id', club.id);
+                    await supabase.from('attendance_data').delete().eq('club_id', club.id);
+                    await supabase.from('clubs').delete().eq('id', club.id);
+                    Swal.fire('ลบสำเร็จ!', 'ลบชุมนุมเรียบร้อยแล้ว', 'success');
+                    await this.refreshData();
+                } catch(e) { Swal.fire('ผิดพลาด', e.message, 'error'); }
+                finally { this.loading = false; }
+              }
             });
           },
-          saveCurrentReportSilently() {
-            const payload = { teacher: this.reportData.teacher, actData: this.reportActData, logo: this.reportData.logo, photos: this.reportData.photos };
-            fetchAPI('saveClubReportData', { clubId: this.currentClubId, reportDataObj: payload });
+          async enroll(c) {
+            const isTransfer = !!this.user.clubId;
+            Swal.fire({ title: isTransfer ? 'ยืนยันย้าย?' : 'ยืนยันสมัคร?', text: c.name, icon: 'question', showCancelButton: true, confirmButtonColor: '#2563eb' }).then(async r => {
+              if(r.isConfirmed) {
+                this.loading = true;
+                try {
+                    const {data: club} = await supabase.from('clubs').select('current_count, max_capacity').eq('id', c.id).single();
+                    if(club.current_count >= club.max_capacity) throw new Error("ชุมนุมเต็มแล้ว");
+
+                    if(this.user.clubId) {
+                        await supabase.from('registrations').delete().eq('student_id', this.user.id);
+                        const {data: oldClub} = await supabase.from('clubs').select('current_count').eq('id', this.user.clubId).single();
+                        await supabase.from('clubs').update({current_count: Math.max(0, oldClub.current_count - 1)}).eq('id', this.user.clubId);
+                    }
+
+                    await supabase.from('students').update({club_id: c.id}).eq('id', this.user.id);
+                    await supabase.from('registrations').insert({
+                        reg_id: "REG-" + Date.now(), student_id: this.user.id, student_name: this.user.name,
+                        room: this.user.room, no: this.user.no, club_id: c.id, club_name: c.name,
+                        term: this.adminSettings.semester, year: this.adminSettings.academicYear
+                    });
+                    await supabase.from('clubs').update({current_count: club.current_count + 1}).eq('id', c.id);
+
+                    this.user.clubId = c.id;
+                    await this.refreshData();
+                    Swal.fire('สำเร็จ', 'ลงทะเบียนสำเร็จ', 'success');
+                } catch(e) { Swal.fire('Error', e.message, 'error'); } 
+                finally { this.loading = false; }
+              }
+            });
           },
-          openBulkDeleteModal() {
-            this.bulkAction = { target: 'ม.ต้น', room: '' };
-            const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('bulkDeleteModal')); modal.show();
+          async loadClubData(club, viewName) {
+            this.currentClubId = club.id; this.currentClubName = club.name; this.attStudents = []; this.attData = { dates: new Array(20).fill(""), records: {} };
+            this.reportActData = { objectives: ['ส่งเสริมให้นักเรียนใช้เวลาว่างให้เกิดประโยชน์และสร้างสรรค์', 'เพื่อพัฒนาทักษะทางด้าน...', 'เพื่อให้ผู้เรียนมีความรับผิดชอบและฝึกการทำงานร่วมกับผู้อื่น'], committees: ['','','','',''], activities: Array(20).fill(''), remark: 'ไม่มี', caption: 'บรรยากาศการเรียนการสอนและการทำกิจกรรมร่วมกันของนักเรียน' };
+            this.reportData.photos = {}; this.reportData.logo = ''; this.reportData.teacher = club.teacher_name;
+
+            Swal.fire({ title: 'กำลังโหลด...', didOpen: () => Swal.showLoading() });
+            try {
+                const term = this.adminSettings.semester; const year = this.adminSettings.academicYear;
+                
+                const [{data: attRecords}, {data: students}] = await Promise.all([
+                    supabase.from('attendance_data').select('*').eq('club_id', club.id).eq('term', term).eq('year', year),
+                    supabase.from('students').select('*').eq('club_id', club.id)
+                ]);
+
+                if(attRecords && attRecords.length > 0 && attRecords[0].data_json) { this.attData = attRecords[0].data_json; }
+                this.attStudents = students || [];
+                this.attStudents.sort((a, b) => {
+                    const roomA = (a.room||'').toString(); const roomB = (b.room||'').toString();
+                    if(roomA !== roomB) return roomA.localeCompare(roomB, undefined, {numeric: true});
+                    return Number(a.no) - Number(b.no);
+                });
+
+                for(let i = 0; i < 20; i++) {
+                    if (!this.attData.dates[i] && this.systemDates[i]) { this.attData.dates[i] = this.systemDates[i]; }
+                }
+
+                this.attStudents.forEach(s => {
+                    if (!this.attData.records[s.id]) { this.attData.records[s.id] = new Array(20).fill(0); } 
+                });
+
+                if (viewName === 'report') {
+                    const {data: reportRes} = await supabase.from('club_reports').select('*').eq('club_id', club.id).eq('term', term).eq('year', year).single();
+                    if (reportRes) {
+                        if (reportRes.report_json?.actData) this.reportActData = Object.assign(this.reportActData, reportRes.report_json.actData);
+                        if (reportRes.report_json?.teacher) this.reportData.teacher = reportRes.report_json.teacher;
+                        if (reportRes.logo) this.reportData.logo = reportRes.logo;
+                        this.reportData.photos = { 1: reportRes.photo_1||"", 2: reportRes.photo_2||"", 3: reportRes.photo_3||"", 4: reportRes.photo_4||"" };
+                    }
+                }
+                Swal.close(); this.view = viewName;
+            } catch(e) { Swal.close(); Swal.fire('Error', e.message, 'error'); }
           },
-          handleBulkDelete() {
+          async saveAttendance() {
+              Swal.fire({ title: 'กำลังบันทึก...', didOpen: () => Swal.showLoading() });
+              try {
+                  const payload = { club_id: this.currentClubId, term: this.adminSettings.semester, year: this.adminSettings.academicYear, data_json: this.attData };
+                  await supabase.from('attendance_data').upsert(payload);
+                  Swal.fire({ icon: 'success', title: 'บันทึกเรียบร้อย', timer: 1500, showConfirmButton: false });
+              } catch(e) { Swal.fire('Error', e.message, 'error'); }
+          },
+          async saveCurrentReport() {
+            this.loading = true;
+            Swal.fire({ title: 'กำลังอัปโหลดรูปและบันทึก...', didOpen: () => Swal.showLoading() });
+            try {
+                const term = this.adminSettings.semester;
+                const year = this.adminSettings.academicYear;
+                
+                // อัปโหลดรูปภาพทีละไฟล์ไปที่ GAS (Google Drive) ถ้าเป็นไฟล์ Base64 ใหม่
+                const uploadPromises = [];
+                if(this.reportData.logo && this.reportData.logo.startsWith('data:')) {
+                    uploadPromises.push(fetchGAS('uploadImage', { base64Data: this.reportData.logo, fileName: `Logo_${this.currentClubId}.png`, term, year }).then(r => this.reportData.logo = r.url));
+                }
+                for(let i=1; i<=4; i++) {
+                    if(this.reportData.photos[i] && this.reportData.photos[i].startsWith('data:')) {
+                        uploadPromises.push(fetchGAS('uploadImage', { base64Data: this.reportData.photos[i], fileName: `P${i}_${this.currentClubId}.jpg`, term, year }).then(r => this.reportData.photos[i] = r.url));
+                    }
+                }
+                await Promise.all(uploadPromises); // รอให้อัปโหลดรูปเสร็จทั้งหมด
+
+                // บันทึก JSON และ URL รูปลง Supabase
+                const payload = {
+                    club_id: this.currentClubId, term: term, year: year,
+                    report_json: { teacher: this.reportData.teacher, actData: this.reportActData },
+                    logo: this.reportData.logo || '',
+                    photo_1: this.reportData.photos[1] || '', photo_2: this.reportData.photos[2] || '', photo_3: this.reportData.photos[3] || '', photo_4: this.reportData.photos[4] || ''
+                };
+                
+                await supabase.from('club_reports').upsert(payload);
+                Swal.fire({toast: true, position: 'top-end', icon:'success', title:'บันทึกรายงานลงฐานข้อมูลสำเร็จ', showConfirmButton: false, timer: 2000});
+            } catch(e) { Swal.fire('ข้อผิดพลาด', e.message, 'error'); } 
+            finally { this.loading = false; }
+          },
+          async saveCurrentReportSilently() {
+            // เซฟเงียบๆ ไว้เรียกตอนเพิ่งลบรูป จะได้ไม่ต้องรออัปโหลด
+            const payload = {
+                club_id: this.currentClubId, term: this.adminSettings.semester, year: this.adminSettings.academicYear,
+                report_json: { teacher: this.reportData.teacher, actData: this.reportActData },
+                logo: this.reportData.logo || '',
+                photo_1: this.reportData.photos[1] || '', photo_2: this.reportData.photos[2] || '', photo_3: this.reportData.photos[3] || '', photo_4: this.reportData.photos[4] || ''
+            };
+            await supabase.from('club_reports').upsert(payload);
+          },
+          async getGlobalFailedSummary() {
+             const term = this.adminSettings.semester; const year = this.adminSettings.academicYear;
+             const [{data: students}, {data: clubs}, {data: attData}] = await Promise.all([
+                 supabase.from('students').select('*'), supabase.from('clubs').select('*').eq('term', term).eq('year', year), supabase.from('attendance_data').select('*').eq('term', term).eq('year', year)
+             ]);
+             const studentMap = {}; (students||[]).forEach(s => studentMap[s.id] = s);
+             const clubMap = {}; (clubs||[]).forEach(c => clubMap[c.id] = c.name);
+             let failedList = [];
+             (attData||[]).forEach(att => {
+                const clubName = clubMap[att.club_id] || "ไม่ระบุ";
+                const records = att.data_json?.records || {};
+                for (let stdId in records) {
+                  const row = records[stdId]; const present = row.filter(x => x === 1).length; const absent = row.filter(x => x === 3).length;
+                  if (present === 0 || absent > 3) {
+                    const s = studentMap[stdId];
+                    if (s) failedList.push({ id: stdId, name: s.name, level: s.level, room: s.room, no: s.no, clubName: clubName, present: present, absent: absent });
+                  }
+                }
+             });
+             return failedList;
+          },
+          async loadFailedData() {
+            this.loading = true;
+            try {
+               this.globalFailedList = await this.getGlobalFailedSummary();
+               if (this.globalFailedList.length === 0) { Swal.fire({toast: true, position: 'top-end', showConfirmButton: false, timer: 2000, icon: 'success', title: 'ทุกคนผ่านกิจกรรมครบถ้วน' }); }
+            } catch(e) {} finally { this.loading = false; }
+          },
+          async openAdminPrintReport() {
+            Swal.fire({ title: 'กำลังเตรียมข้อมูลสรุป...', didOpen: () => Swal.showLoading() });
+            this.globalFailedList = await this.getGlobalFailedSummary();
+            Swal.close(); this.view = 'admin_report';
+          },
+          async fetchUsers(role) { 
+            Swal.fire({ toast: true, position: 'top-end', title: 'กำลังโหลด...', showConfirmButton: false, didOpen: () => Swal.showLoading() }); 
+            const table = role === 'teacher' ? 'teachers' : 'students';
+            const {data} = await supabase.from(table).select('*');
+            this.usersList = data || [];
+            Swal.close(); 
+          },
+          async submitUser() {
+              this.loading = true; 
+              try {
+                  const table = this.manageRole === 'teacher' ? 'teachers' : 'students';
+                  const payload = { id: this.userForm.new_id, name: this.userForm.name, password: this.userForm.password || this.userForm.new_id };
+                  if(this.manageRole === 'teacher') { payload.username = this.userForm.username || null; payload.role = this.userForm.role || 'teacher'; } 
+                  else { payload.level = this.userForm.level || null; payload.room = this.userForm.room || null; payload.no = this.userForm.no || null; }
+                  
+                  if(this.userForm.id) { await supabase.from(table).update(payload).eq('id', this.userForm.id); } 
+                  else { await supabase.from(table).insert(payload); }
+                  
+                  bootstrap.Modal.getInstance(document.getElementById('userModal')).hide(); await this.fetchUsers(this.manageRole);
+                  Swal.fire({ icon: 'success', title: 'สำเร็จ', text: 'บันทึกข้อมูลเรียบร้อยแล้ว', timer: 1500, showConfirmButton: false });
+              } catch(e) { Swal.fire('ข้อผิดพลาด', e.message, 'error'); } 
+              finally { this.loading = false; }
+          },
+          async deleteUserConfirm(id, role) {
+            Swal.fire({ title: 'ยืนยันการลบ?', text: "ข้อมูลในชีตและรายชื่อสมัครจะถูกลบออกถาวร", icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'ใช่, ลบเลย', cancelButtonText: 'ยกเลิก' }).then(async (result) => {
+              if (result.isConfirmed) {
+                this.loading = true;
+                try {
+                    const table = role === 'teacher' ? 'teachers' : 'students';
+                    await supabase.from(table).delete().eq('id', id);
+                    if(role === 'student') await supabase.from('registrations').delete().eq('student_id', id);
+                    Swal.fire('สำเร็จ', 'ลบข้อมูลเรียบร้อยแล้ว', 'success'); await this.refreshData(); await this.fetchUsers(role);
+                } catch(e) { Swal.fire('ผิดพลาด', e.message, 'error'); } 
+                finally { this.loading = false; }
+              }
+            });
+          },
+          async handleBulkDelete() {
             const target = this.bulkAction.target; const roomValue = this.bulkAction.room.trim();
             if (target === 'ระบุห้อง' && !roomValue) { Swal.fire('แจ้งเตือน', 'กรุณาระบุห้องเรียนที่ต้องการตรวจสอบ', 'warning'); return; }
             const groupLabel = target === 'ระบุห้อง' ? `ห้อง ${roomValue}` : target;
             this.loading = true;
             Swal.fire({ toast: true, position: 'top-end', title: 'กำลังตรวจสอบรายชื่อ...', showConfirmButton: false, didOpen: () => Swal.showLoading() });
             
-            fetchAPI('getUsersByRole', { role: 'student' }).then(res => {
-              this.loading = false; Swal.close();
-              const students = res;
-              const matchedStudents = students.filter(s => {
-                const level = String(s.level || '').trim(); const room = String(s.room || '').trim().toLowerCase();
-                if (target === "ม.ต้น") return ['ม.1', 'ม.2', 'ม.3', 'ม.ต้น'].some(l => level.includes(l));
-                else if (target === "ม.ปลาย") return ['ม.4', 'ม.5', 'ม.6', 'ม.ปลาย'].some(l => level.includes(l));
-                else if (target === "ระบุห้อง") {
-                  const searchRoom = roomValue.toLowerCase();
-                  if (room.includes(searchRoom)) {
-                    const pos = room.indexOf(searchRoom); const charAfter = room.charAt(pos + searchRoom.length);
-                    return !charAfter || !/\d/.test(charAfter);
-                  }
-                } return false;
-              });
-
-              if (matchedStudents.length === 0) { Swal.fire('ไม่พบข้อมูล', `ไม่มีข้อมูลนักเรียนของกลุ่ม [${groupLabel}] อยู่ในระบบฐานข้อมูลนี้`, 'info'); return; }
-              matchedStudents.sort((a, b) => {
-                const roomCompare = (a.room || '').toString().localeCompare((b.room || '').toString(), 'th', {numeric: true});
-                if (roomCompare !== 0) return roomCompare; return (Number(a.no) || 0) - (Number(b.no) || 0);
-              });
-              let studentTableHtml = '<table class="table table-sm table-striped table-bordered text-start mb-0" style="font-size:11px; white-space: nowrap;">';
-              studentTableHtml += '<thead class="table-danger sticky-top" style="z-index: 99;"><tr><th class="text-center" style="width:15%">เลขที่</th><th style="width:25%">รหัสประจำตัว</th><th>ชื่อ-นามสกุล</th><th class="text-center" style="width:20%">ห้อง</th></tr></thead><tbody>';
-              matchedStudents.forEach(s => { studentTableHtml += `<tr><td class="text-center fw-bold">${s.no || '-'}</td><td class="text-primary fw-bold">${s.id}</td><td>${s.name}</td><td class="text-center">${s.room || '-'}</td></tr>`; });
-              studentTableHtml += '</tbody></table>';
-
-              Swal.fire({
-                title: 'ตรวจสอบรายชื่อกลุ่ม [' + groupLabel + ']',
-                html: '<div class="text-start mb-2 small text-danger fw-bold"><i class="fas fa-exclamation-triangle"></i> ตรวจพบนักเรียนทั้งหมด ' + matchedStudents.length + ' คน ที่กำลังจะถูกลบถาวร:</div><div style="max-height: 220px; overflow-y: auto; border: 1px solid #dc3545; border-radius: 6px; padding: 2px; box-shadow: inset 0 0 4px rgba(0,0,0,0.05);">' + studentTableHtml + '</div>',
-                input: 'checkbox', inputValue: 0, inputPlaceholder: ' ฉันได้ตรวจสอบตารางรายชื่อด้านบนดีแล้ว และขอยืนยันว่าต้องการลบรายชื่อกลุ่มนี้ออกจากระบบถาวร',
-                width: '600px', icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc3545', confirmButtonText: '<i class="fas fa-trash-alt me-1"></i> ยืนยันลบถาวร', cancelButtonText: 'ยกเลิก', allowOutsideClick: false,
-                preConfirm: (value) => { if (!value) { Swal.showValidationMessage('โปรดคลิกติ๊กถูกในช่องสี่เหลี่ยมด้านบนก่อน เพื่อยืนยันสิทธิ์การลบข้อมูล'); } }
-              }).then((confirmRes) => {
-                if (confirmRes.isConfirmed) {
-                  this.loading = true;
-                  Swal.fire({ title: 'กำลังเคลียร์ข้อมูลสัมพันธ์ของกลุ่มนักเรียน...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-                  fetchAPI('deleteStudentsBulkServer', { targetType: target, roomValue: roomValue }).then(deleteRes => {
-                    this.loading = false; Swal.close();
-                    if (deleteRes.success) {
-                      Swal.fire({ title: 'ลบข้อมูลสำเร็จ', text: deleteRes.message, icon: 'success', confirmButtonText: 'ตกลง', confirmButtonColor: '#2563eb', allowOutsideClick: false }).then((clickResult) => {
-                        if (clickResult.isConfirmed) {
-                          bootstrap.Modal.getInstance(document.getElementById('bulkDeleteModal')).hide();
-                          this.bulkAction.room = ''; this.refreshData(); this.fetchUsers('student'); 
-                        }
-                      });
-                    } else { Swal.fire('ข้อผิดพลาดจากเซิร์ฟเวอร์', deleteRes.message, 'error'); }
-                  }).catch(err => { this.loading = false; Swal.fire('เกิดข้อผิดพลาด', String(err), 'error'); });
-                }
-              });
-            }).catch(err => { this.loading = false; Swal.fire('ข้อผิดพลาด', 'ไม่สามารถเชื่อมต่อ Server เพื่อดึงข้อมูลได้: ' + err, 'error'); });
-          },
-          downloadAdminClubsExcel() {
-            if (!this.clubs || this.clubs.length === 0) { Swal.fire('แจ้งเตือน', 'ไม่มีข้อมูลชุมนุมในระบบให้ดาวน์โหลด', 'info'); return; }
-            Swal.fire({ title: 'กำลังเตรียมข้อมูลไฟล์ Excel...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-            const levelWeight = { 'ม.ต้น': 1, 'ม.ปลาย': 2, 'ทั้งหมด': 3, 'ทั้งสอง': 3 };
-            const sortedClubs = [...this.clubs].sort((a, b) => {
-              const weightA = levelWeight[String(a.level).trim()] || 99; const weightB = levelWeight[String(b.level).trim()] || 99;
-              if (weightA !== weightB) return weightA - weightB; return String(a.name || '').localeCompare(String(b.name || ''), 'th');
-            });
-            let tableHtml = `<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"><style>table{border-collapse:collapse;width:100%;}th{background-color:#d1e7dd;font-weight:bold;text-align:center;}th,td{border:1px solid #000000;padding:6px;}.text-center{text-align:center;}</style></head><body><h2>รายงานสรุปข้อมูลกิจกรรมชุมนุมและสถานที่เรียน โรงเรียนสมุทรสาครบูรณะ</h2><p>ข้อมูล ณ วันที่: ${new Date().toLocaleString('th-TH')}</p><table><thead><tr><th style="width: 80px;">ลำดับ</th><th style="width: 300px;">ชื่อกิจกรรมชุมนุม</th><th style="width: 300px;">ครูที่ปรึกษาชุมนุม</th><th style="width: 150px;">ระดับชั้น</th><th style="width: 200px;">สถานที่เรียน</th></tr></thead><tbody>`;
-            sortedClubs.forEach((club, idx) => { tableHtml += `<tr><td class="text-center">${idx + 1}</td><td style="font-weight: bold;">${club.name || '-'}</td><td>${club.teacher_name || '-'}</td><td class="text-center">${club.level || '-'}</td><td>${club.location || 'ยังไม่ระบุข้อมูล'}</td></tr>`; });
-            tableHtml += `</tbody></table></body></html>`;
             try {
-              const blob = new Blob(['\ufeff' + tableHtml], { type: "application/vnd.ms-excel" });
-              const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `รายงานสรุปข้อมูลกิจกรรมชุมนุมและสถานที่เรียน_${new Date().toISOString().slice(0,10)}.xls`;
-              document.body.appendChild(link); link.click(); document.body.removeChild(link);
-              Swal.close(); Swal.fire({toast:true, position:'top-end', icon:'success', title:'ดาวน์โหลดสำเร็จ', showConfirmButton:false, timer:2000});
-            } catch (err) { Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถสร้างไฟล์ Excel ได้: ' + err.toString(), 'error'); }
-          },
-          openAdminPrintReport() {
-            Swal.fire({ title: 'กำลังเตรียมข้อมูลสรุป...', didOpen: () => Swal.showLoading() });
-            fetchAPI('getGlobalFailedSummary').then(res => {
-              this.globalFailedList = res || []; Swal.close(); this.view = 'admin_report'; 
-            }).catch(() => { Swal.close(); this.view = 'admin_report'; });
-          },
-          getClubFailCount(clubName) {
-            if (!this.globalFailedList || this.globalFailedList.length === 0) return 0;
-            return this.globalFailedList.filter(s => s.clubName === clubName).length;
-          },
-          downloadAdminWordReport() {
-            Swal.fire({ title: 'กำลังเตรียมไฟล์ Word...', html: 'ระบบกำลังประมวลผลรูปแบบเอกสาร', didOpen: () => { Swal.showLoading() } });
-            const content = document.querySelectorAll('.a4-container'); let combinedHtml = "";
-            content.forEach((el, index) => { if (index > 0) { combinedHtml += '<br clear="all" style="mso-special-character:line-break;page-break-before:always">'; } combinedHtml += el.innerHTML; });
-            const header = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'><title>สรุปผลการจัดกิจกรรมชุมนุม</title><style>@page { size: 21cm 29.7cm; margin: 2cm; } body { font-family: 'Sarabun', 'TH Sarabun New', sans-serif; } table { border-collapse: collapse; width: 100%; } th, td { border: 1px solid black; padding: 5px; vertical-align: middle; } .text-center { text-align: center; } .text-end { text-align: right; } .fw-bold { font-weight: bold; } .text-success { color: #15803d !important; } .text-danger { color: #b91c1c !important; } img { max-width: 100%; } .editable { border-bottom: none !important; }</style></head><body>`;
-            const footer = "</body></html>"; const fullSource = header + combinedHtml + footer;
-            const blob = new Blob(['\ufeff', fullSource], { type: 'application/msword' });
-            const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = `สรุปผลการจัดกิจกรรมชุมนุม_ภาพรวม.doc`;
-            document.body.appendChild(link); link.click(); document.body.removeChild(link);
-            Swal.close(); Swal.fire({toast:true, position:'top-end', icon:'success', title:'ดาวน์โหลดไฟล์ Word สำเร็จ', showConfirmButton:false, timer:2000});
-          },
-          downloadFilteredStudents() {
-            if (this.exportFilter.type === 'ระบุห้อง' && !this.exportFilter.room.trim()) { Swal.fire('แจ้งเตือน', 'กรุณาระบุห้องที่ต้องการดาวน์โหลด', 'warning'); return; }
-            Swal.fire({ title: 'กำลังเตรียมข้อมูล...', html: 'ระบบกำลังดึงข้อมูลและประมวลผล', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-            
-            fetchAPI('getUsersByRole', { role: 'student' }).then(students => {
-              Swal.close();
-              let filteredList = students.filter(s => {
-                const level = String(s.level || '').trim(); const room = String(s.room || '').trim();
-                if (this.exportFilter.type === 'ทั้งหมด') return true;
-                if (this.exportFilter.type === 'ม.ต้น') return ['ม.1', 'ม.2', 'ม.3', 'ม.ต้น'].some(l => level.includes(l));
-                if (this.exportFilter.type === 'ม.ปลาย') return ['ม.4', 'ม.5', 'ม.6', 'ม.ปลาย'].some(l => level.includes(l));
-                if (this.exportFilter.type === 'ระบุห้อง') {
-                  const searchRoom = this.exportFilter.room.trim();
-                  if (room.includes(searchRoom)) {
-                    const pos = room.indexOf(searchRoom); const charAfter = room.charAt(pos + searchRoom.length);
-                    if (!charAfter || !/\d/.test(charAfter)) return true;
-                  } return false;
-                } return true;
-              });
-
-              if (filteredList.length === 0) { Swal.fire('ไม่พบข้อมูล', 'ไม่มีนักเรียนในเงื่อนไขที่ระบุ', 'info'); return; }
-              filteredList.sort((a, b) => {
-                const roomCompare = (a.room || '').toString().localeCompare((b.room || '').toString(), 'th', {numeric: true});
-                if (roomCompare !== 0) return roomCompare; return (Number(a.no) || 0) - (Number(b.no) || 0);
-              });
-
-              let table = `<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"></head><body><h3>ข้อมูลการสมัครชุมนุมนักเรียน (${this.exportFilter.type}${this.exportFilter.type === 'ระบุห้อง' ? ' ' + this.exportFilter.room : ''})</h3><p>ข้อมูล ณ วันที่: ${new Date().toLocaleString('th-TH')}</p><table border="1"><thead><tr style="background-color: #d1e7dd;"><th>ลำดับ</th><th>รหัสประจำตัว</th><th>ชื่อ-นามสกุล</th><th>ชั้น</th><th>ห้อง</th><th>เลขที่</th><th>ชุมนุม</th></tr></thead><tbody>`;
-              filteredList.forEach((s, idx) => {
-                let clubName = 'ยังไม่ได้สมัครชุมนุม';
-                if (s.club_id && String(s.club_id).trim() !== '') {
-                  if (this.clubMap[s.club_id]) { clubName = this.clubMap[s.club_id].name; } else { clubName = s.club_id; }
-                }
-                table += `<tr><td align="center">${idx + 1}</td><td align="center" style="mso-number-format:'\\@';">${s.id}</td><td>${s.name}</td><td align="center">${s.level}</td><td align="center">${s.room}</td><td align="center">${s.no}</td><td style="${clubName === 'ยังไม่ได้สมัครชุมนุม' ? 'color: red; font-weight: bold;' : ''}">${clubName}</td></tr>`;
-              });
-              table += `</tbody></table></body></html>`;
-              const fileNameSuffix = this.exportFilter.type === 'ระบุห้อง' ? this.exportFilter.room.replace(/\//g, '-') : this.exportFilter.type;
-              this.executeDownload(table, `รายชื่อนักเรียน_ชุมนุม_${fileNameSuffix}.xls`);
-            }).catch(err => { Swal.fire('ข้อผิดพลาด', 'ไม่สามารถดาวน์โหลดข้อมูลได้: ' + err, 'error'); });
-          },
-          loadFailedData() {
-            this.loading = true;
-            fetchAPI('getGlobalFailedSummary').then(res => {
-              this.globalFailedList = res || []; this.loading = false;
-              if (res.length === 0) { Swal.fire({toast: true, position: 'top-end', showConfirmButton: false, timer: 2000, icon: 'success', title: 'ทุกคนผ่านกิจกรรมครบถ้วน' }); }
-            }).catch(() => { this.loading = false; });
-          },
-          downloadGlobalFailed() {
-            if (this.globalFailedList.length === 0) return;
-            const sortedList = [...this.globalFailedList].sort((a, b) => {
-              const clubCompare = a.clubName.localeCompare(b.clubName, 'th'); if (clubCompare !== 0) return clubCompare;
-              const roomCompare = a.room.localeCompare(b.room, 'th', { numeric: true }); if (roomCompare !== 0) return roomCompare;
-              return Number(a.no) - Number(b.no);
-            });
-            let table = `<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"></head><body><h3>สรุปรายชื่อนักเรียนที่ไม่ผ่านกิจกรรมชุมนุม (เรียงตามชุมนุมและห้องเรียน)</h3><table border="1"><thead><tr style="background-color: #dc3545; color: white;"><th>ชุมนุม</th><th>ชั้น/ห้อง</th><th>เลขที่</th><th>รหัสประจำตัว</th><th>ชื่อ-นามสกุล</th><th>มา (ครั้ง)</th><th>ขาด (ครั้ง)</th><th>สถานะ</th></tr></thead><tbody>`;
-            sortedList.forEach(s => { table += `<tr><td>${s.clubName}</td><td align="center">${s.room}</td><td align="center">${s.no}</td><td style="mso-number-format:'\\@';">${s.id}</td><td>${s.name}</td><td align="center">${s.present}</td><td align="center">${s.absent}</td><td style="color: red;">ไม่ผ่าน</td></tr>`; });
-            table += `</tbody></table></body></html>`;
-            this.executeDownload(table, "รายชื่อนักเรียนไม่ผ่านกิจกรรม_จัดกลุ่มตามชุมนุม.xls");
-          },
-          goToInsight() { this.view = 'insight_report'; this.refreshData(); this.loadFailedData(); },
-          searchByRoom() {
-            if (!this.lookup.room) { Swal.fire('แจ้งเตือน', 'กรุณาระบุห้องที่ต้องการค้นหา', 'warning'); return; }
-            this.loading = true; this.roomStudents = [];
-            fetchAPI('getStudentsByRoom', { level: this.lookup.level, room: this.lookup.room }).then(res => {
-              this.loading = false;
-              if (res && res.length > 0) { this.roomStudents = res; } 
-              else { Swal.fire('ไม่พบข้อมูล', 'ไม่พบนักเรียนในห้องที่ระบุ กรุณาตรวจสอบชื่อห้องอีกครั้ง', 'info'); }
-            }).catch(err => { this.loading = false; Swal.fire('Error', String(err), 'error'); });
-          },
-          downloadRoomExcel() {
-            if (!this.roomStudents || this.roomStudents.length === 0) return;
-            let table = `<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"></head><body><h3>รายงานการสมัครชุมนุม ห้อง ${this.lookup.room}</h3><table border="1"><thead><tr style="background-color: #d1e7dd;"><th>เลขที่</th><th>รหัสประจำตัว</th><th>ชื่อ-นามสกุล</th><th>ชุมนุม</th></tr></thead><tbody>`;
-            this.roomStudents.forEach(s => { table += `<tr><td align="center">${s.no}</td><td align="center">${s.id}</td><td>${s.name}</td><td style="${s.club_name === 'ยังไม่ได้สมัครชุมนุม' ? 'color: red;' : ''}">${s.club_name}</td></tr>`; });
-            table += `</tbody></table></body></html>`;
-            const blob = new Blob([table], { type: "application/vnd.ms-excel" });
-            const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `สถานะชุมนุม_ห้อง_${this.lookup.room}.xls`; link.click();
-          },
-          downloadWordReport() {
-            Swal.fire({ title: 'กำลังเตรียมไฟล์ Word...', html: 'ระบบกำลังประมวลผลรูปแบบเอกสาร', didOpen: () => { Swal.showLoading() } });
-            const content = document.querySelectorAll('.a4-container'); let combinedHtml = "";
-            content.forEach((el, index) => { if (index > 0) { combinedHtml += '<br clear="all" style="mso-special-character:line-break;page-break-before:always">'; } combinedHtml += el.innerHTML; });
-            const header = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'><title>รายงานชุมนุม</title><style>@page { size: 21cm 29.7cm; margin: 2cm; } body { font-family: 'Sarabun', 'TH Sarabun New', sans-serif; } table { border-collapse: collapse; width: 100%; } th, td { border: 1px solid black; padding: 5px; vertical-align: middle; } .text-center { text-align: center; } .fw-bold { font-weight: bold; } img { max-width: 100%; } .editable { border-bottom: none !important; }</style></head><body>`;
-            const footer = "</body></html>"; const fullSource = header + combinedHtml + footer;
-            const blob = new Blob(['\ufeff', fullSource], { type: 'application/msword' });
-            const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = `รายงานชุมนุม_${this.currentClubName}.doc`;
-            document.body.appendChild(link); link.click(); document.body.removeChild(link);
-            Swal.close(); Swal.fire({toast:true, position:'top-end', icon:'success', title:'ดาวน์โหลดไฟล์ Word สำเร็จ', showConfirmButton:false, timer:2000});
-          },
-          getBtnText(c) {
-            if (c.current_count >= c.max_capacity && this.user.clubId !== c.id) return 'เต็มแล้ว';
-            if (this.user.clubId === c.id) return 'ลงทะเบียนแล้ว';
-            if (this.user.clubId) { return this.config.allow_transfer === 'true' ? 'ย้ายชุมนุม' : 'ปิดย้ายชุมนุม'; }
-            return this.config.open_reg === 'true' ? 'สมัครชุมนุม' : 'ปิดรับสมัคร';
-          },
-          getBtnClass(c) {
-            if (this.user.clubId === c.id) return 'btn-registered';
-            if (c.current_count >= c.max_capacity && this.user.clubId !== c.id) return 'btn-full disabled';
-            if (this.user.clubId) { if (this.config.allow_transfer !== 'true') return 'btn-closed disabled'; } else { if (this.config.open_reg !== 'true') return 'btn-closed disabled'; }
-            return 'btn-enroll';
-          },
-          confirmDeleteClub(club) {
-            Swal.fire({
-              title: 'ยืนยันการลบชุมนุม?', html: `คุณกำลังจะลบชุมนุม <b>"${club.name}"</b><br><span class="text-danger small">ชื่อนักเรียนทุกคนในชุมนุมนี้จะถูกล้างออกทันที</span>`,
-              icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc3545', cancelButtonColor: '#6c757d', confirmButtonText: 'ยืนยันการลบถาวร', cancelButtonText: 'ยกเลิก'
-            }).then((result) => {
-              if (result.isConfirmed) {
-                this.loading = true;
-                fetchAPI('deleteClubAdmin', { clubId: club.id }).then(res => {
-                  this.loading = false;
-                  if (res.success) { Swal.fire('ลบสำเร็จ!', res.message, 'success'); this.refreshData(); } 
-                  else { Swal.fire('ผิดพลาด', res.message, 'error'); }
-                }).catch(err => { this.loading = false; Swal.fire('Error', String(err), 'error'); });
-              }
-            });
-          },
-          searchStudent() {
-            if (!this.searchQuery.trim()) return;
-            Swal.fire({ title: 'กำลังค้นหา...', didOpen: () => { Swal.showLoading() } });
-            fetchAPI('findStudentClub', { query: this.searchQuery }).then(res => {
-              Swal.close();
-              if (res) { this.searchResult = res; this.searchQuery = ''; } 
-              else { Swal.fire('ไม่พบข้อมูล', 'ไม่พบรายชื่อนักเรียนคนนี้ในระบบ', 'error'); this.searchResult = null; }
-            }).catch(err => { Swal.close(); Swal.fire('Error', String(err), 'error'); });
-          },
-          deleteUserConfirm(id, role) {
-            Swal.fire({ title: 'ยืนยันการลบ?', text: "ข้อมูลในชีตและรายชื่อสมัครจะถูกลบออกถาวร", icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'ใช่, ลบเลย', cancelButtonText: 'ยกเลิก' }).then((result) => {
-              if (result.isConfirmed) {
-                this.loading = true;
-                fetchAPI('deleteUser', { id: id, role_type: role }).then((res) => {
-                  this.loading = false;
-                  if (res && res.success) { Swal.fire('สำเร็จ', res.message, 'success'); this.refreshData(); this.fetchUsers(role); } 
-                  else { Swal.fire('ผิดพลาด', res ? res.message : 'ระบบไม่ตอบสนอง', 'error'); }
-                }).catch((err) => { this.loading = false; Swal.fire('Error', String(err), 'error'); });
-              }
-            });
-          },   
-          downloadNoClubTeachers() {
-            Swal.fire({ title: 'กำลังตรวจสอบรายชื่อครู...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-            fetchAPI('getUsersByRole', { role: 'teacher' }).then(teachers => {
-              Swal.close();
-              const activeOwnerIds = new Set();
-              this.clubs.forEach(club => { if (club.owner_id) { club.owner_id.toString().split(',').forEach(id => { activeOwnerIds.add(id.trim()); }); } });
-              const noClubList = teachers.filter(t => t.role !== 'admin' && !activeOwnerIds.has(t.id.toString().trim()));
-              if (noClubList.length === 0) { Swal.fire('ครบถ้วน', 'คุณครูทุกท่านมีชุมนุมเรียบร้อยแล้ว', 'success'); return; }
-              let table = `<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"></head><body><h3>รายชื่อคุณครูที่ยังไม่ได้เปิดชุมนุม</h3><table border="1"><thead><tr style="background-color: #fff3cd;"><th>รหัสประจำตัว</th><th>ชื่อ-นามสกุล</th><th>สถานะ</th></tr></thead><tbody>`;
-              noClubList.forEach(t => { table += `<tr><td align="center" style="mso-number-format:'\\@';">${t.id}</td><td>${t.name}</td><td style="color: red;">ยังไม่มีชุมนุม</td></tr>`; });
-              table += `</tbody></table></body></html>`;
-              this.executeDownload(table, "ครูที่ยังไม่มีชุมนุม.xls");
-            }).catch(err => { Swal.close(); Swal.fire('Error', String(err), 'error'); });
-          },
-          executeDownload(html, fileName) {
-            const blob = new Blob([html], { type: "application/vnd.ms-excel" });
-            const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = fileName; link.click();
-          },
-          refreshData(isSilent = false) {
-            if (!isSilent) this.loading = true;
-            fetchAPI('getAppData', { userRole: this.user ? this.user.role : null, userId: this.user ? this.user.id : null }).then(res => {
-              if (!res || !res.success) { this.loading = false; return; }
-              const data = res.data;
-              this.clubs = data.clubs || []; this.config = data.config || {}; this.teachersList = data.teachers || [];
-              if (this.user && this.user.role === 'admin') { this.summary = data.summary; }
-              const map = {}; this.clubs.forEach(c => { map[String(c.id)] = c; }); this.clubMap = map;
-              if (this.user && this.user.role === 'teacher') {
-                const myId = String(this.user.id);
-                this.user.hasClub = this.clubs.some(c => String(c.owner_id).split(',').map(id => id.trim()).includes(myId));
-              }
-              if (typeof this.syncAdvancedSettings === 'function') { this.syncAdvancedSettings(); }
-              this.loading = false; 
-            }).catch(err => {
-              this.loading = false;
-              if (!isSilent) Swal.fire('Error', 'ไม่สามารถดึงข้อมูลได้: ' + err, 'error');
-            });
-          },
-          doLogin() {
-            this.loading = true;
-            fetchAPI('checkLogin', { username: this.form.user, password: this.form.pass }).then(res => {
-              this.loading = false;
-              if(res.success) { this.user = res.user; this.isLoggedIn = true; this.refreshData(); }
-              else Swal.fire('Error', res.message, 'error');
-            }).catch(err => { this.loading = false; Swal.fire('Error', String(err), 'error'); });
-          },
-          fetchData() { this.refreshData(); },
-          saveConfig() { 
-            fetchAPI('updateConfig', { configObj: this.config }).then(() => { 
-              const Toast = Swal.mixin({toast: true, position: 'top-end', showConfirmButton: false, timer: 1500}); Toast.fire({ icon: 'success', title: 'บันทึกค่าแล้ว' }); 
-            }); 
-          },
-          goToAttendance(club) { this.loadClubData(club, 'attendance'); },
-          goToReport(club) {
-              this.reportData.teacher = club ? club.teacher_name : this.reportData.teacher;
-              if(club) this.loadClubData(club, 'report'); else this.view = 'report';
-          },
-          loadClubData(club, viewName) {
-            this.currentClubId = club.id; this.currentClubName = club.name; this.attStudents = []; this.attData = { dates: new Array(20).fill(""), records: {} };
-            this.reportActData = {
-                objectives: ['ส่งเสริมให้นักเรียนใช้เวลาว่างให้เกิดประโยชน์และสร้างสรรค์', 'เพื่อพัฒนาทักษะทางด้าน...', 'เพื่อให้ผู้เรียนมีความรับผิดชอบและฝึกการทำงานร่วมกับผู้อื่น'],
-                committees: ['','','','',''], activities: Array(20).fill(''), remark: 'ไม่มี', caption: 'บรรยากาศการเรียนการสอนและการทำกิจกรรมร่วมกันของนักเรียน'
-            };
-            this.reportData.photos = {}; this.reportData.logo = ''; this.reportData.teacher = club.teacher_name;
-
-            Swal.fire({ title: 'กำลังโหลด...', didOpen: () => Swal.showLoading() });
-            
-            fetchAPI('getClubAttendanceGrid', { clubId: club.id }).then(res => {
-                res.students.sort((a, b) => {
-                    const roomA = a.room.toString(); const roomB = b.room.toString();
-                    if(roomA !== roomB) return roomA.localeCompare(roomB, undefined, {numeric: true, sensitivity: 'base'});
-                    return Number(a.no) - Number(b.no);
-                });
-                
-                this.attStudents = res.students; const loadedData = res.gridData;
-
-                for(let i = 0; i < 20; i++) {
-                    if (!loadedData.dates[i] && this.systemDates && this.systemDates[i]) { loadedData.dates[i] = this.systemDates[i]; }
-                }
-
-                this.attStudents.forEach(s => {
-                    if (!loadedData.records[s.id]) { loadedData.records[s.id] = new Array(20).fill(0); } 
-                    else { loadedData.records[s.id] = loadedData.records[s.id].map(val => { if (val === 'P') return 1; if (val === 'L') return 2; if (val === 'A') return 3; if (val === '' || val === null) return 0; return Number(val); }); }
-                });
-                
-                this.attData = loadedData; 
-
-                if (viewName === 'report') {
-                    fetchAPI('getSavedClubReport', { clubId: club.id }).then(reportRes => {
-                        Swal.close();
-                        if (reportRes && reportRes.found && reportRes.data) {
-                            const savedData = reportRes.data;
-                            if (savedData.actData) { this.reportActData = Object.assign(this.reportActData, savedData.actData); }
-                            if (savedData.teacher) this.reportData.teacher = savedData.teacher;
-                            if (savedData.logo) this.reportData.logo = savedData.logo;
-                            if (savedData.photos) this.reportData.photos = savedData.photos;
+                const {data: students} = await supabase.from('students').select('*');
+                const matchedStudents = (students||[]).filter(s => {
+                    const level = String(s.level || '').trim(); const room = String(s.room || '').trim().toLowerCase();
+                    if (target === "ม.ต้น") return ['ม.1', 'ม.2', 'ม.3', 'ม.ต้น'].some(l => level.includes(l));
+                    else if (target === "ม.ปลาย") return ['ม.4', 'ม.5', 'ม.6', 'ม.ปลาย'].some(l => level.includes(l));
+                    else if (target === "ระบุห้อง") {
+                        if (room.includes(roomValue.toLowerCase())) {
+                            const pos = room.indexOf(roomValue.toLowerCase()); const charAfter = room.charAt(pos + roomValue.length);
+                            return !charAfter || !/\d/.test(charAfter);
                         }
-                        this.view = viewName; 
-                    });
-                } else { Swal.close(); this.view = viewName; }
-            }).catch(err => { Swal.close(); Swal.fire('Error', String(err), 'error'); });
-          },
-          goToManageUsers() { this.manageRole = 'student'; this.fetchUsers('student'); this.view = 'manage_users'; },
-          switchManageRole(role) { this.manageRole = role; this.fetchUsers(role); },
-          fetchUsers(role) { 
-            Swal.fire({ toast: true, position: 'top-end', title: 'กำลังโหลด...', showConfirmButton: false, didOpen: () => Swal.showLoading() }); 
-            fetchAPI('getUsersByRole', { role: role }).then(res => { Swal.close(); this.usersList = res; }).catch(() => Swal.close()); 
-          },        
-          openUserModal(u = null) {
-            if (u) {
-              this.userForm = { id: u.id, new_id: u.id, name: u.name, username: u.username || '', password: u.password || '', role: u.role || 'teacher', level: u.level || '', room: u.room || '', no: u.no || '', role_type: this.manageRole };
-            } else {
-              this.userForm = { id: '', new_id: '', name: '', username: '', password: '', role: 'teacher', level: '', room: '', no: '', role_type: this.manageRole };
-            }
-            const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('userModal')); modal.show();
-          },
-          submitUser() {
-              this.loading = true; this.userForm.role_type = this.manageRole;
-              fetchAPI('saveUser', { form: this.userForm }).then((res) => {
-                  this.loading = false; bootstrap.Modal.getInstance(document.getElementById('userModal')).hide(); this.fetchUsers(this.manageRole);
-                  if(res.success) { Swal.fire({ icon: 'success', title: 'สำเร็จ', text: 'บันทึกข้อมูลเรียบร้อยแล้ว', timer: 1500, showConfirmButton: false }); }
-                  else { Swal.fire('ข้อผิดพลาด', res.message, 'error'); }
-              }).catch((err) => { this.loading = false; Swal.fire('ข้อผิดพลาด', String(err), 'error'); });
-          },
-          deleteUser(u) { 
-            Swal.fire({ title: 'ลบผู้ใช้?', text: u.name, icon: 'warning', showCancelButton: true }).then(r => { 
-              if(r.isConfirmed) { fetchAPI('deleteUser', { id: u.id, role_type: this.manageRole }).then(() => this.fetchUsers(this.manageRole)); } 
-            }); 
+                    } return false;
+                });
+
+                if (matchedStudents.length === 0) { Swal.fire('ไม่พบข้อมูล', `ไม่มีข้อมูลนักเรียนของกลุ่ม [${groupLabel}] อยู่ในระบบฐานข้อมูลนี้`, 'info'); this.loading=false; return; }
+                matchedStudents.sort((a, b) => {
+                    const roomCompare = (a.room || '').toString().localeCompare((b.room || '').toString(), 'th', {numeric: true});
+                    if (roomCompare !== 0) return roomCompare; return (Number(a.no) || 0) - (Number(b.no) || 0);
+                });
+                let studentTableHtml = '<table class="table table-sm table-striped table-bordered text-start mb-0" style="font-size:11px; white-space: nowrap;">';
+                studentTableHtml += '<thead class="table-danger sticky-top" style="z-index: 99;"><tr><th class="text-center" style="width:15%">เลขที่</th><th style="width:25%">รหัสประจำตัว</th><th>ชื่อ-นามสกุล</th><th class="text-center" style="width:20%">ห้อง</th></tr></thead><tbody>';
+                matchedStudents.forEach(s => { studentTableHtml += `<tr><td class="text-center fw-bold">${s.no || '-'}</td><td class="text-primary fw-bold">${s.id}</td><td>${s.name}</td><td class="text-center">${s.room || '-'}</td></tr>`; });
+                studentTableHtml += '</tbody></table>';
+
+                Swal.fire({
+                    title: 'ตรวจสอบรายชื่อกลุ่ม [' + groupLabel + ']',
+                    html: '<div class="text-start mb-2 small text-danger fw-bold"><i class="fas fa-exclamation-triangle"></i> ตรวจพบนักเรียนทั้งหมด ' + matchedStudents.length + ' คน ที่กำลังจะถูกลบถาวร:</div><div style="max-height: 220px; overflow-y: auto; border: 1px solid #dc3545; border-radius: 6px; padding: 2px; box-shadow: inset 0 0 4px rgba(0,0,0,0.05);">' + studentTableHtml + '</div>',
+                    input: 'checkbox', inputValue: 0, inputPlaceholder: ' ฉันได้ตรวจสอบตารางรายชื่อด้านบนดีแล้ว และขอยืนยันว่าต้องการลบรายชื่อกลุ่มนี้ออกจากระบบถาวร',
+                    width: '600px', icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc3545', confirmButtonText: '<i class="fas fa-trash-alt me-1"></i> ยืนยันลบถาวร', cancelButtonText: 'ยกเลิก', allowOutsideClick: false,
+                    preConfirm: (value) => { if (!value) { Swal.showValidationMessage('โปรดคลิกติ๊กถูกในช่องสี่เหลี่ยมด้านบนก่อน เพื่อยืนยันสิทธิ์การลบข้อมูล'); } }
+                }).then(async (confirmRes) => {
+                    if (confirmRes.isConfirmed) {
+                        this.loading = true;
+                        Swal.fire({ title: 'กำลังเคลียร์ข้อมูลสัมพันธ์ของกลุ่มนักเรียน...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+                        try {
+                            const idsToDelete = matchedStudents.map(s => s.id);
+                            await supabase.from('students').delete().in('id', idsToDelete);
+                            await supabase.from('registrations').delete().in('student_id', idsToDelete);
+                            Swal.fire({ title: 'ลบข้อมูลสำเร็จ', text: `ลบนักเรียนกลุ่มนี้จำนวน ${idsToDelete.length} คน เรียบร้อยแล้ว`, icon: 'success', confirmButtonText: 'ตกลง', confirmButtonColor: '#2563eb', allowOutsideClick: false }).then(() => {
+                                bootstrap.Modal.getInstance(document.getElementById('bulkDeleteModal')).hide();
+                                this.bulkAction.room = ''; this.refreshData(); this.fetchUsers('student'); 
+                            });
+                        } catch(e) { Swal.fire('เกิดข้อผิดพลาด', e.message, 'error'); }
+                        finally { this.loading = false; }
+                    }
+                });
+            } catch(e) { Swal.fire('ข้อผิดพลาด', e.message, 'error'); this.loading = false; }
           },
           processCSV(e) {
               if (this.loading) return; const file = e.target.files[0]; if (!file) return;
               const reader = new FileReader(); const app = this;
-              reader.onload = (evt) => {
+              reader.onload = async (evt) => {
                   const csvData = evt.target.result; this.loading = true;
                   Swal.fire({ title: 'กำลังตรวจสอบและนำเข้าข้อมูล...', html: 'ขั้นตอนนี้อาจใช้เวลาสักครู่ ขึ้นอยู่กับจำนวนข้อมูล', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
                   
-                  fetchAPI('importUsersFromCSV', { csvData: csvData, role_type: app.manageRole }).then(res => {
-                      this.loading = false; Swal.close();
-                      if (res.error) { Swal.fire('เกิดข้อผิดพลาด', res.error, 'error'); return; }
-                      const renderTable = (items) => {
-                          if (!items || items.length === 0) return '<p class="text-muted mt-2 text-center">ไม่มีรายการ</p>';
-                          const isStudent = app.manageRole === 'student';
-                          let html = '<table class="table table-sm table-striped text-start mt-2" style="font-size:11px;"><thead class="table-light sticky-top">';
-                          if (isStudent) { html += `<tr><th>ID</th><th>ชื่อ-นามสกุล</th><th class="text-center">ห้อง</th><th class="text-center">เลขที่</th></tr>`; } 
-                          else { html += `<tr><th>ID</th><th>ชื่อ-นามสกุล</th><th>Username</th><th>สิทธิ์</th></tr>`; }
-                          html += '</thead><tbody>';
-                          items.forEach(i => {
-                              if (isStudent) { html += `<tr><td class="text-primary fw-bold">${i.id}</td><td>${i.name}</td><td class="text-center">${i.room || '-'}</td><td class="text-center fw-bold">${i.no || '-'}</td></tr>`; } 
-                              else { html += `<tr><td class="text-primary fw-bold">${i.id}</td><td>${i.name}</td><td>${i.username || '-'}</td><td>${i.role || 'teacher'}</td></tr>`; }
-                          });
-                          return html + '</tbody></table>';
+                  try {
+                      let cleanCsvData = csvData.replace(/^\ufeff/, "");
+                      let delimiter = (cleanCsvData.split('\n')[0].split(';').length > cleanCsvData.split('\n')[0].split(',').length) ? ";" : ",";
+                      
+                      // ฟังก์ชันแยก CSV อย่างง่าย
+                      const parseCSV = (text, sep) => {
+                          const result = []; const lines = text.split('\n');
+                          for(let i=0; i<lines.length; i++) {
+                              const line = lines[i].trim(); if(line === '') continue;
+                              result.push(line.split(sep));
+                          } return result;
                       };
+                      
+                      const rows = parseCSV(cleanCsvData, delimiter);
+                      const table = app.manageRole === 'teacher' ? 'teachers' : 'students';
+                      const payloads = [];
+                      let duplicateInCsvCount = 0; const processedIds = new Set();
+                      
+                      rows.forEach((row, index) => {
+                          if (index === 0 || !row[0] || row[0].toString().toLowerCase().includes('id')) return;
+                          const cleanRow = row.map(cell => String(cell || "").replace(/"/g, "").trim());
+                          const id = cleanRow[0]; const name = cleanRow[1] || "";
+                          if (processedIds.has(id)) { duplicateInCsvCount++; return; }
+                          processedIds.add(id);
+
+                          const p = { id: id, name: name };
+                          if (app.manageRole === 'teacher') {
+                              p.username = cleanRow[2] || id; p.password = cleanRow[3] || id; p.role = cleanRow[4] || 'teacher';
+                          } else {
+                              p.level = cleanRow[2] || null; p.room = cleanRow[3] || null; p.no = cleanRow[4] || null; p.password = cleanRow[5] || id;
+                          }
+                          payloads.push(p);
+                      });
+
+                      if(payloads.length > 0) {
+                          // Upsert เข้า Supabase
+                          const { error } = await supabase.from(table).upsert(payloads);
+                          if(error) throw error;
+                      }
+
                       Swal.fire({
                           title: 'อัปเดตฐานข้อมูลสำเร็จ!', width: '650px',
-                          html: `<div class="text-start" style="font-size: 13px;">
-                            <p class="text-success mb-1"><b><i class="fas fa-plus-circle"></i> รายการเพิ่มใหม่ (${res.addedCount || 0})</b></p>
-                            <div style="max-height: 160px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 6px; margin-bottom: 15px; padding: 2px;">${renderTable(res.addedNames)}</div>
-                            <p class="text-primary mb-1"><b><i class="fas fa-sync-alt"></i> รายการที่มีการเปลี่ยนแปลงและอัปเดตจริง (${res.updatedCount || 0})</b></p>
-                            <div style="max-height: 160px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 6px; padding: 2px;">${renderTable(res.updatedNames)}</div>
-                            ${res.duplicateInCsvCount > 0 ? `<div class="alert alert-warning py-1 px-2 mt-2 mb-0 small" style="font-size:11px;"><i class="fas fa-exclamation-triangle"></i> ข้ามข้อมูลที่ซ้ำกันในไฟล์ CSV จำนวน ${res.duplicateInCsvCount} รายการ</div>` : ''}
-                          </div>`,
+                          html: `<div class="text-start" style="font-size: 13px;"><p class="text-success mb-1"><b>นำเข้า/อัปเดต ทั้งหมด ${payloads.length} รายการ</b></p>${duplicateInCsvCount > 0 ? `<div class="alert alert-warning py-1 px-2 mt-2 mb-0 small" style="font-size:11px;"><i class="fas fa-exclamation-triangle"></i> ข้ามข้อมูลที่ซ้ำกันในไฟล์ CSV จำนวน ${duplicateInCsvCount} รายการ</div>` : ''}</div>`,
                           confirmButtonText: 'ปิดหน้าต่าง', confirmButtonColor: '#2563eb', allowOutsideClick: false
-                      }).then((result) => { if (result.isConfirmed) { app.fetchUsers(app.manageRole); } });
-                  }).catch(err => { this.loading = false; Swal.fire('ข้อผิดพลาด', String(err), 'error'); });
+                      }).then(() => { app.fetchUsers(app.manageRole); });
+                  } catch(err) { Swal.fire('เกิดข้อผิดพลาด', err.message, 'error'); }
+                  finally { this.loading = false; }
               };
               reader.readAsText(file); e.target.value = '';
           },
-          downloadUsersCSV() {
-              if(!this.usersList || this.usersList.length === 0) { Swal.fire('แจ้งเตือน', 'ไม่มีข้อมูลให้ดาวน์โหลด', 'info'); return; }
-              let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
-              if(this.manageRole === 'teacher') {
-                  csvContent += "id,name,username,password,role\n";
-                  this.usersList.forEach(u => { const row = [u.id, u.name, u.username, u.password || u.id, u.role].map(e => `"${e}"`).join(","); csvContent += row + "\n"; });
-              } else {
-                  csvContent += "id,name,level,room,no,password\n";
-                  this.usersList.forEach(u => { const row = [u.id, u.name, u.level, u.room, u.no, u.password || u.id].map(e => `"${e}"`).join(","); csvContent += row + "\n"; });
-              }
-              const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", `${this.manageRole}_list.csv`); document.body.appendChild(link); link.click(); document.body.removeChild(link);
-          },
-          downloadCSVTemplate() {
-            let csvContent = "data:text/csv;charset=utf-8,\uFEFF"; let fileName = "";
-            if (this.manageRole === 'teacher') { csvContent += "id,name,username,password,role\n"; csvContent += "T001,ชื่อ นามสกุล,user001,pass001,teacher\n"; fileName = "template_teachers.csv"; } 
-            else { csvContent += "id,name,level,room,no,password\n"; csvContent += "69001,เด็กชายสมชาย ใจดี,ม.1,1/1,1,69001\n"; fileName = "template_students.csv"; }
-            const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", fileName); document.body.appendChild(link); link.click(); document.body.removeChild(link);
-            Swal.fire({ icon: 'info', title: 'ดาวน์โหลดต้นแบบแล้ว', text: 'กรุณากรอกข้อมูลตามลำดับคอลัมน์ในไฟล์ตัวอย่าง', timer: 2000, showConfirmButton: false });
-          },
-          downloadExcelList(club) {
-              Swal.fire({ title: 'กำลังโหลด...', didOpen: () => Swal.showLoading() });
-              fetchAPI('getClubAttendanceGrid', { clubId: club.id }).then(res => {
-                  Swal.close();
-                  const students = res.students.sort((a, b) => { const roomA = a.room.toString(); const roomB = b.room.toString(); if(roomA !== roomB) return roomA.localeCompare(roomB, undefined, {numeric: true, sensitivity: 'base'}); return Number(a.no) - Number(b.no); });
-                  let table = `<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"></head><body><h3>รายชื่อสมาชิกชุมนุม: ${club.name}</h3><table border="1"><thead><tr style="background:#ddd;"><th>ลำดับ</th><th>รหัส</th><th>ชื่อ-นามสกุล</th><th>ชั้น</th><th>เลขที่</th></tr></thead><tbody>`;
-                  students.forEach((s, idx) => { table += `<tr><td>${idx+1}</td><td>${s.id}</td><td>${s.name}</td><td>${s.room}</td><td>${s.no}</td></tr>`; });
-                  table += `</tbody></table></body></html>`;
-                  const blob = new Blob([table], { type: "application/vnd.ms-excel" });
-                  const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `รายชื่อ_${club.name}.xls`; link.click();
-              }).catch(err => Swal.fire('Error', String(err), 'error'));
-          },
-          saveAttendance() {
-              Swal.fire({ title: 'กำลังบันทึก...', didOpen: () => Swal.showLoading() });
-              fetchAPI('saveAttendanceGrid', { clubId: this.currentClubId, gridData: this.attData }).then(() => {
-                  Swal.fire({ icon: 'success', title: 'บันทึกเรียบร้อย', timer: 1500, showConfirmButton: false });
-              }).catch(err => Swal.fire('Error', String(err), 'error'));
-          },
-          toggleColumn(index) {
-             let isAllPresent = this.attStudents.every(s => this.attData.records[s.id][index] === 1);
-             this.attStudents.forEach(s => { this.attData.records[s.id][index] = isAllPresent ? 0 : 1; });
-          },
-          countStatus(stdId, type) { return (this.attData.records[stdId] || []).filter(s => s === type).length; },
-          countSessionPresence(stdId) { return (this.attData.records[stdId] || []).filter(s => s === 1).length; },
-          countColPresence(colIdx) { return this.attStudents.filter(s => this.attData.records[s.id][colIdx] === 1).length; },
-          calculateGrade(stdId) {
-            const presentCount = this.countStatus(stdId, 1); const absentCount = this.countStatus(stdId, 3); 
-            if (presentCount === 0) return "ไม่ผ่าน";
-            if (absentCount > 3) return "ไม่ผ่าน";
-            return "ผ่าน";
-          },
-          countPass() { return this.attStudents.filter(s => this.calculateGrade(s.id) === 'ผ่าน').length; },
-          countFail() { return this.attStudents.filter(s => this.calculateGrade(s.id) === 'ไม่ผ่าน').length; },
-          getStatusSymbol(val) { if(val===1) return '/'; if(val===2) return 'ล'; if(val===3) return 'ข'; return ''; },
-          formatDateThai(dateStr) { if(!dateStr) return ''; const d = new Date(dateStr); return `${d.getDate().toString().padStart(2,'0')}/${(d.getMonth()+1).toString().padStart(2,'0')}/${d.getFullYear()+543}`; },
-          resizeImage(file, maxWidth, initialQuality, callback) {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-              const img = new Image();
-              img.onload = () => {
-                const canvas = document.createElement('canvas'); let width = img.width; let height = img.height;
-                const targetMaxWidth = maxWidth || 400; 
-                if (width > targetMaxWidth) { height = Math.round((height * targetMaxWidth) / width); width = targetMaxWidth; }
-                canvas.width = width; canvas.height = height; const ctx = canvas.getContext('2d');
-                ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'medium'; ctx.drawImage(img, 0, 0, width, height);
-                let quality = initialQuality || 0.7; let base64Str = canvas.toDataURL('image/jpeg', quality); 
-                while (base64Str.length > 30000 && quality > 0.1) { quality -= 0.1; base64Str = canvas.toDataURL('image/jpeg', quality); }
-                callback(base64Str);
-              };
-              img.src = e.target.result;
-            };
-            reader.readAsDataURL(file);
-          },
-          uploadPhoto(event, index) { 
-             const file = event.target.files[0]; if (!file) return;
-             Swal.fire({ toast: true, position: 'top-end', title: 'กำลังโหลดรูปภาพ...', showConfirmButton: false, didOpen: () => Swal.showLoading() });
-             this.resizeImage(file, 500, 0.9, (resizedBase64) => {
-               this.reportData.photos[index] = resizedBase64; Swal.close(); this.saveCurrentReportSilently(); 
-             });
-          },
-          onLogoSelected(event) { 
-             const file = event.target.files[0]; if (!file) return;
-             Swal.fire({ toast: true, position: 'top-end', title: 'กำลังโหลดโลโก้...', showConfirmButton: false, didOpen: () => Swal.showLoading() });
-             this.resizeImage(file, 300, 1.0, (resizedBase64) => {
-               this.reportData.logo = resizedBase64; Swal.close(); this.saveCurrentReportSilently(); 
-             });
-          },
-          printReport() { window.print(); },
-          enroll(c) {
-            const isTransfer = !!this.user.clubId;
-            Swal.fire({ title: isTransfer ? 'ยืนยันย้าย?' : 'ยืนยันสมัคร?', text: c.name, icon: 'question', showCancelButton: true, confirmButtonColor: '#2563eb' }).then(r => {
-              if(r.isConfirmed) {
-                fetchAPI('registerClub', { studentId: this.user.id, clubId: c.id, studentData: {} }).then(res => {
-                  if(res.success) { Swal.fire('สำเร็จ', res.message, 'success'); this.user.clubId = c.id; this.fetchData(); }
-                  else Swal.fire('Error', res.message, 'error');
-                }).catch(err => Swal.fire('Error', String(err), 'error'));
-              }
-            });
-          },
-          isBtnDisabled(c) { if (c.current_count >= c.max_capacity && this.user.clubId !== c.id) return true; if (this.user.clubId === c.id) return true; if (!this.user.clubId && this.config.open_reg !== 'true') return true; if (this.user.clubId && this.config.allow_transfer !== 'true') return true; return false; },
-          openAddModal() { 
-            this.isEditMode=false; 
-            this.clubForm={ id: '', name: '', level: 'ทั้งหมด', owner_ids: [this.user.id.toString()], max_capacity: 30, location: '', comment: '' }; 
-            new bootstrap.Modal(document.getElementById('clubModal')).show(); 
-          },
-          openEditModal(c) { 
-            this.isEditMode=true; 
-            this.clubForm={ ...c, owner_ids: c.owner_id.toString().split(','), location: c.location || '', comment: c.comment || '' }; 
-            new bootstrap.Modal(document.getElementById('clubModal')).show(); 
-          },
-          submitClub() {
-            if (!this.clubForm.owner_ids || this.clubForm.owner_ids.length === 0) {
-              Swal.fire({ icon: 'warning', title: 'ข้อมูลไม่ครบถ้วน', text: 'กรุณาเลือกครูที่ปรึกษาอย่างน้อย 1 ท่านก่อนทำการบันทึก', confirmButtonColor: '#2563eb' }); return;
-            }
-            this.loading = true; 
-            const actionFunc = this.isEditMode ? 'updateClub' : 'saveClub';
-            fetchAPI(actionFunc, { clubObj: this.clubForm, currentUser: this.user }).then(res => {
-              this.loading = false; bootstrap.Modal.getInstance(document.getElementById('clubModal')).hide();
-              if (res.success) { this.fetchData(); Swal.fire('สำเร็จ', 'บันทึกข้อมูลชุมนุมเรียบร้อยแล้ว', 'success'); }
-              else { Swal.fire('ข้อผิดพลาด', res.message, 'error'); }
-            }).catch(err => { this.loading = false; Swal.fire('ข้อผิดพลาด', String(err), 'error'); });
-          },
-          checkHoliday(dateStr) { if (!dateStr || !this.holidays) return false; return this.holidays.some(h => h.date === dateStr); },
-          getHolidayDesc(dateStr) { if (!dateStr || !this.holidays) return ''; let h = this.holidays.find(h => h.date === dateStr); return h ? h.desc : ''; },
-          formatShortDateThaiObj(dateStr) {
-            if (!dateStr) return { day: '', month: '', year: '' };
-            const d = new Date(dateStr); const months = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
-            const yearShort = (d.getFullYear() + 543).toString().slice(-2);
-            return { day: d.getDate().toString().padStart(2, '0'), month: months[d.getMonth()], year: yearShort };
-          },
-          openResetModal() {
-            const currentSem = (this.adminSettings && this.adminSettings.semester) ? this.adminSettings.semester : '1';
-            const currentYear = (this.adminSettings && this.adminSettings.academicYear) ? this.adminSettings.academicYear : '2569';
-            this.resetOptions.newSemester = currentSem === '1' ? '2' : '1';
-            let nextYear = Number(currentYear); if (this.resetOptions.newSemester === '1') nextYear += 1;
-            this.resetOptions.newYear = nextYear.toString();
-            const modalElement = document.getElementById('resetSystemModal');
-            if (modalElement) { const modal = bootstrap.Modal.getOrCreateInstance(modalElement); modal.show(); } 
-            else { Swal.fire('ระบบขัดข้อง', 'หาหน้าต่าง Modal ไม่พบ', 'error'); }
-          },
-          executeSystemReset() {
+          async executeSystemReset() {
             if (!this.resetOptions.newSemester || !this.resetOptions.newYear) { Swal.fire('ข้อมูลไม่ครบ', 'กรุณาระบุภาคเรียนและปีการศึกษาที่จะขึ้นใหม่', 'warning'); return; }
             Swal.fire({
               title: 'คำเตือนขั้นสุดท้าย!', text: "ข้อมูลเก่าจะถูกลบออกจากหน้าจอทั้งหมดและไม่สามารถย้อนกลับได้ คุณแน่ใจหรือไม่?", icon: 'warning',
               showCancelButton: true, confirmButtonColor: '#d33', cancelButtonColor: '#3085d6', confirmButtonText: 'ตกลง, ล้างระบบเดี๋ยวนี้'
-            }).then((result) => {
+            }).then(async (result) => {
               if (result.isConfirmed) {
                 this.loading = true;
-                Swal.fire({ title: 'ระบบกำลังดำเนินการ...', html: 'กำลังแบ็กอัปและเคลียร์ตารางฐานข้อมูล<br><br><b>ห้ามปิดหน้าต่างนี้เด็ดขาด</b>', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-                fetchAPI('startNewSemester', { options: this.resetOptions }).then(res => {
-                  this.loading = false; bootstrap.Modal.getInstance(document.getElementById('resetSystemModal')).hide();
-                  if (res.success) {
+                Swal.fire({ title: 'ระบบกำลังดำเนินการ...', html: 'กำลังเคลียร์ตารางฐานข้อมูล<br><br><b>ห้ามปิดหน้าต่างนี้เด็ดขาด</b>', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+                try {
+                    // Update Config
+                    const settings = JSON.parse(this.config.adminSettings || "{}");
+                    settings.semester = this.resetOptions.newSemester; settings.academicYear = this.resetOptions.newYear;
+                    await supabase.from('config').upsert({key: 'adminSettings', value: JSON.stringify(settings)});
+
+                    // Bulk Delete Data (.neq('id', '0') is a trick to delete all rows since IDs are not 0)
+                    if(this.resetOptions.clearStudents) {
+                        await supabase.from('students').delete().neq('id', '0');
+                    } else if(this.resetOptions.resetRegistrations) {
+                        await supabase.from('students').update({club_id: null}).neq('id', '0');
+                    }
+                    if(this.resetOptions.resetRegistrations) await supabase.from('registrations').delete().neq('reg_id', '0');
+                    if(this.resetOptions.resetAttendance) await supabase.from('attendance_data').delete().neq('club_id', '0');
+                    if(this.resetOptions.resetReports) await supabase.from('club_reports').delete().neq('club_id', '0');
+                    if(this.resetOptions.clearClubs) await supabase.from('clubs').delete().neq('id', '0');
+
                     Swal.fire({ title: 'สำเร็จ!', text: 'ระบบพร้อมสำหรับการใช้งานในภาคเรียนที่ ' + this.resetOptions.newSemester + '/' + this.resetOptions.newYear + ' แล้ว', icon: 'success', confirmButtonText: 'เริ่มใช้งาน' }).then(() => {
-                      Swal.fire({ title: 'กำลังรีสตาร์ทระบบ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-                      window.location.reload(); // รีเฟรชหน้าเว็บเมื่อเคลียร์สำเร็จ
+                        window.location.reload(); 
                     });
-                  } else { Swal.fire('ข้อผิดพลาด', res.message, 'error'); }
-                }).catch(err => { this.loading = false; Swal.fire('Error', String(err), 'error'); });
+                } catch(err) { Swal.fire('Error', err.message, 'error'); }
+                finally { this.loading = false; bootstrap.Modal.getInstance(document.getElementById('resetSystemModal')).hide(); }
               }
             });
           },
-          openBackupHistoryModal() {
-            this.backupFiles = []; this.loadingBackup = true;
-            const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('backupHistoryModal')); modal.show();
-            fetchAPI('getBackupFilesList', {}).then(res => {
-              this.loadingBackup = false;
-              if (res.success) { this.backupFiles = res.data; } else { Swal.fire('ข้อผิดพลาด', res.message, 'warning'); }
-            }).catch(err => { this.loadingBackup = false; Swal.fire('การเชื่อมต่อขัดข้อง', String(err), 'error'); });
+          async searchByRoom() {
+            if (!this.lookup.room) { Swal.fire('แจ้งเตือน', 'กรุณาระบุห้องที่ต้องการค้นหา', 'warning'); return; }
+            this.loading = true; this.roomStudents = [];
+            try {
+                const {data: students} = await supabase.from('students').select('*').eq('level', this.lookup.level).eq('room', this.lookup.room);
+                if (students && students.length > 0) { 
+                    this.roomStudents = students.sort((a,b) => Number(a.no) - Number(b.no)).map(s => {
+                        return {id: s.id, name: s.name, no: s.no, club_name: s.club_id ? (this.clubMap[s.club_id] || s.club_id) : "ยังไม่ได้สมัครชุมนุม"};
+                    });
+                } 
+                else { Swal.fire('ไม่พบข้อมูล', 'ไม่พบนักเรียนในห้องที่ระบุ กรุณาตรวจสอบชื่อห้องอีกครั้ง', 'info'); }
+            } catch(e) { Swal.fire('Error', e.message, 'error'); } 
+            finally { this.loading = false; }
           },
-          removePhoto(index) {
-             Swal.fire({ title: 'ต้องการลบรูปภาพนี้?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', cancelButtonColor: '#6c757d', confirmButtonText: 'ลบรูปภาพ', cancelButtonText: 'ยกเลิก' }).then((result) => {
-               if (result.isConfirmed) { this.reportData.photos[index] = ""; this.saveCurrentReportSilently(); Swal.fire({toast:true, position:'top-end', icon:'success', title:'ลบรูปภาพเรียบร้อย', showConfirmButton:false, timer:1500}); }
-             });
+          async searchStudent() {
+            if (!this.searchQuery.trim()) return;
+            Swal.fire({ title: 'กำลังค้นหา...', didOpen: () => { Swal.showLoading() } });
+            try {
+                const q = this.searchQuery.trim();
+                const {data: students} = await supabase.from('students').select('*').or(`id.eq.${q},name.ilike.%${q}%`).limit(1);
+                if (students && students.length > 0) { 
+                    const s = students[0];
+                    let clubName = "ยังไม่ได้สมัครชุมนุม";
+                    if(s.club_id) { const {data: clubs} = await supabase.from('clubs').select('name').eq('id', s.club_id).single(); if(clubs) clubName = clubs.name; }
+                    this.searchResult = { name: s.name, id: s.id, level: s.level, room: s.room, club_name: clubName };
+                    this.searchQuery = ''; Swal.close();
+                } else { Swal.fire('ไม่พบข้อมูล', 'ไม่พบรายชื่อนักเรียนคนนี้ในระบบ', 'error'); this.searchResult = null; }
+            } catch(e) { Swal.fire('Error', e.message, 'error'); }
           },
-          promptSendEmail() {
-            Swal.fire({
-              title: 'ส่งรายงานผ่านอีเมล',
-              html: `<div class="text-start mb-3"><label class="small fw-bold text-secondary mb-1">อีเมลผู้รับปลายทาง</label><input type="email" id="swal-input-email" class="form-control" placeholder="example@email.com" value="${this.adminSettings.reportEmail || ''}"><div class="form-text text-success mt-2" style="font-size: 13px;"><i class="fas fa-magic"></i> ระบบจะทำการสร้างไฟล์ PDF หน้าเว็บและแนบส่งให้อัตโนมัติ</div></div>`,
-              showCancelButton: true, confirmButtonColor: '#0dcaf0', cancelButtonColor: '#6c757d', confirmButtonText: '<i class="fas fa-paper-plane me-1"></i> ยืนยันส่งอีเมล', cancelButtonText: 'ยกเลิก',
-              preConfirm: () => {
-                const email = document.getElementById('swal-input-email').value;
-                if (!email) { Swal.showValidationMessage('กรุณาระบุอีเมลผู้รับปลายทาง!'); return false; }
-                return email;
-              }
-            }).then((result) => { if (result.isConfirmed) { this.generatePDFAndSend(result.value); } });
+          async downloadNoClubTeachers() {
+            Swal.fire({ title: 'กำลังตรวจสอบรายชื่อครู...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+            try {
+                const [{data: teachers}, {data: clubs}] = await Promise.all([ supabase.from('teachers').select('*'), supabase.from('clubs').select('*') ]);
+                const activeOwnerIds = new Set();
+                (clubs||[]).forEach(club => { if (club.owner_id) { club.owner_id.toString().split(',').forEach(id => { activeOwnerIds.add(id.trim()); }); } });
+                const noClubList = (teachers||[]).filter(t => t.role !== 'admin' && !activeOwnerIds.has(t.id.toString().trim()));
+                if (noClubList.length === 0) { Swal.fire('ครบถ้วน', 'คุณครูทุกท่านมีชุมนุมเรียบร้อยแล้ว', 'success'); return; }
+                let table = `<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"></head><body><h3>รายชื่อคุณครูที่ยังไม่ได้เปิดชุมนุม</h3><table border="1"><thead><tr style="background-color: #fff3cd;"><th>รหัสประจำตัว</th><th>ชื่อ-นามสกุล</th><th>สถานะ</th></tr></thead><tbody>`;
+                noClubList.forEach(t => { table += `<tr><td align="center" style="mso-number-format:'\\@';">${t.id}</td><td>${t.name}</td><td style="color: red;">ยังไม่มีชุมนุม</td></tr>`; });
+                table += `</tbody></table></body></html>`;
+                this.executeDownload(table, "ครูที่ยังไม่มีชุมนุม.xls"); Swal.close();
+            } catch(e) { Swal.fire('Error', e.message, 'error'); }
           },
-          generatePDFAndSend(email) {
-            Swal.fire({ title: 'กำลังสร้าง PDF และส่งอีเมล...', html: 'กระบวนการนี้อาจใช้เวลา 10-15 วินาที โปรดห้ามปิดหน้าต่าง', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-            const element = document.getElementById('report-print-area'); 
-            const opt = { margin: [10, 0, 10, 0], filename: `รายงานชุมนุม_${this.currentClubName}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } };
-            html2pdf().set(opt).from(element).outputPdf('datauristring').then((pdfBase64) => {
-              const payload = {
-                clubName: this.currentClubName, teacher: this.reportData.teacher, semester: this.adminSettings.semester, academicYear: this.adminSettings.academicYear,
-                totalStudents: this.attStudents.length, passCount: this.countPass(), failCount: this.countFail(), pdfFile: pdfBase64,
-                fileName: `รายงานชุมนุม_${this.currentClubName}_ภาคเรียนที่${this.adminSettings.semester}_${this.adminSettings.academicYear}.pdf`
-              };
-              fetchAPI('sendClubReportEmail', { emailAddress: email, data: payload }).then(res => {
-                if(res.success) { Swal.fire('สำเร็จ', `สร้างไฟล์ PDF และส่งรายงานเข้าอีเมล <b>${email}</b> เรียบร้อยแล้ว`, 'success'); } 
-                else { Swal.fire('ข้อผิดพลาด', res.message, 'error'); }
-              }).catch(err => { Swal.fire('การเชื่อมต่อขัดข้อง', 'Error: ' + err, 'error'); });
-            });
-          },
-          downloadPDF() {
-            Swal.fire({ title: 'กำลังสร้างไฟล์ PDF...', html: 'กรุณารอสักครู่ (ห้ามปิดหน้าต่างนี้)', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-            const element = document.getElementById('report-print-area'); 
-            const opt = { margin: [10, 0, 10, 0], filename: `รายงานชุมนุม_${this.currentClubName}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } };
-            html2pdf().set(opt).from(element).save().then(() => {
-              Swal.close(); Swal.fire({toast: true, position: 'top-end', icon: 'success', title: 'ดาวน์โหลดไฟล์ PDF สำเร็จ', showConfirmButton: false, timer: 2000});
-            });
-          },
+
+          // Utility Functions
+          getBtnText(c) { if (c.current_count >= c.max_capacity && this.user.clubId !== c.id) return 'เต็มแล้ว'; if (this.user.clubId === c.id) return 'ลงทะเบียนแล้ว'; if (this.user.clubId) { return this.config.allow_transfer === 'true' ? 'ย้ายชุมนุม' : 'ปิดย้ายชุมนุม'; } return this.config.open_reg === 'true' ? 'สมัครชุมนุม' : 'ปิดรับสมัคร'; },
+          getBtnClass(c) { if (this.user.clubId === c.id) return 'btn-registered'; if (c.current_count >= c.max_capacity && this.user.clubId !== c.id) return 'btn-full disabled'; if (this.user.clubId) { if (this.config.allow_transfer !== 'true') return 'btn-closed disabled'; } else { if (this.config.open_reg !== 'true') return 'btn-closed disabled'; } return 'btn-enroll'; },
+          isBtnDisabled(c) { if (c.current_count >= c.max_capacity && this.user.clubId !== c.id) return true; if (this.user.clubId === c.id) return true; if (!this.user.clubId && this.config.open_reg !== 'true') return true; if (this.user.clubId && this.config.allow_transfer !== 'true') return true; return false; },
+          openAddModal() { this.isEditMode=false; this.clubForm={ id: '', name: '', level: 'ทั้งหมด', owner_ids: [this.user.id.toString()], max_capacity: 30, location: '', comment: '' }; new bootstrap.Modal(document.getElementById('clubModal')).show(); },
+          openEditModal(c) { this.isEditMode=true; this.clubForm={ ...c, owner_ids: c.owner_id.toString().split(','), location: c.location || '', comment: c.comment || '' }; new bootstrap.Modal(document.getElementById('clubModal')).show(); },
+          checkHoliday(dateStr) { if (!dateStr || !this.holidays) return false; return this.holidays.some(h => h.date === dateStr); },
+          getHolidayDesc(dateStr) { if (!dateStr || !this.holidays) return ''; let h = this.holidays.find(h => h.date === dateStr); return h ? h.desc : ''; },
+          formatShortDateThaiObj(dateStr) { if (!dateStr) return { day: '', month: '', year: '' }; const d = new Date(dateStr); const months = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.']; const yearShort = (d.getFullYear() + 543).toString().slice(-2); return { day: d.getDate().toString().padStart(2, '0'), month: months[d.getMonth()], year: yearShort }; },
+          openResetModal() { const currentSem = (this.adminSettings && this.adminSettings.semester) ? this.adminSettings.semester : '1'; const currentYear = (this.adminSettings && this.adminSettings.academicYear) ? this.adminSettings.academicYear : '2569'; this.resetOptions.newSemester = currentSem === '1' ? '2' : '1'; let nextYear = Number(currentYear); if (this.resetOptions.newSemester === '1') nextYear += 1; this.resetOptions.newYear = nextYear.toString(); const modalElement = document.getElementById('resetSystemModal'); if (modalElement) { const modal = bootstrap.Modal.getOrCreateInstance(modalElement); modal.show(); } else { Swal.fire('ระบบขัดข้อง', 'หาหน้าต่าง Modal ไม่พบ', 'error'); } },
+          removePhoto(index) { Swal.fire({ title: 'ต้องการลบรูปภาพนี้?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', cancelButtonColor: '#6c757d', confirmButtonText: 'ลบรูปภาพ', cancelButtonText: 'ยกเลิก' }).then((result) => { if (result.isConfirmed) { this.reportData.photos[index] = ""; this.saveCurrentReportSilently(); Swal.fire({toast:true, position:'top-end', icon:'success', title:'ลบรูปภาพเรียบร้อย', showConfirmButton:false, timer:1500}); } }); },
+          promptSendEmail() { Swal.fire({ title: 'ส่งรายงานผ่านอีเมล', html: `<div class="text-start mb-3"><label class="small fw-bold text-secondary mb-1">อีเมลผู้รับปลายทาง</label><input type="email" id="swal-input-email" class="form-control" placeholder="example@email.com" value="${this.adminSettings.reportEmail || ''}"><div class="form-text text-success mt-2" style="font-size: 13px;"><i class="fas fa-magic"></i> ระบบจะทำการสร้างไฟล์ PDF หน้าเว็บและแนบส่งให้อัตโนมัติ</div></div>`, showCancelButton: true, confirmButtonColor: '#0dcaf0', cancelButtonColor: '#6c757d', confirmButtonText: '<i class="fas fa-paper-plane me-1"></i> ยืนยันส่งอีเมล', cancelButtonText: 'ยกเลิก', preConfirm: () => { const email = document.getElementById('swal-input-email').value; if (!email) { Swal.showValidationMessage('กรุณาระบุอีเมลผู้รับปลายทาง!'); return false; } return email; } }).then((result) => { if (result.isConfirmed) { this.generatePDFAndSend(result.value); } }); },
+          generatePDFAndSend(email) { Swal.fire({ title: 'กำลังสร้าง PDF และส่งอีเมล...', html: 'กระบวนการนี้อาจใช้เวลา 10-15 วินาที โปรดห้ามปิดหน้าต่าง', allowOutsideClick: false, didOpen: () => Swal.showLoading() }); const element = document.getElementById('report-print-area'); const opt = { margin: [10, 0, 10, 0], filename: `รายงานชุมนุม_${this.currentClubName}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } }; html2pdf().set(opt).from(element).outputPdf('datauristring').then((pdfBase64) => { const payload = { clubName: this.currentClubName, teacher: this.reportData.teacher, semester: this.adminSettings.semester, academicYear: this.adminSettings.academicYear, totalStudents: this.attStudents.length, passCount: this.countPass(), failCount: this.countFail(), pdfFile: pdfBase64, fileName: `รายงานชุมนุม_${this.currentClubName}_ภาคเรียนที่${this.adminSettings.semester}_${this.adminSettings.academicYear}.pdf` }; fetchGAS('sendEmail', { emailAddress: email, data: payload }).then(res => { if(res.success) { Swal.fire('สำเร็จ', `ส่งรายงานพร้อมไฟล์แนบ <b>${email}</b> เรียบร้อยแล้ว`, 'success'); } else { Swal.fire('ข้อผิดพลาด', res.message, 'error'); } }).catch(err => { Swal.fire('การเชื่อมต่อขัดข้อง', 'Error: ' + err, 'error'); }); }); },
+          downloadPDF() { Swal.fire({ title: 'กำลังสร้างไฟล์ PDF...', html: 'กรุณารอสักครู่ (ห้ามปิดหน้าต่างนี้)', allowOutsideClick: false, didOpen: () => Swal.showLoading() }); const element = document.getElementById('report-print-area'); const opt = { margin: [10, 0, 10, 0], filename: `รายงานชุมนุม_${this.currentClubName}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } }; html2pdf().set(opt).from(element).save().then(() => { Swal.close(); Swal.fire({toast: true, position: 'top-end', icon: 'success', title: 'ดาวน์โหลดไฟล์ PDF สำเร็จ', showConfirmButton: false, timer: 2000}); }); },
+          downloadUsersCSV() { if(!this.usersList || this.usersList.length === 0) { Swal.fire('แจ้งเตือน', 'ไม่มีข้อมูลให้ดาวน์โหลด', 'info'); return; } let csvContent = "data:text/csv;charset=utf-8,\uFEFF"; if(this.manageRole === 'teacher') { csvContent += "id,name,username,password,role\n"; this.usersList.forEach(u => { const row = [u.id, u.name, u.username, u.password || u.id, u.role].map(e => `"${e}"`).join(","); csvContent += row + "\n"; }); } else { csvContent += "id,name,level,room,no,password\n"; this.usersList.forEach(u => { const row = [u.id, u.name, u.level, u.room, u.no, u.password || u.id].map(e => `"${e}"`).join(","); csvContent += row + "\n"; }); } const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", `${this.manageRole}_list.csv`); document.body.appendChild(link); link.click(); document.body.removeChild(link); },
+          downloadCSVTemplate() { let csvContent = "data:text/csv;charset=utf-8,\uFEFF"; let fileName = ""; if (this.manageRole === 'teacher') { csvContent += "id,name,username,password,role\n"; csvContent += "T001,ชื่อ นามสกุล,user001,pass001,teacher\n"; fileName = "template_teachers.csv"; } else { csvContent += "id,name,level,room,no,password\n"; csvContent += "69001,เด็กชายสมชาย ใจดี,ม.1,1/1,1,69001\n"; fileName = "template_students.csv"; } const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", fileName); document.body.appendChild(link); link.click(); document.body.removeChild(link); Swal.fire({ icon: 'info', title: 'ดาวน์โหลดต้นแบบแล้ว', text: 'กรุณากรอกข้อมูลตามลำดับคอลัมน์ในไฟล์ตัวอย่าง', timer: 2000, showConfirmButton: false }); },
+          downloadExcelList(club) { Swal.fire({ title: 'กำลังโหลด...', didOpen: () => Swal.showLoading() }); this.loadClubData(club, 'dashboard').then(()=>{ Swal.close(); const students = this.attStudents; let table = `<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"></head><body><h3>รายชื่อสมาชิกชุมนุม: ${club.name}</h3><table border="1"><thead><tr style="background:#ddd;"><th>ลำดับ</th><th>รหัส</th><th>ชื่อ-นามสกุล</th><th>ชั้น</th><th>เลขที่</th></tr></thead><tbody>`; students.forEach((s, idx) => { table += `<tr><td>${idx+1}</td><td>${s.id}</td><td>${s.name}</td><td>${s.room}</td><td>${s.no}</td></tr>`; }); table += `</tbody></table></body></html>`; const blob = new Blob([table], { type: "application/vnd.ms-excel" }); const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `รายชื่อ_${club.name}.xls`; link.click(); }); },
+          executeDownload(html, fileName) { const blob = new Blob([html], { type: "application/vnd.ms-excel" }); const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = fileName; link.click(); },
+          downloadFilteredStudents() { if (this.exportFilter.type === 'ระบุห้อง' && !this.exportFilter.room.trim()) { Swal.fire('แจ้งเตือน', 'กรุณาระบุห้องที่ต้องการดาวน์โหลด', 'warning'); return; } Swal.fire({ title: 'กำลังเตรียมข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() }); supabase.from('students').select('*').then(({data: students}) => { Swal.close(); let filteredList = (students||[]).filter(s => { const level = String(s.level || '').trim(); const room = String(s.room || '').trim(); if (this.exportFilter.type === 'ทั้งหมด') return true; if (this.exportFilter.type === 'ม.ต้น') return ['ม.1', 'ม.2', 'ม.3', 'ม.ต้น'].some(l => level.includes(l)); if (this.exportFilter.type === 'ม.ปลาย') return ['ม.4', 'ม.5', 'ม.6', 'ม.ปลาย'].some(l => level.includes(l)); if (this.exportFilter.type === 'ระบุห้อง') { const searchRoom = this.exportFilter.room.trim(); if (room.includes(searchRoom)) { const pos = room.indexOf(searchRoom); const charAfter = room.charAt(pos + searchRoom.length); if (!charAfter || !/\d/.test(charAfter)) return true; } return false; } return true; }); if (filteredList.length === 0) { Swal.fire('ไม่พบข้อมูล', 'ไม่มีนักเรียนในเงื่อนไขที่ระบุ', 'info'); return; } filteredList.sort((a, b) => { const roomCompare = (a.room || '').toString().localeCompare((b.room || '').toString(), 'th', {numeric: true}); if (roomCompare !== 0) return roomCompare; return (Number(a.no) || 0) - (Number(b.no) || 0); }); let table = `<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"></head><body><h3>ข้อมูลการสมัครชุมนุมนักเรียน (${this.exportFilter.type}${this.exportFilter.type === 'ระบุห้อง' ? ' ' + this.exportFilter.room : ''})</h3><p>ข้อมูล ณ วันที่: ${new Date().toLocaleString('th-TH')}</p><table border="1"><thead><tr style="background-color: #d1e7dd;"><th>ลำดับ</th><th>รหัสประจำตัว</th><th>ชื่อ-นามสกุล</th><th>ชั้น</th><th>ห้อง</th><th>เลขที่</th><th>ชุมนุม</th></tr></thead><tbody>`; filteredList.forEach((s, idx) => { let clubName = 'ยังไม่ได้สมัครชุมนุม'; if (s.club_id && String(s.club_id).trim() !== '') { if (this.clubMap[s.club_id]) { clubName = this.clubMap[s.club_id].name; } else { clubName = s.club_id; } } table += `<tr><td align="center">${idx + 1}</td><td align="center" style="mso-number-format:'\\@';">${s.id}</td><td>${s.name}</td><td align="center">${s.level}</td><td align="center">${s.room}</td><td align="center">${s.no}</td><td style="${clubName === 'ยังไม่ได้สมัครชุมนุม' ? 'color: red; font-weight: bold;' : ''}">${clubName}</td></tr>`; }); table += `</tbody></table></body></html>`; const fileNameSuffix = this.exportFilter.type === 'ระบุห้อง' ? this.exportFilter.room.replace(/\//g, '-') : this.exportFilter.type; this.executeDownload(table, `รายชื่อนักเรียน_ชุมนุม_${fileNameSuffix}.xls`); }); },
+          downloadAdminWordReport() { Swal.fire({ title: 'กำลังเตรียมไฟล์ Word...', html: 'ระบบกำลังประมวลผลรูปแบบเอกสาร', didOpen: () => { Swal.showLoading() } }); const content = document.querySelectorAll('.a4-container'); let combinedHtml = ""; content.forEach((el, index) => { if (index > 0) { combinedHtml += '<br clear="all" style="mso-special-character:line-break;page-break-before:always">'; } combinedHtml += el.innerHTML; }); const header = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'><title>รายงานชุมนุม</title><style>@page { size: 21cm 29.7cm; margin: 2cm; } body { font-family: 'Sarabun', 'TH Sarabun New', sans-serif; } table { border-collapse: collapse; width: 100%; } th, td { border: 1px solid black; padding: 5px; vertical-align: middle; } .text-center { text-align: center; } .fw-bold { font-weight: bold; } img { max-width: 100%; } .editable { border-bottom: none !important; }</style></head><body>`; const footer = "</body></html>"; const fullSource = header + combinedHtml + footer; const blob = new Blob(['\ufeff', fullSource], { type: 'application/msword' }); const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = `รายงานชุมนุม_${this.currentClubName}.doc`; document.body.appendChild(link); link.click(); document.body.removeChild(link); Swal.close(); Swal.fire({toast:true, position:'top-end', icon:'success', title:'ดาวน์โหลดไฟล์ Word สำเร็จ', showConfirmButton:false, timer:2000}); },
+          downloadAdminClubsExcel() { if (!this.clubs || this.clubs.length === 0) { Swal.fire('แจ้งเตือน', 'ไม่มีข้อมูลชุมนุมในระบบให้ดาวน์โหลด', 'info'); return; } Swal.fire({ title: 'กำลังเตรียมข้อมูลไฟล์ Excel...', allowOutsideClick: false, didOpen: () => Swal.showLoading() }); const levelWeight = { 'ม.ต้น': 1, 'ม.ปลาย': 2, 'ทั้งหมด': 3, 'ทั้งสอง': 3 }; const sortedClubs = [...this.clubs].sort((a, b) => { const weightA = levelWeight[String(a.level).trim()] || 99; const weightB = levelWeight[String(b.level).trim()] || 99; if (weightA !== weightB) { return weightA - weightB; } return String(a.name || '').localeCompare(String(b.name || ''), 'th'); }); let tableHtml = `<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"><style>table{border-collapse:collapse;width:100%;}th{background-color:#d1e7dd;font-weight:bold;text-align:center;}th,td{border:1px solid #000000;padding:6px;}.text-center{text-align:center;}</style></head><body><h2>รายงานสรุปข้อมูลกิจกรรมชุมนุมและสถานที่เรียน โรงเรียนสมุทรสาครบูรณะ</h2><p>ข้อมูล ณ วันที่: ${new Date().toLocaleString('th-TH')}</p><table><thead><tr><th style="width: 80px;">ลำดับ</th><th style="width: 300px;">ชื่อกิจกรรมชุมนุม</th><th style="width: 300px;">ครูที่ปรึกษาชุมนุม</th><th style="width: 150px;">ระดับชั้น</th><th style="width: 200px;">สถานที่เรียน</th></tr></thead><tbody>`; sortedClubs.forEach((club, idx) => { tableHtml += `<tr><td class="text-center">${idx + 1}</td><td style="font-weight: bold;">${club.name || '-'}</td><td>${club.teacher_name || '-'}</td><td class="text-center">${club.level || '-'}</td><td>${club.location || 'ยังไม่ระบุข้อมูล'}</td></tr>`; }); tableHtml += `</tbody></table></body></html>`; try { const blob = new Blob(['\ufeff' + tableHtml], { type: "application/vnd.ms-excel" }); const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `รายงานสรุปข้อมูลกิจกรรมชุมนุมและสถานที่เรียน_${new Date().toISOString().slice(0,10)}.xls`; document.body.appendChild(link); link.click(); document.body.removeChild(link); Swal.close(); const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 2000 }); Toast.fire({ icon: 'success', title: 'ดาวน์โหลดสำเร็จ' }); } catch (err) { Swal.fire('เกิดข้อผิดพลาด', String(err), 'error'); } },
+          toggleColumn(index) { let isAllPresent = this.attStudents.every(s => this.attData.records[s.id][index] === 1); this.attStudents.forEach(s => { this.attData.records[s.id][index] = isAllPresent ? 0 : 1; }); },
+          countStatus(stdId, type) { return (this.attData.records[stdId] || []).filter(s => s === type).length; },
+          countSessionPresence(stdId) { return (this.attData.records[stdId] || []).filter(s => s === 1).length; },
+          countColPresence(colIdx) { return this.attStudents.filter(s => this.attData.records[s.id][colIdx] === 1).length; },
+          calculateGrade(stdId) { const presentCount = this.countStatus(stdId, 1); const absentCount = this.countStatus(stdId, 3); if (presentCount === 0) return "ไม่ผ่าน"; if (absentCount > 3) return "ไม่ผ่าน"; return "ผ่าน"; },
+          countPass() { return this.attStudents.filter(s => this.calculateGrade(s.id) === 'ผ่าน').length; },
+          countFail() { return this.attStudents.filter(s => this.calculateGrade(s.id) === 'ไม่ผ่าน').length; },
+          getStatusSymbol(val) { if(val===1) return '/'; if(val===2) return 'ล'; if(val===3) return 'ข'; return ''; },
+          resizeImage(file, maxWidth, initialQuality, callback) { const reader = new FileReader(); reader.onload = (e) => { const img = new Image(); img.onload = () => { const canvas = document.createElement('canvas'); let width = img.width; let height = img.height; const targetMaxWidth = maxWidth || 400; if (width > targetMaxWidth) { height = Math.round((height * targetMaxWidth) / width); width = targetMaxWidth; } canvas.width = width; canvas.height = height; const ctx = canvas.getContext('2d'); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'medium'; ctx.drawImage(img, 0, 0, width, height); let quality = initialQuality || 0.7; let base64Str = canvas.toDataURL('image/jpeg', quality); while (base64Str.length > 30000 && quality > 0.1) { quality -= 0.1; base64Str = canvas.toDataURL('image/jpeg', quality); } callback(base64Str); }; img.src = e.target.result; }; reader.readAsDataURL(file); },
+          uploadPhoto(event, index) { const file = event.target.files[0]; if (!file) return; Swal.fire({ toast: true, position: 'top-end', title: 'กำลังโหลดรูปภาพ...', showConfirmButton: false, didOpen: () => Swal.showLoading() }); this.resizeImage(file, 500, 0.9, (resizedBase64) => { this.reportData.photos[index] = resizedBase64; Swal.close(); this.saveCurrentReportSilently(); }); },
+          onLogoSelected(event) { const file = event.target.files[0]; if (!file) return; Swal.fire({ toast: true, position: 'top-end', title: 'กำลังโหลดโลโก้...', showConfirmButton: false, didOpen: () => Swal.showLoading() }); this.resizeImage(file, 300, 1.0, (resizedBase64) => { this.reportData.logo = resizedBase64; Swal.close(); this.saveCurrentReportSilently(); }); },
           logout() { this.isLoggedIn = false; this.user = null; this.form = {user:'', pass:''}; this.view = 'dashboard'; }
         }
       }).mount('#app');
