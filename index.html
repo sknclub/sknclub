@@ -1353,13 +1353,16 @@
           },
           clearSystemDates() { this.systemDates = Array(20).fill(''); },
           
-          async doLogin() {
+async doLogin() {
             this.loading = true;
             try {
-                const username = this.form.user.toLowerCase().trim();
+                // ลบ .toLowerCase() ออก เพื่อส่งค่าไปตรงๆ ตามที่พิมพ์
+                const username = this.form.user.trim();
                 const password = this.form.pass.trim();
 
-                const { data: teachers } = await db.from('teachers').select('*').eq('id', username).eq('password', password);
+                // เปลี่ยน .eq('id'...) เป็น .ilike('id'...) สำหรับ id และ username ของครู
+                const { data: teachers } = await db.from('teachers').select('*').or(`id.ilike.${username},username.ilike.${username}`).eq('password', password);
+                
                 if(teachers && teachers.length > 0) {
                     this.user = { id: teachers[0].id, name: teachers[0].name, role: teachers[0].role };
                     this.isLoggedIn = true;
@@ -1367,7 +1370,9 @@
                     return;
                 }
 
-                const { data: students } = await db.from('students').select('*').eq('id', username).eq('password', password);
+                // ส่วนของนักเรียน ใช้ ilike ค้นหาแบบไม่สนตัวพิมพ์เล็กใหญ่เช่นกัน
+                const { data: students } = await db.from('students').select('*').ilike('id', username).eq('password', password);
+                
                 if(students && students.length > 0) {
                     this.user = { id: students[0].id, name: students[0].name, level: students[0].level, room: students[0].room, no: students[0].no, role: 'student', clubId: students[0].club_id || "" };
                     this.isLoggedIn = true;
