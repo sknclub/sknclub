@@ -1178,26 +1178,30 @@
 
     </div> <!-- ปิด div id="app" v-cloak -->
 
-    <script>
+<script>
       // ==========================================
       // ตั้งค่าการเชื่อมต่อฐานข้อมูล
       // ==========================================
-      const SUPABASE_URL = 'https://oigggpdambseabrezhuh.supabase.co'; // *** แก้ไข 1: URL จาก Supabase ของคุณ ***
-      const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9pZ2dncGRhbWJzZWFicmV6aHVoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE0MzQyNjQsImV4cCI6MjEwNzAxMDI2NH0.YEnpBEqfybFOw2VbMLGw1qtUKj8pMBUI8FZIT6yFlM0'; // *** แก้ไข 2: ANON/PUBLIC KEY จาก Supabase ของคุณ ***
-      const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbya8N3NC_QbN9diZRcX6_che3lEDO-su7KQqR4R3PKM6g5cPI54NFTsRkj6cSlBds6j/exec'; // *** แก้ไข 3: Web App URL ของ Google Apps Script ***
+      const SUPABASE_URL = 'https://oigggpdambseabrezhuh.supabase.co'; // URL จาก Supabase
+      const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9pZ2dncGRhbWJzZWFicmV6aHVoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE0MzQyNjQsImV4cCI6MjEwNzAxMDI2NH0.YEnpBEqfybFOw2VbMLGw1qtUKj8pMBUI8FZIT6yFlM0'; // KEY จาก Supabase
+      const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbya8N3NC_QbN9diZRcX6_che3lEDO-su7KQqR4R3PKM6g5cPI54NFTsRkj6cSlBds6j/exec'; // Web App URL
 
-      const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+      // เปลี่ยนชื่อตัวแปรจาก supabase เป็น db เพื่อไม่ให้ชื่อชนกับ Library
+      const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    // ฟังก์ชันเรียก API เฉพาะส่งรูป/อีเมลไป Google Apps Script
+      // ฟังก์ชันเรียก API เฉพาะส่งรูป/อีเมลไป Google Apps Script (เพิ่ม redirect: 'follow' แล้ว)
       async function fetchGAS(action, payload = {}) {
         try {
           const response = await fetch(GAS_API_URL, {
             method: 'POST',
             body: JSON.stringify({ action: action, payload: payload }),
-            redirect: 'follow' // <--- เพิ่มตรงนี้ เพื่อให้เบราว์เซอร์วิ่งตามการ Redirect ของ Google
+            redirect: 'follow'
           });
           return await response.json();
-        } catch (error) { throw error; }
+        } catch (error) {
+          console.error('API Error:', error);
+          throw error;
+        }
       }
 
       const { createApp } = Vue;
@@ -1349,16 +1353,13 @@
           },
           clearSystemDates() { this.systemDates = Array(20).fill(''); },
           
-          // ==============================
-          // ฟังก์ชันหลักที่คุยกับ Supabase ตรง
-          // ==============================
           async doLogin() {
             this.loading = true;
             try {
                 const username = this.form.user.toLowerCase().trim();
                 const password = this.form.pass.trim();
 
-                const { data: teachers } = await supabase.from('teachers').select('*').eq('id', username).eq('password', password);
+                const { data: teachers } = await db.from('teachers').select('*').eq('id', username).eq('password', password);
                 if(teachers && teachers.length > 0) {
                     this.user = { id: teachers[0].id, name: teachers[0].name, role: teachers[0].role };
                     this.isLoggedIn = true;
@@ -1366,7 +1367,7 @@
                     return;
                 }
 
-                const { data: students } = await supabase.from('students').select('*').eq('id', username).eq('password', password);
+                const { data: students } = await db.from('students').select('*').eq('id', username).eq('password', password);
                 if(students && students.length > 0) {
                     this.user = { id: students[0].id, name: students[0].name, level: students[0].level, room: students[0].room, no: students[0].no, role: 'student', clubId: students[0].club_id || "" };
                     this.isLoggedIn = true;
@@ -1385,9 +1386,9 @@
                 const year = this.adminSettings.academicYear || '2569';
 
                 const [{data: confData}, {data: clubsData}, {data: teachersData}] = await Promise.all([
-                    supabase.from('config').select('*'),
-                    supabase.from('clubs').select('*').eq('term', term).eq('year', year),
-                    supabase.from('teachers').select('id, name')
+                    db.from('config').select('*'),
+                    db.from('clubs').select('*').eq('term', term).eq('year', year),
+                    db.from('teachers').select('id, name')
                 ]);
 
                 let cfg = {};
@@ -1399,7 +1400,7 @@
                 const map = {}; this.clubs.forEach(c => map[String(c.id)] = c); this.clubMap = map;
 
                 if (this.user && this.user.role === 'admin') {
-                    const {data: studentsData} = await supabase.from('students').select('id, club_id');
+                    const {data: studentsData} = await db.from('students').select('id, club_id');
                     const totalStudents = studentsData ? studentsData.length : 0;
                     const registeredStudents = studentsData ? studentsData.filter(s => s.club_id).length : 0;
                     
@@ -1428,7 +1429,7 @@
           async saveConfig() { 
             try {
                const payloads = Object.keys(this.config).map(k => ({ key: k, value: String(this.config[k]) }));
-               await supabase.from('config').upsert(payloads);
+               await db.from('config').upsert(payloads);
                const Toast = Swal.mixin({toast: true, position: 'top-end', showConfirmButton: false, timer: 1500}); Toast.fire({ icon: 'success', title: 'บันทึกค่าแล้ว' }); 
             } catch(e) { Swal.fire('Error', e.message, 'error'); }
           },
@@ -1452,23 +1453,19 @@
                 const getTeacherNames = (ids) => ids.map(id => (this.teachersList.find(t => t.id === String(id)) || {}).name || "").join(", ");
 
                 const payload = {
-                    name: this.clubForm.name,
-                    max_capacity: capacity,
-                    level: this.clubForm.level,
-                    owner_id: this.clubForm.owner_ids.join(","),
-                    teacher_name: getTeacherNames(this.clubForm.owner_ids),
-                    location: this.clubForm.location || "",
-                    comment: this.clubForm.comment || "",
+                    name: this.clubForm.name, max_capacity: capacity, level: this.clubForm.level,
+                    owner_id: this.clubForm.owner_ids.join(","), teacher_name: getTeacherNames(this.clubForm.owner_ids),
+                    location: this.clubForm.location || "", comment: this.clubForm.comment || "",
                     term: term, year: year
                 };
 
                 if (this.isEditMode) {
-                    await supabase.from('clubs').update(payload).eq('id', this.clubForm.id);
-                    await supabase.from('registrations').update({club_name: this.clubForm.name}).eq('club_id', this.clubForm.id);
+                    await db.from('clubs').update(payload).eq('id', this.clubForm.id);
+                    await db.from('registrations').update({club_name: this.clubForm.name}).eq('club_id', this.clubForm.id);
                 } else {
                     payload.id = "C" + Date.now().toString().slice(-6);
                     payload.current_count = 0;
-                    await supabase.from('clubs').insert(payload);
+                    await db.from('clubs').insert(payload);
                 }
 
                 bootstrap.Modal.getInstance(document.getElementById('clubModal')).hide();
@@ -1485,10 +1482,10 @@
               if (result.isConfirmed) {
                 this.loading = true;
                 try {
-                    await supabase.from('students').update({club_id: null}).eq('club_id', club.id);
-                    await supabase.from('registrations').delete().eq('club_id', club.id);
-                    await supabase.from('attendance_data').delete().eq('club_id', club.id);
-                    await supabase.from('clubs').delete().eq('id', club.id);
+                    await db.from('students').update({club_id: null}).eq('club_id', club.id);
+                    await db.from('registrations').delete().eq('club_id', club.id);
+                    await db.from('attendance_data').delete().eq('club_id', club.id);
+                    await db.from('clubs').delete().eq('id', club.id);
                     Swal.fire('ลบสำเร็จ!', 'ลบชุมนุมเรียบร้อยแล้ว', 'success');
                     await this.refreshData();
                 } catch(e) { Swal.fire('ผิดพลาด', e.message, 'error'); }
@@ -1502,22 +1499,22 @@
               if(r.isConfirmed) {
                 this.loading = true;
                 try {
-                    const {data: club} = await supabase.from('clubs').select('current_count, max_capacity').eq('id', c.id).single();
+                    const {data: club} = await db.from('clubs').select('current_count, max_capacity').eq('id', c.id).single();
                     if(club.current_count >= club.max_capacity) throw new Error("ชุมนุมเต็มแล้ว");
 
                     if(this.user.clubId) {
-                        await supabase.from('registrations').delete().eq('student_id', this.user.id);
-                        const {data: oldClub} = await supabase.from('clubs').select('current_count').eq('id', this.user.clubId).single();
-                        await supabase.from('clubs').update({current_count: Math.max(0, oldClub.current_count - 1)}).eq('id', this.user.clubId);
+                        await db.from('registrations').delete().eq('student_id', this.user.id);
+                        const {data: oldClub} = await db.from('clubs').select('current_count').eq('id', this.user.clubId).single();
+                        await db.from('clubs').update({current_count: Math.max(0, oldClub.current_count - 1)}).eq('id', this.user.clubId);
                     }
 
-                    await supabase.from('students').update({club_id: c.id}).eq('id', this.user.id);
-                    await supabase.from('registrations').insert({
+                    await db.from('students').update({club_id: c.id}).eq('id', this.user.id);
+                    await db.from('registrations').insert({
                         reg_id: "REG-" + Date.now(), student_id: this.user.id, student_name: this.user.name,
                         room: this.user.room, no: this.user.no, club_id: c.id, club_name: c.name,
                         term: this.adminSettings.semester, year: this.adminSettings.academicYear
                     });
-                    await supabase.from('clubs').update({current_count: club.current_count + 1}).eq('id', c.id);
+                    await db.from('clubs').update({current_count: club.current_count + 1}).eq('id', c.id);
 
                     this.user.clubId = c.id;
                     await this.refreshData();
@@ -1537,8 +1534,8 @@
                 const term = this.adminSettings.semester; const year = this.adminSettings.academicYear;
                 
                 const [{data: attRecords}, {data: students}] = await Promise.all([
-                    supabase.from('attendance_data').select('*').eq('club_id', club.id).eq('term', term).eq('year', year),
-                    supabase.from('students').select('*').eq('club_id', club.id)
+                    db.from('attendance_data').select('*').eq('club_id', club.id).eq('term', term).eq('year', year),
+                    db.from('students').select('*').eq('club_id', club.id)
                 ]);
 
                 if(attRecords && attRecords.length > 0 && attRecords[0].data_json) { this.attData = attRecords[0].data_json; }
@@ -1558,7 +1555,7 @@
                 });
 
                 if (viewName === 'report') {
-                    const {data: reportRes} = await supabase.from('club_reports').select('*').eq('club_id', club.id).eq('term', term).eq('year', year).single();
+                    const {data: reportRes} = await db.from('club_reports').select('*').eq('club_id', club.id).eq('term', term).eq('year', year).single();
                     if (reportRes) {
                         if (reportRes.report_json?.actData) this.reportActData = Object.assign(this.reportActData, reportRes.report_json.actData);
                         if (reportRes.report_json?.teacher) this.reportData.teacher = reportRes.report_json.teacher;
@@ -1573,7 +1570,7 @@
               Swal.fire({ title: 'กำลังบันทึก...', didOpen: () => Swal.showLoading() });
               try {
                   const payload = { club_id: this.currentClubId, term: this.adminSettings.semester, year: this.adminSettings.academicYear, data_json: this.attData };
-                  await supabase.from('attendance_data').upsert(payload);
+                  await db.from('attendance_data').upsert(payload);
                   Swal.fire({ icon: 'success', title: 'บันทึกเรียบร้อย', timer: 1500, showConfirmButton: false });
               } catch(e) { Swal.fire('Error', e.message, 'error'); }
           },
@@ -1584,7 +1581,6 @@
                 const term = this.adminSettings.semester;
                 const year = this.adminSettings.academicYear;
                 
-                // อัปโหลดรูปภาพทีละไฟล์ไปที่ GAS (Google Drive) ถ้าเป็นไฟล์ Base64 ใหม่
                 const uploadPromises = [];
                 if(this.reportData.logo && this.reportData.logo.startsWith('data:')) {
                     uploadPromises.push(fetchGAS('uploadImage', { base64Data: this.reportData.logo, fileName: `Logo_${this.currentClubId}.png`, term, year }).then(r => this.reportData.logo = r.url));
@@ -1594,9 +1590,8 @@
                         uploadPromises.push(fetchGAS('uploadImage', { base64Data: this.reportData.photos[i], fileName: `P${i}_${this.currentClubId}.jpg`, term, year }).then(r => this.reportData.photos[i] = r.url));
                     }
                 }
-                await Promise.all(uploadPromises); // รอให้อัปโหลดรูปเสร็จทั้งหมด
+                await Promise.all(uploadPromises); 
 
-                // บันทึก JSON และ URL รูปลง Supabase
                 const payload = {
                     club_id: this.currentClubId, term: term, year: year,
                     report_json: { teacher: this.reportData.teacher, actData: this.reportActData },
@@ -1604,25 +1599,24 @@
                     photo_1: this.reportData.photos[1] || '', photo_2: this.reportData.photos[2] || '', photo_3: this.reportData.photos[3] || '', photo_4: this.reportData.photos[4] || ''
                 };
                 
-                await supabase.from('club_reports').upsert(payload);
+                await db.from('club_reports').upsert(payload);
                 Swal.fire({toast: true, position: 'top-end', icon:'success', title:'บันทึกรายงานลงฐานข้อมูลสำเร็จ', showConfirmButton: false, timer: 2000});
             } catch(e) { Swal.fire('ข้อผิดพลาด', e.message, 'error'); } 
             finally { this.loading = false; }
           },
           async saveCurrentReportSilently() {
-            // เซฟเงียบๆ ไว้เรียกตอนเพิ่งลบรูป จะได้ไม่ต้องรออัปโหลด
             const payload = {
                 club_id: this.currentClubId, term: this.adminSettings.semester, year: this.adminSettings.academicYear,
                 report_json: { teacher: this.reportData.teacher, actData: this.reportActData },
                 logo: this.reportData.logo || '',
                 photo_1: this.reportData.photos[1] || '', photo_2: this.reportData.photos[2] || '', photo_3: this.reportData.photos[3] || '', photo_4: this.reportData.photos[4] || ''
             };
-            await supabase.from('club_reports').upsert(payload);
+            await db.from('club_reports').upsert(payload);
           },
           async getGlobalFailedSummary() {
              const term = this.adminSettings.semester; const year = this.adminSettings.academicYear;
              const [{data: students}, {data: clubs}, {data: attData}] = await Promise.all([
-                 supabase.from('students').select('*'), supabase.from('clubs').select('*').eq('term', term).eq('year', year), supabase.from('attendance_data').select('*').eq('term', term).eq('year', year)
+                 db.from('students').select('*'), db.from('clubs').select('*').eq('term', term).eq('year', year), db.from('attendance_data').select('*').eq('term', term).eq('year', year)
              ]);
              const studentMap = {}; (students||[]).forEach(s => studentMap[s.id] = s);
              const clubMap = {}; (clubs||[]).forEach(c => clubMap[c.id] = c.name);
@@ -1655,7 +1649,7 @@
           async fetchUsers(role) { 
             Swal.fire({ toast: true, position: 'top-end', title: 'กำลังโหลด...', showConfirmButton: false, didOpen: () => Swal.showLoading() }); 
             const table = role === 'teacher' ? 'teachers' : 'students';
-            const {data} = await supabase.from(table).select('*');
+            const {data} = await db.from(table).select('*');
             this.usersList = data || [];
             Swal.close(); 
           },
@@ -1667,8 +1661,8 @@
                   if(this.manageRole === 'teacher') { payload.username = this.userForm.username || null; payload.role = this.userForm.role || 'teacher'; } 
                   else { payload.level = this.userForm.level || null; payload.room = this.userForm.room || null; payload.no = this.userForm.no || null; }
                   
-                  if(this.userForm.id) { await supabase.from(table).update(payload).eq('id', this.userForm.id); } 
-                  else { await supabase.from(table).insert(payload); }
+                  if(this.userForm.id) { await db.from(table).update(payload).eq('id', this.userForm.id); } 
+                  else { await db.from(table).insert(payload); }
                   
                   bootstrap.Modal.getInstance(document.getElementById('userModal')).hide(); await this.fetchUsers(this.manageRole);
                   Swal.fire({ icon: 'success', title: 'สำเร็จ', text: 'บันทึกข้อมูลเรียบร้อยแล้ว', timer: 1500, showConfirmButton: false });
@@ -1681,8 +1675,8 @@
                 this.loading = true;
                 try {
                     const table = role === 'teacher' ? 'teachers' : 'students';
-                    await supabase.from(table).delete().eq('id', id);
-                    if(role === 'student') await supabase.from('registrations').delete().eq('student_id', id);
+                    await db.from(table).delete().eq('id', id);
+                    if(role === 'student') await db.from('registrations').delete().eq('student_id', id);
                     Swal.fire('สำเร็จ', 'ลบข้อมูลเรียบร้อยแล้ว', 'success'); await this.refreshData(); await this.fetchUsers(role);
                 } catch(e) { Swal.fire('ผิดพลาด', e.message, 'error'); } 
                 finally { this.loading = false; }
@@ -1697,7 +1691,7 @@
             Swal.fire({ toast: true, position: 'top-end', title: 'กำลังตรวจสอบรายชื่อ...', showConfirmButton: false, didOpen: () => Swal.showLoading() });
             
             try {
-                const {data: students} = await supabase.from('students').select('*');
+                const {data: students} = await db.from('students').select('*');
                 const matchedStudents = (students||[]).filter(s => {
                     const level = String(s.level || '').trim(); const room = String(s.room || '').trim().toLowerCase();
                     if (target === "ม.ต้น") return ['ม.1', 'ม.2', 'ม.3', 'ม.ต้น'].some(l => level.includes(l));
@@ -1732,8 +1726,8 @@
                         Swal.fire({ title: 'กำลังเคลียร์ข้อมูลสัมพันธ์ของกลุ่มนักเรียน...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
                         try {
                             const idsToDelete = matchedStudents.map(s => s.id);
-                            await supabase.from('students').delete().in('id', idsToDelete);
-                            await supabase.from('registrations').delete().in('student_id', idsToDelete);
+                            await db.from('students').delete().in('id', idsToDelete);
+                            await db.from('registrations').delete().in('student_id', idsToDelete);
                             Swal.fire({ title: 'ลบข้อมูลสำเร็จ', text: `ลบนักเรียนกลุ่มนี้จำนวน ${idsToDelete.length} คน เรียบร้อยแล้ว`, icon: 'success', confirmButtonText: 'ตกลง', confirmButtonColor: '#2563eb', allowOutsideClick: false }).then(() => {
                                 bootstrap.Modal.getInstance(document.getElementById('bulkDeleteModal')).hide();
                                 this.bulkAction.room = ''; this.refreshData(); this.fetchUsers('student'); 
@@ -1755,7 +1749,6 @@
                       let cleanCsvData = csvData.replace(/^\ufeff/, "");
                       let delimiter = (cleanCsvData.split('\n')[0].split(';').length > cleanCsvData.split('\n')[0].split(',').length) ? ";" : ",";
                       
-                      // ฟังก์ชันแยก CSV อย่างง่าย
                       const parseCSV = (text, sep) => {
                           const result = []; const lines = text.split('\n');
                           for(let i=0; i<lines.length; i++) {
@@ -1786,8 +1779,7 @@
                       });
 
                       if(payloads.length > 0) {
-                          // Upsert เข้า Supabase
-                          const { error } = await supabase.from(table).upsert(payloads);
+                          const { error } = await db.from(table).upsert(payloads);
                           if(error) throw error;
                       }
 
@@ -1811,21 +1803,19 @@
                 this.loading = true;
                 Swal.fire({ title: 'ระบบกำลังดำเนินการ...', html: 'กำลังเคลียร์ตารางฐานข้อมูล<br><br><b>ห้ามปิดหน้าต่างนี้เด็ดขาด</b>', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
                 try {
-                    // Update Config
                     const settings = JSON.parse(this.config.adminSettings || "{}");
                     settings.semester = this.resetOptions.newSemester; settings.academicYear = this.resetOptions.newYear;
-                    await supabase.from('config').upsert({key: 'adminSettings', value: JSON.stringify(settings)});
+                    await db.from('config').upsert({key: 'adminSettings', value: JSON.stringify(settings)});
 
-                    // Bulk Delete Data (.neq('id', '0') is a trick to delete all rows since IDs are not 0)
                     if(this.resetOptions.clearStudents) {
-                        await supabase.from('students').delete().neq('id', '0');
+                        await db.from('students').delete().neq('id', '0');
                     } else if(this.resetOptions.resetRegistrations) {
-                        await supabase.from('students').update({club_id: null}).neq('id', '0');
+                        await db.from('students').update({club_id: null}).neq('id', '0');
                     }
-                    if(this.resetOptions.resetRegistrations) await supabase.from('registrations').delete().neq('reg_id', '0');
-                    if(this.resetOptions.resetAttendance) await supabase.from('attendance_data').delete().neq('club_id', '0');
-                    if(this.resetOptions.resetReports) await supabase.from('club_reports').delete().neq('club_id', '0');
-                    if(this.resetOptions.clearClubs) await supabase.from('clubs').delete().neq('id', '0');
+                    if(this.resetOptions.resetRegistrations) await db.from('registrations').delete().neq('reg_id', '0');
+                    if(this.resetOptions.resetAttendance) await db.from('attendance_data').delete().neq('club_id', '0');
+                    if(this.resetOptions.resetReports) await db.from('club_reports').delete().neq('club_id', '0');
+                    if(this.resetOptions.clearClubs) await db.from('clubs').delete().neq('id', '0');
 
                     Swal.fire({ title: 'สำเร็จ!', text: 'ระบบพร้อมสำหรับการใช้งานในภาคเรียนที่ ' + this.resetOptions.newSemester + '/' + this.resetOptions.newYear + ' แล้ว', icon: 'success', confirmButtonText: 'เริ่มใช้งาน' }).then(() => {
                         window.location.reload(); 
@@ -1839,7 +1829,7 @@
             if (!this.lookup.room) { Swal.fire('แจ้งเตือน', 'กรุณาระบุห้องที่ต้องการค้นหา', 'warning'); return; }
             this.loading = true; this.roomStudents = [];
             try {
-                const {data: students} = await supabase.from('students').select('*').eq('level', this.lookup.level).eq('room', this.lookup.room);
+                const {data: students} = await db.from('students').select('*').eq('level', this.lookup.level).eq('room', this.lookup.room);
                 if (students && students.length > 0) { 
                     this.roomStudents = students.sort((a,b) => Number(a.no) - Number(b.no)).map(s => {
                         return {id: s.id, name: s.name, no: s.no, club_name: s.club_id ? (this.clubMap[s.club_id] || s.club_id) : "ยังไม่ได้สมัครชุมนุม"};
@@ -1854,11 +1844,11 @@
             Swal.fire({ title: 'กำลังค้นหา...', didOpen: () => { Swal.showLoading() } });
             try {
                 const q = this.searchQuery.trim();
-                const {data: students} = await supabase.from('students').select('*').or(`id.eq.${q},name.ilike.%${q}%`).limit(1);
+                const {data: students} = await db.from('students').select('*').or(`id.eq.${q},name.ilike.%${q}%`).limit(1);
                 if (students && students.length > 0) { 
                     const s = students[0];
                     let clubName = "ยังไม่ได้สมัครชุมนุม";
-                    if(s.club_id) { const {data: clubs} = await supabase.from('clubs').select('name').eq('id', s.club_id).single(); if(clubs) clubName = clubs.name; }
+                    if(s.club_id) { const {data: clubs} = await db.from('clubs').select('name').eq('id', s.club_id).single(); if(clubs) clubName = clubs.name; }
                     this.searchResult = { name: s.name, id: s.id, level: s.level, room: s.room, club_name: clubName };
                     this.searchQuery = ''; Swal.close();
                 } else { Swal.fire('ไม่พบข้อมูล', 'ไม่พบรายชื่อนักเรียนคนนี้ในระบบ', 'error'); this.searchResult = null; }
@@ -1867,7 +1857,7 @@
           async downloadNoClubTeachers() {
             Swal.fire({ title: 'กำลังตรวจสอบรายชื่อครู...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
             try {
-                const [{data: teachers}, {data: clubs}] = await Promise.all([ supabase.from('teachers').select('*'), supabase.from('clubs').select('*') ]);
+                const [{data: teachers}, {data: clubs}] = await Promise.all([ db.from('teachers').select('*'), db.from('clubs').select('*') ]);
                 const activeOwnerIds = new Set();
                 (clubs||[]).forEach(club => { if (club.owner_id) { club.owner_id.toString().split(',').forEach(id => { activeOwnerIds.add(id.trim()); }); } });
                 const noClubList = (teachers||[]).filter(t => t.role !== 'admin' && !activeOwnerIds.has(t.id.toString().trim()));
@@ -1895,9 +1885,9 @@
           downloadPDF() { Swal.fire({ title: 'กำลังสร้างไฟล์ PDF...', html: 'กรุณารอสักครู่ (ห้ามปิดหน้าต่างนี้)', allowOutsideClick: false, didOpen: () => Swal.showLoading() }); const element = document.getElementById('report-print-area'); const opt = { margin: [10, 0, 10, 0], filename: `รายงานชุมนุม_${this.currentClubName}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } }; html2pdf().set(opt).from(element).save().then(() => { Swal.close(); Swal.fire({toast: true, position: 'top-end', icon: 'success', title: 'ดาวน์โหลดไฟล์ PDF สำเร็จ', showConfirmButton: false, timer: 2000}); }); },
           downloadUsersCSV() { if(!this.usersList || this.usersList.length === 0) { Swal.fire('แจ้งเตือน', 'ไม่มีข้อมูลให้ดาวน์โหลด', 'info'); return; } let csvContent = "data:text/csv;charset=utf-8,\uFEFF"; if(this.manageRole === 'teacher') { csvContent += "id,name,username,password,role\n"; this.usersList.forEach(u => { const row = [u.id, u.name, u.username, u.password || u.id, u.role].map(e => `"${e}"`).join(","); csvContent += row + "\n"; }); } else { csvContent += "id,name,level,room,no,password\n"; this.usersList.forEach(u => { const row = [u.id, u.name, u.level, u.room, u.no, u.password || u.id].map(e => `"${e}"`).join(","); csvContent += row + "\n"; }); } const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", `${this.manageRole}_list.csv`); document.body.appendChild(link); link.click(); document.body.removeChild(link); },
           downloadCSVTemplate() { let csvContent = "data:text/csv;charset=utf-8,\uFEFF"; let fileName = ""; if (this.manageRole === 'teacher') { csvContent += "id,name,username,password,role\n"; csvContent += "T001,ชื่อ นามสกุล,user001,pass001,teacher\n"; fileName = "template_teachers.csv"; } else { csvContent += "id,name,level,room,no,password\n"; csvContent += "69001,เด็กชายสมชาย ใจดี,ม.1,1/1,1,69001\n"; fileName = "template_students.csv"; } const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", fileName); document.body.appendChild(link); link.click(); document.body.removeChild(link); Swal.fire({ icon: 'info', title: 'ดาวน์โหลดต้นแบบแล้ว', text: 'กรุณากรอกข้อมูลตามลำดับคอลัมน์ในไฟล์ตัวอย่าง', timer: 2000, showConfirmButton: false }); },
-          downloadExcelList(club) { Swal.fire({ title: 'กำลังโหลด...', didOpen: () => Swal.showLoading() }); this.loadClubData(club, 'dashboard').then(()=>{ Swal.close(); const students = this.attStudents; let table = `<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"></head><body><h3>รายชื่อสมาชิกชุมนุม: ${club.name}</h3><table border="1"><thead><tr style="background:#ddd;"><th>ลำดับ</th><th>รหัส</th><th>ชื่อ-นามสกุล</th><th>ชั้น</th><th>เลขที่</th></tr></thead><tbody>`; students.forEach((s, idx) => { table += `<tr><td>${idx+1}</td><td>${s.id}</td><td>${s.name}</td><td>${s.room}</td><td>${s.no}</td></tr>`; }); table += `</tbody></table></body></html>`; const blob = new Blob([table], { type: "application/vnd.ms-excel" }); const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `รายชื่อ_${club.name}.xls`; link.click(); }); },
+          downloadExcelList(club) { Swal.fire({ title: 'กำลังโหลด...', didOpen: () => Swal.showLoading() }); db.from('students').select('*').eq('club_id', club.id).then(({data: stds}) => { Swal.close(); const students = stds.sort((a, b) => { const roomA = a.room.toString(); const roomB = b.room.toString(); if(roomA !== roomB) return roomA.localeCompare(roomB, undefined, {numeric: true, sensitivity: 'base'}); return Number(a.no) - Number(b.no); }); let table = `<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"></head><body><h3>รายชื่อสมาชิกชุมนุม: ${club.name}</h3><table border="1"><thead><tr style="background:#ddd;"><th>ลำดับ</th><th>รหัส</th><th>ชื่อ-นามสกุล</th><th>ชั้น</th><th>เลขที่</th></tr></thead><tbody>`; students.forEach((s, idx) => { table += `<tr><td>${idx+1}</td><td style="mso-number-format:'\\@';">${s.id}</td><td>${s.name}</td><td>${s.room}</td><td>${s.no}</td></tr>`; }); table += `</tbody></table></body></html>`; const blob = new Blob([table], { type: "application/vnd.ms-excel" }); const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `รายชื่อ_${club.name}.xls`; link.click(); }); },
           executeDownload(html, fileName) { const blob = new Blob([html], { type: "application/vnd.ms-excel" }); const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = fileName; link.click(); },
-          downloadFilteredStudents() { if (this.exportFilter.type === 'ระบุห้อง' && !this.exportFilter.room.trim()) { Swal.fire('แจ้งเตือน', 'กรุณาระบุห้องที่ต้องการดาวน์โหลด', 'warning'); return; } Swal.fire({ title: 'กำลังเตรียมข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() }); supabase.from('students').select('*').then(({data: students}) => { Swal.close(); let filteredList = (students||[]).filter(s => { const level = String(s.level || '').trim(); const room = String(s.room || '').trim(); if (this.exportFilter.type === 'ทั้งหมด') return true; if (this.exportFilter.type === 'ม.ต้น') return ['ม.1', 'ม.2', 'ม.3', 'ม.ต้น'].some(l => level.includes(l)); if (this.exportFilter.type === 'ม.ปลาย') return ['ม.4', 'ม.5', 'ม.6', 'ม.ปลาย'].some(l => level.includes(l)); if (this.exportFilter.type === 'ระบุห้อง') { const searchRoom = this.exportFilter.room.trim(); if (room.includes(searchRoom)) { const pos = room.indexOf(searchRoom); const charAfter = room.charAt(pos + searchRoom.length); if (!charAfter || !/\d/.test(charAfter)) return true; } return false; } return true; }); if (filteredList.length === 0) { Swal.fire('ไม่พบข้อมูล', 'ไม่มีนักเรียนในเงื่อนไขที่ระบุ', 'info'); return; } filteredList.sort((a, b) => { const roomCompare = (a.room || '').toString().localeCompare((b.room || '').toString(), 'th', {numeric: true}); if (roomCompare !== 0) return roomCompare; return (Number(a.no) || 0) - (Number(b.no) || 0); }); let table = `<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"></head><body><h3>ข้อมูลการสมัครชุมนุมนักเรียน (${this.exportFilter.type}${this.exportFilter.type === 'ระบุห้อง' ? ' ' + this.exportFilter.room : ''})</h3><p>ข้อมูล ณ วันที่: ${new Date().toLocaleString('th-TH')}</p><table border="1"><thead><tr style="background-color: #d1e7dd;"><th>ลำดับ</th><th>รหัสประจำตัว</th><th>ชื่อ-นามสกุล</th><th>ชั้น</th><th>ห้อง</th><th>เลขที่</th><th>ชุมนุม</th></tr></thead><tbody>`; filteredList.forEach((s, idx) => { let clubName = 'ยังไม่ได้สมัครชุมนุม'; if (s.club_id && String(s.club_id).trim() !== '') { if (this.clubMap[s.club_id]) { clubName = this.clubMap[s.club_id].name; } else { clubName = s.club_id; } } table += `<tr><td align="center">${idx + 1}</td><td align="center" style="mso-number-format:'\\@';">${s.id}</td><td>${s.name}</td><td align="center">${s.level}</td><td align="center">${s.room}</td><td align="center">${s.no}</td><td style="${clubName === 'ยังไม่ได้สมัครชุมนุม' ? 'color: red; font-weight: bold;' : ''}">${clubName}</td></tr>`; }); table += `</tbody></table></body></html>`; const fileNameSuffix = this.exportFilter.type === 'ระบุห้อง' ? this.exportFilter.room.replace(/\//g, '-') : this.exportFilter.type; this.executeDownload(table, `รายชื่อนักเรียน_ชุมนุม_${fileNameSuffix}.xls`); }); },
+          downloadFilteredStudents() { if (this.exportFilter.type === 'ระบุห้อง' && !this.exportFilter.room.trim()) { Swal.fire('แจ้งเตือน', 'กรุณาระบุห้องที่ต้องการดาวน์โหลด', 'warning'); return; } Swal.fire({ title: 'กำลังเตรียมข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() }); db.from('students').select('*').then(({data: students}) => { Swal.close(); let filteredList = (students||[]).filter(s => { const level = String(s.level || '').trim(); const room = String(s.room || '').trim(); if (this.exportFilter.type === 'ทั้งหมด') return true; if (this.exportFilter.type === 'ม.ต้น') return ['ม.1', 'ม.2', 'ม.3', 'ม.ต้น'].some(l => level.includes(l)); if (this.exportFilter.type === 'ม.ปลาย') return ['ม.4', 'ม.5', 'ม.6', 'ม.ปลาย'].some(l => level.includes(l)); if (this.exportFilter.type === 'ระบุห้อง') { const searchRoom = this.exportFilter.room.trim(); if (room.includes(searchRoom)) { const pos = room.indexOf(searchRoom); const charAfter = room.charAt(pos + searchRoom.length); if (!charAfter || !/\d/.test(charAfter)) return true; } return false; } return true; }); if (filteredList.length === 0) { Swal.fire('ไม่พบข้อมูล', 'ไม่มีนักเรียนในเงื่อนไขที่ระบุ', 'info'); return; } filteredList.sort((a, b) => { const roomCompare = (a.room || '').toString().localeCompare((b.room || '').toString(), 'th', {numeric: true}); if (roomCompare !== 0) return roomCompare; return (Number(a.no) || 0) - (Number(b.no) || 0); }); let table = `<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"></head><body><h3>ข้อมูลการสมัครชุมนุมนักเรียน (${this.exportFilter.type}${this.exportFilter.type === 'ระบุห้อง' ? ' ' + this.exportFilter.room : ''})</h3><p>ข้อมูล ณ วันที่: ${new Date().toLocaleString('th-TH')}</p><table border="1"><thead><tr style="background-color: #d1e7dd;"><th>ลำดับ</th><th>รหัสประจำตัว</th><th>ชื่อ-นามสกุล</th><th>ชั้น</th><th>ห้อง</th><th>เลขที่</th><th>ชุมนุม</th></tr></thead><tbody>`; filteredList.forEach((s, idx) => { let clubName = 'ยังไม่ได้สมัครชุมนุม'; if (s.club_id && String(s.club_id).trim() !== '') { if (this.clubMap[s.club_id]) { clubName = this.clubMap[s.club_id].name; } else { clubName = s.club_id; } } table += `<tr><td align="center">${idx + 1}</td><td align="center" style="mso-number-format:'\\@';">${s.id}</td><td>${s.name}</td><td align="center">${s.level}</td><td align="center">${s.room}</td><td align="center">${s.no}</td><td style="${clubName === 'ยังไม่ได้สมัครชุมนุม' ? 'color: red; font-weight: bold;' : ''}">${clubName}</td></tr>`; }); table += `</tbody></table></body></html>`; const fileNameSuffix = this.exportFilter.type === 'ระบุห้อง' ? this.exportFilter.room.replace(/\//g, '-') : this.exportFilter.type; this.executeDownload(table, `รายชื่อนักเรียน_ชุมนุม_${fileNameSuffix}.xls`); }); },
           downloadAdminWordReport() { Swal.fire({ title: 'กำลังเตรียมไฟล์ Word...', html: 'ระบบกำลังประมวลผลรูปแบบเอกสาร', didOpen: () => { Swal.showLoading() } }); const content = document.querySelectorAll('.a4-container'); let combinedHtml = ""; content.forEach((el, index) => { if (index > 0) { combinedHtml += '<br clear="all" style="mso-special-character:line-break;page-break-before:always">'; } combinedHtml += el.innerHTML; }); const header = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'><title>รายงานชุมนุม</title><style>@page { size: 21cm 29.7cm; margin: 2cm; } body { font-family: 'Sarabun', 'TH Sarabun New', sans-serif; } table { border-collapse: collapse; width: 100%; } th, td { border: 1px solid black; padding: 5px; vertical-align: middle; } .text-center { text-align: center; } .fw-bold { font-weight: bold; } img { max-width: 100%; } .editable { border-bottom: none !important; }</style></head><body>`; const footer = "</body></html>"; const fullSource = header + combinedHtml + footer; const blob = new Blob(['\ufeff', fullSource], { type: 'application/msword' }); const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = `รายงานชุมนุม_${this.currentClubName}.doc`; document.body.appendChild(link); link.click(); document.body.removeChild(link); Swal.close(); Swal.fire({toast:true, position:'top-end', icon:'success', title:'ดาวน์โหลดไฟล์ Word สำเร็จ', showConfirmButton:false, timer:2000}); },
           downloadAdminClubsExcel() { if (!this.clubs || this.clubs.length === 0) { Swal.fire('แจ้งเตือน', 'ไม่มีข้อมูลชุมนุมในระบบให้ดาวน์โหลด', 'info'); return; } Swal.fire({ title: 'กำลังเตรียมข้อมูลไฟล์ Excel...', allowOutsideClick: false, didOpen: () => Swal.showLoading() }); const levelWeight = { 'ม.ต้น': 1, 'ม.ปลาย': 2, 'ทั้งหมด': 3, 'ทั้งสอง': 3 }; const sortedClubs = [...this.clubs].sort((a, b) => { const weightA = levelWeight[String(a.level).trim()] || 99; const weightB = levelWeight[String(b.level).trim()] || 99; if (weightA !== weightB) { return weightA - weightB; } return String(a.name || '').localeCompare(String(b.name || ''), 'th'); }); let tableHtml = `<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"><style>table{border-collapse:collapse;width:100%;}th{background-color:#d1e7dd;font-weight:bold;text-align:center;}th,td{border:1px solid #000000;padding:6px;}.text-center{text-align:center;}</style></head><body><h2>รายงานสรุปข้อมูลกิจกรรมชุมนุมและสถานที่เรียน โรงเรียนสมุทรสาครบูรณะ</h2><p>ข้อมูล ณ วันที่: ${new Date().toLocaleString('th-TH')}</p><table><thead><tr><th style="width: 80px;">ลำดับ</th><th style="width: 300px;">ชื่อกิจกรรมชุมนุม</th><th style="width: 300px;">ครูที่ปรึกษาชุมนุม</th><th style="width: 150px;">ระดับชั้น</th><th style="width: 200px;">สถานที่เรียน</th></tr></thead><tbody>`; sortedClubs.forEach((club, idx) => { tableHtml += `<tr><td class="text-center">${idx + 1}</td><td style="font-weight: bold;">${club.name || '-'}</td><td>${club.teacher_name || '-'}</td><td class="text-center">${club.level || '-'}</td><td>${club.location || 'ยังไม่ระบุข้อมูล'}</td></tr>`; }); tableHtml += `</tbody></table></body></html>`; try { const blob = new Blob(['\ufeff' + tableHtml], { type: "application/vnd.ms-excel" }); const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `รายงานสรุปข้อมูลกิจกรรมชุมนุมและสถานที่เรียน_${new Date().toISOString().slice(0,10)}.xls`; document.body.appendChild(link); link.click(); document.body.removeChild(link); Swal.close(); const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 2000 }); Toast.fire({ icon: 'success', title: 'ดาวน์โหลดสำเร็จ' }); } catch (err) { Swal.fire('เกิดข้อผิดพลาด', String(err), 'error'); } },
           toggleColumn(index) { let isAllPresent = this.attStudents.every(s => this.attData.records[s.id][index] === 1); this.attStudents.forEach(s => { this.attData.records[s.id][index] = isAllPresent ? 0 : 1; }); },
