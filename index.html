@@ -4866,33 +4866,94 @@ downloadCSVTemplate() {
             return confirmation.isConfirmed;
           }finally{URL.revokeObjectURL(objectUrl);}
         },
-        // V4.3: single primary workflow. No manual-file chooser unless PDF creation fails.
-        // The status dialog is deliberately kept visible while each promise finishes.
-        sknEmailProgress(step, note='') {
+        // V4.4: independent progress layer. SweetAlert toasts (including delayed
+        // save/image notifications) MUST NOT close or replace a running PDF job.
+        sknEmailProgress(stage, note='', extra={}) {
           const labels=[
-            'บันทึกข้อมูลรายงาน',
-            'รอรูปภาพและลายเซ็นจาก Drive',
-            'สร้าง PDF จากรายงานที่เปิดอยู่',
-            'ตรวจสอบความสมบูรณ์ของ PDF',
-            'แนบ PDF และส่งอีเมลผ่าน GAS'
+            'บันทึกข้อมูลรายงานล่าสุด',
+            'รอรูปภาพและลายเซ็นจาก Drive ให้พร้อม',
+            'สร้าง PDF จากหน้าเอกสารที่เปิดอยู่',
+            'ตรวจสอบไฟล์ PDF ให้สมบูรณ์',
+            'แนบไฟล์ PDF และส่งผ่าน Google Apps Script'
           ];
-          const lines=labels.map((label,i)=>{
-            const marker=i<step?'✓':i===step?'●':'○';
-            const tone=i<step?'text-success':i===step?'text-primary fw-bold':'text-muted';
-            return '<div class="'+tone+' py-1">'+marker+' '+(i+1)+'. '+label+'</div>';
-          }).join('');
-          const html='<div class="text-start small" role="status" aria-live="polite">'+lines+'</div>'+
-            '<p id="skn-pdf-progress-note" class="small text-secondary mt-3 mb-0"></p>';
-          if(!Swal.isVisible()){
-            Swal.fire({title:'กำลังเตรียมและส่งรายงาน PDF',html,
-              allowOutsideClick:false,allowEscapeKey:false,showConfirmButton:false,
-              didOpen:()=>Swal.showLoading()});
-          }else{
-            Swal.update({title:'กำลังเตรียมและส่งรายงาน PDF',html});
-            Swal.showLoading();
+          let el=this._sknPdfProgressEl;
+          if(!el || !el.isConnected){
+            el=document.createElement('div');el.id='skn-pdf-progress-overlay';
+            el.setAttribute('role','dialog');el.setAttribute('aria-modal','true');
+            el.setAttribute('aria-label','สถานะการสร้าง PDF และส่งอีเมล');
+            el.style.cssText='position:fixed;inset:0;z-index:2147483000;background:rgba(15,23,42,.72);display:flex;align-items:center;justify-content:center;padding:15px';
+            const box=document.createElement('section');
+            box.style.cssText='width:min(580px,96vw);max-height:90vh;overflow:auto;background:white;color:#0f172a;border-radius:18px;padding:24px;box-shadow:0 15px 60px rgba(0,0,0,.35);font-family:Sarabun,sans-serif';
+            const heading=document.createElement('h4');heading.textContent='กำลังสร้าง PDF และส่งรายงาน';heading.style.cssText='font-size:20px;font-weight:700;margin:0 0 8px';
+            const hint=document.createElement('p');hint.textContent='โปรดเปิดหน้านี้ไว้ ระบบจะลองสร้างอัตโนมัติก่อน ไม่ต้องแนบไฟล์เอง';hint.style.cssText='font-size:13px;color:#64748b;margin-bottom:15px';
+            const list=document.createElement('ol');list.id='skn-pdf-progress-list';list.style.cssText='list-style:none;margin:0;padding:0';
+            const msg=document.createElement('div');msg.id='skn-pdf-progress-message';msg.setAttribute('role','status');msg.setAttribute('aria-live','polite');msg.style.cssText='font-size:13px;margin-top:14px;background:#f1f5f9;border-radius:8px;padding:12px;white-space:pre-wrap';
+            box.append(heading,hint,list,msg);el.appendChild(box);document.body.appendChild(el);this._sknPdfProgressEl=el;
           }
-          const message=Swal.getHtmlContainer()?.querySelector('#skn-pdf-progress-note');
-          if(message)message.textContent=note;
+          const list=el.querySelector('#skn-pdf-progress-list');list.replaceChildren();
+          labels.forEach((label,i)=>{
+            const row=document.createElement('li');
+            const done=i<stage && !(extra.manual && i===2);
+            const active=i===stage;
+            row.style.cssText='padding:8px 5px;border-bottom:1px solid #e2e8f0;font-size:14px;color:'+(done?'#15803d':active?'#1d4ed8':'#64748b')+';font-weight:'+(active?'700':'400');
+            row.textContent=(done?'✓':active?'⏳':'○')+' '+(i+1)+'. '+(extra.manual&&i===2?'ใช้ PDF ที่ผู้ใช้แนบแทนการสร้างอัตโนมัติ':label);
+            list.appendChild(row);
+          });
+          el.querySelector('#skn-pdf-progress-message').textContent=note;
+        },
+        sknEmailProgressClose(){
+          this._sknPdfProgressEl?.remove();this._sknPdfProgressEl=null;
+        },
+        sknPausePdf(ms){return new Promise(resolve=>setTimeout(resolve,ms));},
+        async sknCreateAutoPdfWithRetries(email){
+          // Complete each promise BEFORE proceeding: a pending generator is never a failure.
+          this.sknEmailProgress(0,'ปลายทาง: '+email+'\nกำลังบันทึกรายงานก่อนสร้างเอกสาร');
+          clearTimeout(this._reportSaveTimer);
+          let saved=false,lastSaveError;
+          for(let attempt=1;attempt<=2;attempt++){
+            try{
+              const result=await this.queueReportSave();
+              if(result?.success===false)throw Error(result.message||'บันทึกรายงานไม่สำเร็จ');
+              saved=true;break;
+            }catch(err){lastSaveError=err;
+              if(attempt<2){this.sknEmailProgress(0,'บันทึกครั้งที่ '+attempt+' ไม่สำเร็จ กำลังลองใหม่...');await this.sknPausePdf(1200);}
+            }
+          }
+          if(!saved){const err=Error('ยังบันทึกรายงานไม่สำเร็จ: '+String(lastSaveError?.message||lastSaveError));err.stage='save';throw err;}
+          this.sknEmailProgress(1,'ตรวจรูปและลายเซ็นที่ต้องใช้ในเอกสาร');
+          if(this._reportImageLoadPromise)await this._reportImageLoadPromise;
+          // Wait for Vue to apply images loaded asynchronously before cloning DOM.
+          if(this.$nextTick)await this.$nextTick();
+          for(let attempt=1;attempt<=3 && this.reportMediaErrors?.length;attempt++){
+            this.sknEmailProgress(1,'รูปบางใบยังไม่พร้อม กำลังขอจาก Drive ซ้ำ '+attempt+'/3\n'+(this.reportMediaErrors||[]).join('; ').slice(0,300));
+            if(typeof this.loadReportImagesProgressively==='function'){
+              // Clear stale errors before fresh requests; only newly failed files remain.
+              this.reportMediaErrors=[];
+              try{await this.loadReportImagesProgressively(true);}catch(e){this.reportMediaErrors=[String(e?.message||e)];}
+            }
+            if(this.$nextTick)await this.$nextTick();
+            if(this.reportMediaErrors?.length && attempt<3)await this.sknPausePdf(1200);
+          }
+          if(this.reportMediaErrors?.length){
+            const err=Error('รูปภาพจาก Drive ยังไม่พร้อมหลังลองซ้ำ: '+this.reportMediaErrors.join('; ').slice(0,350));
+            err.stage='images';throw err;
+          }
+          let lastPdfError;
+          // Do not offer a manual PDF after the first transient canvas/asset error.
+          for(let attempt=1;attempt<=3;attempt++){
+            try{
+              this.sknEmailProgress(2,'กำลังสร้าง PDF อัตโนมัติ ครั้งที่ '+attempt+'/3\nกรุณารอให้ตัวสร้าง PDF ตอบกลับก่อน');
+              if(this.$nextTick)await this.$nextTick();
+              const dataUrl=await this.generateReportPdfDataUrl();
+              this.sknEmailProgress(3,'สร้างไฟล์แล้ว กำลังตรวจส่วนหัว จำนวนไบต์ EOF และ SHA-256');
+              const integrity=await this.sknPdfIntegrity(dataUrl);
+              return {pdfFile:dataUrl,integrity,createdAutomatically:true};
+            }catch(err){lastPdfError=err;
+              if(attempt<3){this.sknEmailProgress(2,'สร้าง PDF ครั้งที่ '+attempt+' ไม่สำเร็จ: '+String(err?.message||err)+'\nระบบกำลังลองใหม่อัตโนมัติ...');await this.sknPausePdf(1800);}
+            }
+          }
+          const err=Error('ลองสร้าง/ตรวจ PDF อัตโนมัติครบ 3 ครั้งแล้ว แต่ยังไม่สำเร็จ: '+String(lastPdfError?.message||lastPdfError));
+          err.stage='pdf';throw err;
         },
         async sknPdfIntegrity(dataUrl) {
           await this.validatePdfAttachment(dataUrl);
@@ -4914,59 +4975,66 @@ downloadCSVTemplate() {
         async promptSendEmail() {
           if(this.archiveReadonly||this.loading)return;
           let email='';
-          try {email=await this.sknMailRecipient();}
+          try{email=await this.sknMailRecipient();}
           catch(error){return Swal.fire('ส่งเมลไม่ได้',error.message||String(error),'warning');}
           if(Object.values(this.reportData.photos||{}).includes('__DELETE__') ||
              Object.values(this.reportData.signatures||{}).includes('__DELETE__'))
             return Swal.fire('มีรูปที่รอลบ','กรุณาบันทึกรายงานหรือยกเลิกการลบรูปก่อนส่ง PDF','warning');
-
           this.loading=true;
-          let pdfFile='',step=0,createdAutomatically=false;
-          this.sknEmailProgress(0,'ปลายทาง: '+email);
-          try {
-            clearTimeout(this._reportSaveTimer);
-            await this.queueReportSave();
-            step=1;this.sknEmailProgress(step,'กำลังตรวจรูปภาพในหน้ารายงาน');
-            if(this._reportImageLoadPromise)await this._reportImageLoadPromise;
-            if(this.reportMediaErrors?.length)
-              throw Error('รูปภาพจาก Drive โหลดไม่สำเร็จ: '+this.reportMediaErrors.join('; ').slice(0,350));
-            step=2;this.sknEmailProgress(step,'โปรดเปิดหน้านี้ค้างไว้ระหว่างสร้าง PDF');
-            pdfFile=await this.generateReportPdfDataUrl();
-            createdAutomatically=true;
-            step=3;this.sknEmailProgress(step,'กำลังตรวจส่วนหัว ขนาด จุดสิ้นสุด และลายนิ้วมือไฟล์ PDF');
-            await this.validatePdfAttachment(pdfFile);
-          }catch(error){
-            Swal.close();this.loading=false;
-            const choice=await Swal.fire({title:'สร้าง PDF อัตโนมัติไม่สำเร็จ',
-              text:String(error?.message||error),icon:'warning',
-              showDenyButton:true,showCancelButton:true,
-              confirmButtonText:'แนบ PDF เอง',denyButtonText:'ลองสร้างอัตโนมัติอีกครั้ง',
-              cancelButtonText:'ยกเลิก'});
-            if(choice.isDenied)return this.promptSendEmail();
-            if(!choice.isConfirmed)return;
-            pdfFile=await this.chooseManualReportPdf();
-            if(!pdfFile)return;
-            createdAutomatically=false;
-            this.loading=true;
-            step=3;this.sknEmailProgress(step,'ตรวจ PDF ที่เลือกแนบเอง');
-          }
-          try {
-            const integrity=await this.sknPdfIntegrity(pdfFile);
-            step=4;this.sknEmailProgress(step,'กำลังส่ง PDF '+Math.round(integrity.pdfByteLength/1024)+' KB ไปยัง '+email);
+          let item=null,autoError=null,manual=false;
+          try{
+            try{
+              item=await this.sknCreateAutoPdfWithRetries(email);
+            }catch(error){autoError=error;}
+            // Only after ALL automatic attempts finish may the user see a manual option.
+            if(autoError){
+              this.sknEmailProgressClose();
+              if(autoError.stage==='save'){
+                await Swal.fire({icon:'error',title:'ยังบันทึกรายงานไม่สำเร็จ',
+                  text:autoError.message+' กรุณาตรวจการเชื่อมต่อแล้วกดส่งใหม่ (ยังไม่ได้ส่งอีเมล)'});
+                return;
+              }
+              const choice=await Swal.fire({title:'ลองสร้าง PDF อัตโนมัติครบแล้ว',
+                text:String(autoError.message||autoError),icon:'warning',
+                showDenyButton:true,showCancelButton:true,
+                confirmButtonText:'แนบ PDF เอง (ทางเลือกสุดท้าย)',
+                denyButtonText:'ลองสร้างอัตโนมัติใหม่',cancelButtonText:'ยังไม่ส่ง',
+                allowOutsideClick:false});
+              if(choice.isDenied){
+                // Restart the entire sequence only after the last one has exited.
+                this.loading=false;
+                return await this.promptSendEmail();
+              }
+              if(!choice.isConfirmed)return;
+              // Do not assume a failed automatic file is usable as an attachment.
+              const pdfFile=await this.chooseManualReportPdf();
+              if(!pdfFile)return;
+              manual=true;
+              this.sknEmailProgress(3,'กำลังตรวจ PDF ที่เลือกเองก่อนส่ง',{manual:true});
+              const integrity=await this.sknPdfIntegrity(pdfFile);
+              item={pdfFile,integrity,createdAutomatically:false};
+            }
+            // Step 5 begins only after PDF creation AND integrity verification finish.
+            this.sknEmailProgress(4,'PDF พร้อมแล้ว ('+Math.round(item.integrity.pdfByteLength/1024)+' KB)\nกำลังส่งไปยัง '+email+' ผ่าน GAS',{manual});
             const payload={clubId:this.currentClubId,clubName:this.currentClubName,
               teacher:this.reportData.teacher,semester:this.adminSettings.semester,
               academicYear:this.adminSettings.academicYear,totalStudents:this.attStudents.length,
-              passCount:this.countPass(),failCount:this.countFail(),pdfFile,
-              pdfByteLength:integrity.pdfByteLength,pdfSha256:integrity.pdfSha256,
-              pdfSource:createdAutomatically?'auto':'manual'};
+              passCount:this.countPass(),failCount:this.countFail(),pdfFile:item.pdfFile,
+              pdfByteLength:item.integrity.pdfByteLength,pdfSha256:item.integrity.pdfSha256,
+              pdfSource:item.createdAutomatically?'auto':'manual'};
             const res=await window.SKNBridge.invoke('sendClubReportEmail',[email,payload]);
             if(!res?.success)throw Error(res?.message||'GAS ไม่ยืนยันการส่ง');
-            Swal.fire({icon:'success',title:'ส่งรายงานสำเร็จ',
-              text:'ระบบสร้าง/ตรวจ PDF เสร็จและ GAS รับคำสั่งส่งไปยัง '+email+' แล้ว (ไม่ได้เก็บ PDF ลง Drive)'});
+            this.sknEmailProgress(5,'GAS ยืนยันรับคำสั่งส่งอีเมลแล้ว: '+email,{manual});
+            this.sknEmailProgressClose();
+            await Swal.fire({icon:'success',title:'ส่งรายงานสำเร็จ',
+              text:'ระบบสร้างและตรวจ PDF จนเสร็จ พร้อมส่งไฟล์แนบไปยัง '+email+' แล้ว (ไม่ได้จัดเก็บ PDF ใน Drive)'});
           }catch(error){
-            Swal.fire({icon:'error',title:'ส่งอีเมลไม่สำเร็จ',
-              text:String(error?.message||error)+' — ระบบยังไม่ยืนยันการส่ง กรุณาตรวจปลายทางก่อนกดซ้ำ'});
-          }finally{this.loading=false;}
+            this.sknEmailProgressClose();
+            await Swal.fire({icon:'error',title:'ส่งอีเมลยังไม่สำเร็จ',
+              text:String(error?.message||error)+' — หากเข้าสู่ขั้นส่งอีเมลแล้ว โปรดตรวจอีเมลปลายทางก่อนกดซ้ำ เพื่อป้องกันส่งซ้ำ'});
+          }finally{
+            this.sknEmailProgressClose();this.loading=false;
+          }
         },
 
         async logout() { await window.SKNBridge.logout(); this.periods=[]; this.activePeriodId=""; this.archiveReadonly=false; this.isLoggedIn = false; this.user = null; this.form = {user:'', pass:''}; this.view = 'dashboard'; }
