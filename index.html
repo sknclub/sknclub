@@ -574,6 +574,15 @@
     .skn-signature-space {height: 48px; min-height: 48px; width: 220px; max-width: 95%; margin: 0 auto 4px; cursor: pointer; display:flex; justify-content:center; align-items:center; background:transparent; border:0;}
   .skn-signature-image {max-height:48px; max-width:100%; object-fit:contain;}
   @media print {.skn-signature-space {cursor:default;}}
+    /* V3.4 - spacious attendance grid (20 sessions and fixed name columns) */
+    .skn-attendance-layout { max-width: 1720px; margin: 0 auto; padding: 12px clamp(12px,2.7vw,42px) 24px !important; }
+    .skn-attendance-layout > .d-flex:first-child { gap: 14px; flex-wrap: wrap; }
+    .skn-attendance-scroll { border: 1px solid #e2e8f0 !important; border-radius: 16px !important; min-height: 460px; }
+    .skn-attendance-scroll table { min-width: 1460px; }
+    .skn-attendance-scroll tbody tr:hover td { background-color: #f8fbff !important; }
+    .skn-attendance-scroll .sticky-col-2 { box-shadow: 3px 0 8px rgba(30,41,59,.06); }
+    @media(max-width: 768px) {.skn-attendance-layout { padding: 12px 14px 20px !important; }
+      .skn-attendance-scroll { min-height: 470px; }}
   </style>
   <link rel="stylesheet" href="theme.css">
 </head>
@@ -1519,38 +1528,32 @@
     <div class="mb-4 d-flex align-items-center justify-content-between">
       <div>
         <h4 class="fw-800 m-0 text-success"><i class="fas fa-users me-2"></i>ตรวจสอบสถานะการสมัครชุมนุมของนักเรียน</h4>
-        <p class="text-muted small m-0">เลือกชั้นและห้องเพื่อดูสถานะการสมัครชุมนุม</p>
+        <p class="text-muted small m-0">พิมพ์ชื่อ รหัสประจำตัว หรือห้องเรียน ระบบจะแสดงรายการที่ตรงกันโดยไม่ต้องเลือกระดับชั้น</p>
       </div>
       <button @click="view = 'dashboard'" class="btn btn-white border shadow-sm rounded-pill px-4">
         <i class="fas fa-arrow-left me-2"></i> กลับหน้าหลัก
       </button>
     </div>
 
-    <div class="card-clean p-3 mb-4 bg-white shadow-sm border-0">
-      <div class="row g-2 align-items-end">
-        <div class="col-md-3">
-          <label class="small fw-bold">ระดับชั้น</label>
-          <select v-model="lookup.level" class="form-select form-fast">
-            <option value="ม.ต้น">ม.ต้น</option>
-            <option value="ม.ปลาย">ม.ปลาย</option>
-          </select>
+        <div class="card-clean p-3 mb-4 bg-white shadow-sm border-0">
+          <div class="row g-2 align-items-end">
+            <div class="col-md-8">
+              <label class="small fw-bold mb-1">ค้นหาชื่อ รหัสนักเรียน หรือห้อง</label>
+              <div class="input-group">
+                <span class="input-group-text bg-white"><i class="fas fa-search text-primary"></i></span>
+                <input type="search" v-model.trim="lookup.room" class="form-control form-fast"
+                  placeholder="ตัวอย่าง: สมชาย / 12345 / ม.3/7" @keyup.enter="searchByRoom">
+              </div>
+            </div>
+            <div class="col-md-2"><button class="btn btn-success w-100 btn-fast" @click="searchByRoom" :disabled="loading">
+              <i class="fas fa-search me-1"></i>ค้นหา</button></div>
+            <div class="col-md-2" v-if="roomStudents.length">
+              <button class="btn btn-outline-success w-100 btn-fast" @click="downloadRoomExcel">
+                <i class="fas fa-file-excel me-1"></i>ดาวน์โหลด</button>
+            </div>
+          </div>
+          <p v-if="roomStudents.length" class="small text-muted mt-2 mb-0">พบ {{ roomStudents.length }} รายการ</p>
         </div>
-        <div class="col-md-3">
-          <label class="small fw-bold">ระบุห้อง (เช่น ม.1/1)</label>
-          <input type="text" v-model="lookup.room" class="form-control form-fast" placeholder="ตัวอย่าง ม.1/1" @keyup.enter="searchByRoom">
-        </div>
-        <div class="col-md-2">
-          <button class="btn btn-success w-100 btn-fast" @click="searchByRoom" :disabled="loading">
-            <i class="fas fa-search me-1"></i> ค้นหา
-          </button>          
-        </div>
-        <div class="col-md-3" v-if="roomStudents && roomStudents.length > 0">
-          <button class="btn btn-outline-success w-100 btn-fast" @click="downloadRoomExcel">
-            <i class="fas fa-file-excel me-1"></i> ดาวน์โหลดรายงานห้องนี้ (.xls)
-          </button>
-        </div>
-      </div>
-    </div>
 
     <div v-if="roomStudents.length > 0" class="card-clean overflow-hidden border-0 shadow-sm animate__animated animate__fadeIn">
       <div class="table-responsive">
@@ -1560,6 +1563,7 @@
               <th class="ps-4 text-center" style="width: 80px;">เลขที่</th>
               <th style="width: 120px;">รหัส</th>
               <th>ชื่อ-นามสกุล</th>
+              <th>ห้องเรียน</th>
               <th>ชุมนุมที่สังกัด</th>
             </tr>
           </thead>
@@ -1568,6 +1572,7 @@
               <td class="text-center fw-bold">{{ s.no }}</td>
               <td class="text-muted">{{ s.id }}</td>
               <td class="fw-bold">{{ s.name }}</td>
+              <td class="small">{{ s.room }}</td>
               <td>
                 <span :class="s.club_name === 'ยังไม่ได้สมัครชุมนุม' ? 'text-danger' : 'text-primary fw-bold'">
                   {{ s.club_name }}
@@ -1589,7 +1594,7 @@
 
 
         <transition name="fade">
-          <div v-if="view === 'attendance'" class="h-100 d-flex flex-column container-fluid px-0 no-print">
+          <div v-if="view === 'attendance'" class="h-100 d-flex flex-column container-fluid px-0 no-print skn-attendance-layout">
             <div class="d-flex justify-content-between align-items-center mb-3">
               <div class="d-flex align-items-center gap-3">
                 <button @click="view = 'dashboard'" class="btn btn-white border shadow-sm rounded-circle p-0 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;"><i class="fas fa-arrow-left"></i></button>
@@ -1616,7 +1621,7 @@
 
 
             </div>
-            <div class="table-wrapper flex-grow-1 position-relative border-0 shadow-sm">
+            <div class="table-wrapper flex-grow-1 position-relative border-0 shadow-sm skn-attendance-scroll">
               <div style="overflow: auto; position: absolute; top:0; left:0; right:0; bottom:0; border-radius: 12px;">
                 <table class="table mb-0 bg-white"
                   style="border-collapse: separate; border-spacing: 0; min-width: 1400px;">
@@ -2212,7 +2217,7 @@
 
 <div class="mb-4">
   <label class="small text-secondary fw-bold mb-1">
-    รหัสผ่าน <span class="fw-normal text-muted">(เว้นว่างเพื่อใช้รหัสผ่านเดิม)</span>
+    รหัสผ่าน <span class="fw-normal text-muted">(แสดงให้เฉพาะผู้ดูแลเมื่อแก้ไขบัญชี)</span>
   </label>
   <input type="text" v-model="userForm.password" class="form-control form-fast py-2" placeholder="กรอกรหัสผ่าน">
 </div>
@@ -2448,26 +2453,31 @@ data() {
 },
 
     mounted() {
-  if (this.isLoggedIn) {
-    this.refreshData(); // โหลดครั้งแรกให้โชว์ Loading ปกติ
-  }
-
-  // ตั้งระบบ Auto-refresh เบื้องหลัง
-  setInterval(() => {
-    if (this.isLoggedIn && !this.loading) {
-      // ตรวจสอบจาก config ว่าปัจจุบันเปิดรับสมัครหรือโอนย้ายอยู่หรือไม่
-      const isUrgent = this.config && (this.config.open_reg === 'true' || this.config.allow_transfer === 'true');
-      
-      // ถ้าเป็นช่วงเร่งด่วน (เปิดรับสมัคร) ให้ดึงข้อมูลใหม่ทุก 1 นาที 
-      // ถ้าช่วงปกติ ให้ดึงทุก 5 นาที (300,000 ms)
-      const now = new Date().getTime();
-      const interval = isUrgent ? 60000 : 300000;
-
-      // ทำการ Refresh แบบเงียบๆ (Silent Refresh)
-      this.refreshData(true); 
-    }
-  }, 300000); // หรือปรับเป็น 60000 ถ้าต้องการให้เช็คถี่ขึ้นในช่วงเปิดรับสมัคร
-},
+      this._lastRefresh=0;this._refreshTimer=null;this._liveChannel=null;
+      // Works even if Realtime publication is not enabled: low-cost periodic fallback.
+      this._pollTimer=setInterval(()=>{
+        if(!this.isLoggedIn||document.hidden||this.loading)return;
+        const urgent=this.config?.open_reg==='true'||this.config?.allow_transfer==='true';
+        const interval=urgent?12000:45000;
+        if(Date.now()-(this._lastRefresh||0)>=interval)this.refreshData(true);
+      },4000);
+      this._onFocus=()=>{if(this.isLoggedIn)this.requestFastRefresh();};
+      window.addEventListener('focus',this._onFocus);
+      document.addEventListener('visibilitychange',this._onFocus);
+      if(this.isLoggedIn)this.refreshData();
+      else if(window.SKN_DB){
+        // Restore the existing signed Supabase session, without storing user passwords.
+        window.SKNBridge.invoke('resumeSession',[]).then(res=>{
+          if(res?.success&&!this.isLoggedIn){this.user=res.user;this.isLoggedIn=true;this.refreshData();}
+        }).catch(()=>{/* no previous login, keep the login screen */});
+      }
+    },
+    beforeUnmount(){
+      clearInterval(this._pollTimer);clearTimeout(this._refreshTimer);
+      window.removeEventListener('focus',this._onFocus);
+      document.removeEventListener('visibilitychange',this._onFocus);
+      if(this._liveChannel&&window.SKN_DB)window.SKN_DB.removeChannel(this._liveChannel);
+    },
 
     watch: {
       'clubForm.owner_ids': {
@@ -2728,46 +2738,37 @@ syncAdvancedSettings() {
         // ---------------------------------------------------------
         // ตรวจสอบการส่งข้อมูล บันทึกรายงาน (ต้องส่งรูปไปด้วย)
         // ---------------------------------------------------------
-        saveCurrentReport() {
-          if (this.loading) return; 
-          this.loading = true;
-          Swal.fire({ toast: true, position: 'top-end', title: 'กำลังบันทึกข้อมูลรายงาน...', showConfirmButton: false, didOpen: () => Swal.showLoading() });
-          
-          const payload = { 
-            teacher: this.reportData.teacher, 
-            actData: this.reportActData,
-            logo: this.reportData.logo,         // กลับมาส่งโลโก้
-            photos: this.reportData.photos,      // กลับมาส่งรูป
-            signatures: this.reportData.signatures // ลายเซ็นใน Drive (ที่ตอนนี้โดนบีบจนเล็กจิ๋วแล้ว)
-          };
-
-          google.script.run
-            .withSuccessHandler(res => {
-              this.loading = false; 
-              Swal.close(); 
-              if (res.success) {
-                const Toast = Swal.mixin({toast: true, position: 'top-end', showConfirmButton: false, timer: 2000});
-                Toast.fire({ icon: 'success', title: 'บันทึกรายงานลงฐานข้อมูลสำเร็จ' });
-              } else { Swal.fire('ข้อผิดพลาด', res.message, 'error'); }
-            })
-            .withFailureHandler(err => {
-              this.loading = false; 
-              Swal.close();
-              Swal.fire('การเชื่อมต่อขัดข้อง', 'ไม่สามารถบันทึกได้ โปรดลองอีกครั้ง (Error: ' + err + ')', 'error');
-            })
-            .saveClubReportData(this.currentClubId, payload);
+        async saveCurrentReport() {
+          if(this.loading||this.archiveReadonly)return;
+          clearTimeout(this._reportSaveTimer);
+          this.loading=true;
+          Swal.fire({title:'กำลังบันทึกรายงานและรูปภาพลง Drive...',allowOutsideClick:false,
+            didOpen:()=>Swal.showLoading()});
+          try {
+            await this.queueReportSave();
+            Swal.fire({toast:true,position:'top-end',icon:'success',
+              title:'บันทึกรายงานและรูปภาพเรียบร้อยแล้ว',timer:1900,showConfirmButton:false});
+          }catch(err){Swal.fire('บันทึกไม่สำเร็จ',err.message||String(err),'error');}
+          finally {this.loading=false;}
+        },
+        queueReportSave(){
+          const clubId=this.currentClubId;
+          if(!clubId||this.archiveReadonly)return Promise.resolve();
+          const payload={teacher:this.reportData.teacher,actData:JSON.parse(JSON.stringify(this.reportActData)),
+            logo:this.reportData.logo,photos:{...this.reportData.photos},
+            signatures:{...this.reportData.signatures}};
+          const invoke=()=>window.SKNBridge.invoke('saveClubReportData',[clubId,payload]);
+          const next=(this._reportSaveQueue||Promise.resolve()).catch(()=>{}).then(invoke);
+          this._reportSaveQueue=next;
+          return next;
         },
 
         // (เพิ่มไว้เผื่อมี) ปรับ saveCurrentReportSilently ให้ส่งรูปด้วย
         saveCurrentReportSilently() {
-          const payload = {
-            teacher: this.reportData.teacher,
-            actData: this.reportActData,
-            logo: this.reportData.logo,
-            photos: this.reportData.photos,
-            signatures: this.reportData.signatures
-          };
-          google.script.run.saveClubReportData(this.currentClubId, payload);
+          if(this.archiveReadonly)return;
+          clearTimeout(this._reportSaveTimer);
+          this._reportSaveTimer=setTimeout(()=>this.queueReportSave().catch(err=>
+            Swal.fire('บันทึกรูปไม่สำเร็จ',err.message||String(err),'error')),600);
         },
 
         // 5. Override ฟังก์ชัน loadClubData เดิม เพื่อดึงค่าที่ Save ไว้ด้วย
@@ -3322,23 +3323,14 @@ goToInsight() {
 
 // ฟังก์ชันค้นหาห้องสำหรับที่ปรึกษา
 searchByRoom() {
-  if (!this.lookup.room) {
-    Swal.fire('แจ้งเตือน', 'กรุณาระบุห้องที่ต้องการค้นหา', 'warning');
-    return;
-  }
-  this.loading = true;
-  this.roomStudents = [];
-  
-  google.script.run.withSuccessHandler(res => {
-    this.loading = false;
-    if (res && res.length > 0) {
-      this.roomStudents = res;
-    } else {
-      Swal.fire('ไม่พบข้อมูล', 'ไม่พบนักเรียนในห้องที่ระบุ กรุณาตรวจสอบชื่อห้องอีกครั้ง', 'info');
-    }
-  }).getStudentsByRoom(this.lookup.level, this.lookup.room);
+  const query=String(this.lookup.room||'').trim();
+  if (!query) { Swal.fire('แจ้งเตือน','กรุณาระบุชื่อ รหัส หรือห้องเรียน','warning');return; }
+  this.loading=true;this.roomStudents=[];
+  google.script.run.withFailureHandler(err=>{this.loading=false;Swal.fire('ค้นหาไม่สำเร็จ',String(err),'error');})
+    .withSuccessHandler(res=>{this.loading=false;this.roomStudents=res||[];
+      if(!this.roomStudents.length)Swal.fire('ไม่พบข้อมูล','ไม่มีนักเรียนที่ตรงกับคำค้น','info');})
+    .getStudentsByRoom(query);
 },
-
 
 // ฟังก์ชันดาวน์โหลดรายชื่อเป็นห้อง
 downloadRoomExcel() {
@@ -3665,16 +3657,39 @@ executeDownload(html, fileName) {
 
 
  
+requestFastRefresh(){
+  if(!this.isLoggedIn)return;
+  clearTimeout(this._refreshTimer);
+  this._refreshTimer=setTimeout(()=>this.refreshData(true),350);
+},
+attachRealtime(){
+  if(!this.isLoggedIn||!this.activePeriodId||!window.SKN_DB)return;
+  if(this._subscribedPeriod===this.activePeriodId)return;
+  if(this._liveChannel)window.SKN_DB.removeChannel(this._liveChannel);
+  this._subscribedPeriod=this.activePeriodId;
+  // Realtime subscription is optional; polling remains a fallback.
+  try{
+    const ch=window.SKN_DB.channel('skn-period-'+this.activePeriodId);
+    for(const table of ['registrations','clubs','period_config','period_teachers']){
+      ch.on('postgres_changes',{event:'*',schema:'public',table,filter:'period_id=eq.'+this.activePeriodId},()=>this.requestFastRefresh());
+    }
+    this._liveChannel=ch.subscribe();
+  }catch(err){console.warn('Realtime unavailable, polling enabled',err);}
+},
+
 refreshData(isSilent = false) {
+          if(this._refreshInFlight)return;
+          this._refreshInFlight=true;this._lastRefresh=Date.now();
           if (!isSilent) this.loading = true;
 
           google.script.run
             .withFailureHandler(err => {
-              this.loading = false;
+              this._refreshInFlight=false;
+              if(!isSilent)this.loading=false;
               if (!isSilent) Swal.fire('Error', 'ไม่สามารถดึงข้อมูลได้: ' + err, 'error');
             })
             .withSuccessHandler(data => {
-              if (!data) { this.loading = false; return; }
+              if (!data) { this._refreshInFlight=false; if(!isSilent)this.loading=false; return; }
 
               this.clubs = data.clubs || []; 
               this.config = data.config || {}; 
@@ -3682,6 +3697,7 @@ refreshData(isSilent = false) {
               this.periods = data.periods || [];
               this.activePeriodId = data.periodId || '';
               this.archiveReadonly = !!data.isReadonly;
+              this.attachRealtime();
               document.body.classList.toggle('archive-readonly', this.archiveReadonly);
               if (this.user && this.user.role === 'student') this.user.clubId = data.myClubId || '';
               
@@ -3706,7 +3722,8 @@ refreshData(isSilent = false) {
               }
               // --------------------------------------------------------
 
-              this.loading = false; 
+              this._refreshInFlight=false;
+              if(!isSilent)this.loading=false;
             }).getAppData();
         },
 
@@ -3726,13 +3743,8 @@ refreshData(isSilent = false) {
     },
 
 
-        fetchData() {
-          google.script.run.withSuccessHandler(data => {
-            this.clubs = data.clubs; this.config = data.config; this.teachersList = data.teachers;
-            if(this.user.role === 'admin') google.script.run.withSuccessHandler(s => this.summary = s).getAdminSummary();
-          }).getAppData();
-        },
-        saveConfig() { google.script.run.withSuccessHandler(() => { const Toast = Swal.mixin({toast: true, position: 'top-end', showConfirmButton: false, timer: 1500}); Toast.fire({ icon: 'success', title: 'บันทึกค่าแล้ว' }); }).updateConfig(this.config); },
+        fetchData(){this.requestFastRefresh();},
+        saveConfig() { google.script.run.withSuccessHandler(() => {this.requestFastRefresh(); const Toast = Swal.mixin({toast: true, position: 'top-end', showConfirmButton: false, timer: 1500}); Toast.fire({ icon: 'success', title: 'บันทึกค่าแล้ว' }); }).updateConfig(this.config); },
        
         goToAttendance(club) { this.loadClubData(club, 'attendance'); },
         goToReport(club) {
@@ -3831,43 +3843,22 @@ refreshData(isSilent = false) {
         fetchUsers(role) { Swal.fire({ toast: true, position: 'top-end', title: 'กำลังโหลด...', showConfirmButton: false, didOpen: () => Swal.showLoading() }); google.script.run.withSuccessHandler(res => { Swal.close(); this.usersList = res; }).getUsersByRole(role); },        
        
       // ใน Index.html ส่วน methods:
-openUserModal(u = null) {
+async openUserModal(u = null) {
   if (u) {
-    // กรณี "แก้ไข": ดึงข้อมูลเดิมมาแสดงทั้งหมดรวมถึง Password และ Role
-    this.userForm = { 
-      id: u.id, 
-      new_id: u.id, 
-      name: u.name, 
-      username: u.username || '', 
-      password: u.password || '', // ดึงรหัสผ่านปัจจุบันมาแสดง
-      role: u.role || 'teacher',  // ดึงสิทธิ์ปัจจุบันมาแสดง (สำหรับครู)
-      level: u.level || '', 
-      room: u.room || '', 
-      no: u.no || '', 
-      role_type: this.manageRole 
-    };
+    this.userForm={id:u.id,new_id:u.id,name:u.name,username:u.username||'',password:'',
+      role:u.role||'teacher',level:u.level||'',room:u.room||'',no:u.no||'',role_type:this.manageRole};
   } else {
-    // กรณี "เพิ่มใหม่": กำหนดค่าเริ่มต้นให้ว่าง
-    this.userForm = { 
-      id: '', 
-      new_id: '', 
-      name: '', 
-      username: '', 
-      password: '', 
-      role: 'teacher', // ค่าเริ่มต้นสำหรับครูใหม่
-      level: '', 
-      room: '', 
-      no: '', 
-      role_type: this.manageRole 
-    };
+    this.userForm={id:'',new_id:'',name:'',username:'',password:'',role:'teacher',
+      level:'',room:'',no:'',role_type:this.manageRole};
   }
-  
-  // เรียกใช้งาน Modal ของ Bootstrap 5
-  const modalElement = document.getElementById('userModal');
-  const modal = bootstrap.Modal.getOrCreateInstance(modalElement); 
-  modal.show();
+  const el=document.getElementById('userModal');bootstrap.Modal.getOrCreateInstance(el).show();
+  if(u && this.user?.role==='admin'){
+    try {
+      const original=await window.SKNBridge.invoke('getUserPassword',[this.manageRole,u.id]);
+      if(this.userForm.id===u.id && this.manageRole===this.userForm.role_type)this.userForm.password=original||'';
+    } catch(err){Swal.fire('อ่านรหัสผ่านไม่ได้',err.message||String(err),'error');}
+  }
 },
-
 
 submitUser() {
     // 1. เริ่มแสดงสถานะ Loading
@@ -4002,7 +3993,7 @@ submitUser() {
                         allowOutsideClick: false
                     }).then((result) => {
                         if (result.isConfirmed) {
-                            app.fetchUsers(app.manageRole);
+                            app.requestFastRefresh();app.fetchUsers(app.manageRole);
                         }
                     });
                     
@@ -4212,7 +4203,7 @@ downloadCSVTemplate() {
             const saved=await window.SKNFile.invoke('saveFile',{periodId,clubId:'ADMIN-REPORT',slot,
               mime:'image/png',base64:uri.split(',')[1],fileName:slot+'.png'});
             this.adminReportSignatures={...this.adminReportSignatures,[slot]:uri};
-            this.adminSettings.signatureFiles={...(this.adminSettings.signatureFiles||{}),[slot]:{id:saved.id}};
+            this.adminSettings.signatureFiles={...(this.adminSettings.signatureFiles||{}),[slot]:{id:saved.id,url:saved.url||''}};
             const res=await window.SKNBackend.invoke('saveAdvancedSystemSettings',[{adminSettings:this.adminSettings}],periodId);
             if(!res.success)throw Error(res.message||'บันทึกลายเซ็นไม่สำเร็จ');
             Swal.fire({toast:true,position:'top-end',icon:'success',title:'บันทึกภาพลายเซ็นแล้ว',timer:1400,showConfirmButton:false});
@@ -4257,19 +4248,7 @@ downloadCSVTemplate() {
            });
         },
 
-        // ฟังก์ชันสั่งเซฟเงียบๆ หลังอัปรูปเสร็จ
-        saveCurrentReportSilently() {
-          const payload = {
-            teacher: this.reportData.teacher,
-            actData: this.reportActData,
-            logo: this.reportData.logo,
-            photos: this.reportData.photos,
-            signatures: this.reportData.signatures
-          };
-          google.script.run.saveClubReportData(this.currentClubId, payload);
-        },
-
-
+        // ใช้ฟังก์ชัน saveCurrentReportSilently ชุดเดียว (ด้านบน) เพื่อป้องกันการบันทึกซ้อน
 
         printReport() { window.print(); },
         enroll(c) {
@@ -4277,7 +4256,7 @@ downloadCSVTemplate() {
           Swal.fire({ title: isTransfer ? 'ยืนยันย้าย?' : 'ยืนยันสมัคร?', text: c.name, icon: 'question', showCancelButton: true, confirmButtonColor: '#2563eb' }).then(r => {
             if(r.isConfirmed) {
               google.script.run.withSuccessHandler(res => {
-                if(res.success) { Swal.fire('สำเร็จ', res.message, 'success'); this.user.clubId = c.id; this.fetchData(); }
+                if(res.success) { Swal.fire('สำเร็จ', res.message, 'success'); this.user.clubId = c.id; this.requestFastRefresh(); }
                 else Swal.fire('Error', res.message, 'error');
               }).registerClub(this.user.id, c.id);
             }
@@ -4327,7 +4306,7 @@ downloadCSVTemplate() {
     google.script.run.withSuccessHandler(() => {
         this.loading = false; // ปิดแอนิเมชัน
         bootstrap.Modal.getInstance(document.getElementById('clubModal')).hide();
-        this.fetchData();
+        this.requestFastRefresh();
         Swal.fire('สำเร็จ', 'บันทึกข้อมูลชุมนุมเรียบร้อยแล้ว', 'success');
     }).withFailureHandler(() => {
         this.loading = false; // ปิดแอนิเมชันหากเกิดข้อผิดพลาด
@@ -4437,20 +4416,12 @@ downloadCSVTemplate() {
                       text: 'ระบบพร้อมสำหรับการใช้งานในภาคเรียนที่ ' + this.resetOptions.newSemester + '/' + this.resetOptions.newYear + ' แล้ว',
                       icon: 'success',
                       confirmButtonText: 'เริ่มใช้งาน'
-                    }).then(() => {
-                      // แจ้งโหลดดิ้งกันผู้ใช้กดปุ่มอื่นระหว่างรอ
-                      Swal.fire({ 
-                        title: 'กำลังรีสตาร์ทระบบ...', 
-                        allowOutsideClick: false, 
-                        didOpen: () => Swal.showLoading() 
-                      });
-                      
-                      // เรียกขอ URL จากหลังบ้าน แล้วสั่งให้เบราว์เซอร์หลักวิ่งไปที่ URL นั้น (เหมือนการกด F5)
-                      google.script.run.withSuccessHandler(url => {
-                        window.top.location.href = url;
-                      }).getWebAppUrl();
-                      
+                    }).then(()=>{
+                      // Stay on the same authenticated page; do not re-login.
+                      this.view='dashboard';
+                      this.requestFastRefresh();
                     });
+                      
                   } else {
                     Swal.fire('ข้อผิดพลาด', res.message, 'error');
                   }

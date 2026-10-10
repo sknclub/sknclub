@@ -1,4 +1,4 @@
-/* SKN browser backend V3: username/student-ID login, no email auth.
+/* SKN browser backend V3.3: username/student-ID login, no email auth.
    Anonymous Supabase session provides only a signed JWT, application credentials are checked via PostgreSQL RPC.
    SQL RLS and SECURITY DEFINER RPCs enforce security; never put a service key here. */
 const db = window.SKN_DB;
@@ -48,13 +48,16 @@ function validateGrid(g) { assert(g && Array.isArray(g.dates) && g.dates.length 
 function renderClub(c, regs, teachers) { return { id: c.id, name: c.name, max_capacity: c.max_capacity, current_count: regs.filter(r => r.club_id === c.id).length, level: c.level, owner_id: c.owner_ids.join(','), teacher_name: c.owner_ids.map((id) => teachers.find(t => t.id === id)?.name || '').filter(Boolean).join(', '), location: c.location, comment: c.comment }; }
 function studentView(s, regs) { return { ...s, password: '', club_id: regs.find(r => r.student_id === s.id)?.club_id || '' }; }
 async function gas(action, payload) { return window.SKNFile.invoke(action, payload); }
-async function sum(p) { const [ss, tt, cc, rr] = await Promise.all([all('students', p), all('period_teachers', p), all('clubs', p), all('registrations', p)]); const owners = new Set(cc.flatMap(c => c.owner_ids)); return { student: { total: ss.length, registered: rr.length, unregistered: ss.length - rr.length }, teacher: { total: tt.length, hasClub: tt.filter(t => owners.has(t.teacher_id)).length, noClub: tt.filter(t => !owners.has(t.teacher_id)).length }, clubsCount: cc.length }; }
+const sknEncoder = typeof TextEncoder !== 'undefined' ? new TextEncoder() : null;
+function sknHex(bytes) { return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join(''); }
+function newRegistrationId() { return 'REG-' + Date.now().toString(36).toUpperCase() + '-' + crypto.randomUUID().slice(0, 6).toUpperCase(); }
+async function sum(p) { const [ss, tt, cc, rr, teacherProfiles] = await Promise.all([all('students', p), all('period_teachers', p), all('clubs', p), all('registrations', p), all('teachers')]); const admins = new Set(teacherProfiles.filter(t => t.role === 'admin').map(t => t.id)); const teachers = tt.filter(t => t.teacher_id !== 'T01' && !admins.has(t.teacher_id)); const owners = new Set(cc.flatMap(c => c.owner_ids)); return { student: { total: ss.length, registered: rr.length, unregistered: ss.length - rr.length }, teacher: { total: teachers.length, hasClub: teachers.filter(t => owners.has(t.teacher_id)).length, noClub: teachers.filter(t => !owners.has(t.teacher_id)).length }, clubsCount: cc.length }; }
 async function snapshot(periodId) { const data = { format: 'SKN-SUPABASE-V1', created_at: new Date().toISOString(), period: (await getPeriod(periodId)).period, tables: {} }; for (const name of ['teachers', 'period_teachers', 'students', 'clubs', 'registrations', 'attendance', 'club_reports', 'period_config']) {
     const records = name === 'teachers' ? await all(name) : await all(name, periodId);
     data.tables[name] = records;
 } return data; }
 async function mediaSave(input, existing, p, c, slot) {
-    if (!input)
+    if (!input || input === '__DELETE__')
         return null;
     if (typeof input !== 'string')
         throw Error('รูปภาพต้องเป็นข้อความ');
@@ -67,11 +70,12 @@ async function mediaSave(input, existing, p, c, slot) {
     const match = input.match(/^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=]+)$/);
     assert(match, 'รองรับรูป PNG, JPEG หรือ WebP เท่านั้น');
     assert(match[2].length < 2_500_000, 'ภาพมีขนาดใหญ่เกินไป');
-    const sha = hex(new Uint8Array(await crypto.subtle.digest('SHA-256', encoder.encode(match[2]))));
+    const sha = sknHex(new Uint8Array(await crypto.subtle.digest('SHA-256', sknEncoder ? sknEncoder.encode(match[2]) : Uint8Array.from(match[2], (c) => c.charCodeAt(0)))));
     if (existing?.[slot]?.sha === sha)
         return existing[slot];
     const r = await gas('saveFile', { periodId: p, clubId: c, slot, fileName: `${slot}-${sha.slice(0, 12)}.${match[1].split('/')[1]}`, mime: match[1], base64: match[2] });
-    return { id: r.id, sha, mime: match[1] };
+    assert(r?.success === true && r.id, 'Google Drive ไม่ได้ส่ง File ID กลับมา');
+    return { id: r.id, sha, mime: match[1], url: r.url || `https://drive.google.com/file/d/${encodeURIComponent(r.id)}/view` };
 }
 function csvParse(raw) { const text = raw.replace(/^\ufeff/, ''); const first = text.split(/\r?\n/, 1)[0]; const delim = (first.match(/;/g) || []).length > (first.match(/,/g) || []).length ? ';' : ','; const out = []; let row = [], cell = '', quoted = false; for (let i = 0; i < text.length; i++) {
     const ch = text[i];
@@ -130,7 +134,7 @@ function sknAuthError(error) {
 }
 async function checkLogin(username, password) {
     // No email login. Supabase Anonymous Auth only supplies the JWT for RLS;
-    // Teachers.username / Students.id and their password hashes are checked by SQL RPC.
+    // Teachers.username / Students.id and their plaintext passwords are checked by a database-only SQL RPC (NEVER SELECT passwords in browsers).
     if (!db)
         throw Error(window.SKN_CONFIG_ERROR || 'ยังไม่ได้ตั้งค่า Supabase ใน web/config.js');
     let existing;
@@ -215,6 +219,13 @@ async function sknInvoke(method, args, periodId) {
     const isAdmin = u.role === 'admin';
     let output;
     switch (method) {
+        case 'resumeSession': {
+            const reg = u.type === 'student' ? await result(db.from('registrations').select('club_id').eq('period_id', p.id).eq('student_id', u.id).maybeSingle()) : null;
+            const owned = u.type === 'teacher' ? await result(db.from('clubs').select('owner_ids').eq('period_id', p.id)) : [];
+            output = { success: true, user: { id: u.id, name: u.name, role: u.role, level: u.level || '',
+                    clubId: reg?.club_id || '', hasClub: owned.some((c) => c.owner_ids.includes(u.id)) } };
+            break;
+        }
         case 'getPeriods':
             output = { periods, periodId: p.id, isReadonly: !canEdit(u, p) };
             break;
@@ -228,7 +239,7 @@ async function sknInvoke(method, args, periodId) {
             const memberships = await all('period_teachers', p.id);
             const selected = memberships.map(m => ({ id: m.teacher_id, name: m.display_name || teachers.find(t => t.id === m.teacher_id)?.name || '' }));
             output = { clubs: clubs.map(c => renderClub(c, regs, selected)), config, teachers: selected, summary: isAdmin ? await sum(p.id) : null,
-                serverTime: Date.now(), periods: periods.map(x => ({ id: x.id, academicYear: x.academic_year, semester: x.semester, isCurrent: x.is_current })),
+                serverTime: Date.now(), periods: periods.map(x => ({ id: x.id, periodCode: x.period_code || `${x.academic_year}-${x.semester}`, academicYear: x.academic_year, semester: x.semester, isCurrent: x.is_current })),
                 periodId: p.id, isReadonly: !canEdit(u, p), myClubId: u.type === 'student' ? regs.find(r => r.student_id === u.id)?.club_id || '' : '' };
             break;
         }
@@ -321,16 +332,19 @@ async function sknInvoke(method, args, periodId) {
         }
         case 'getStudentsByRoom': {
             assert(u.role !== 'student');
+            // Backward compatible: old call(level,room) or new call(query). No level is required.
+            const query = String(args.length > 1 ? args[1] : args[0] || '').trim().toLocaleLowerCase('th-TH');
+            assert(query.length >= 1 && query.length <= 120, 'กรุณากรอกชื่อ รหัสนักเรียน หรือห้อง');
             const [ss, rr, cc] = await Promise.all([all('students', p.id), all('registrations', p.id), all('clubs', p.id)]);
-            output = ss.filter(s => {
-                const level = String(args[0]), room = String(args[1]).trim();
-                const target = String(s.room || '').trim();
-                const roomMatch = target === room || (s.level + '.' + target) === room ||
-                    (s.level + '/' + target) === room || target.replace(/^ม\.[1-6]\/?/, '') === room.replace(/^ม\.[1-6]\/?/, '');
-                const levelMatch = s.level === level || (level === 'ม.ต้น' && /^ม\.[123]/.test(s.level)) ||
-                    (level === 'ม.ปลาย' && /^ม\.[456]/.test(s.level));
-                return roomMatch && levelMatch;
-            }).sort((a, b) => Number(a.no) - Number(b.no)).map(s => ({ id: s.id, name: s.name, no: s.no, club_name: cc.find(c => c.id === rr.find(r => r.student_id === s.id)?.club_id)?.name || 'ยังไม่ได้สมัครชุมนุม' }));
+            const clubNames = new Map(cc.map(c => [c.id, c.name]));
+            const regByStudent = new Map(rr.map(r => [r.student_id, r.club_id]));
+            const normalized = (x) => String(x || '').trim().toLocaleLowerCase('th-TH').replace(/\s+/g, '');
+            const compactQuery = normalized(query);
+            output = ss.filter(s => [s.id, s.name, s.room, `${s.level}/${s.room}`, `${s.level}${s.room}`].some(v => normalized(v).includes(compactQuery)))
+                .sort((a, b) => a.room.localeCompare(b.room, 'th', { numeric: true }) || Number(a.no) - Number(b.no))
+                .slice(0, 1000)
+                .map(s => ({ id: s.id, name: s.name, level: s.level, room: s.room, no: s.no,
+                club_name: clubNames.get(regByStudent.get(s.id)) || 'ยังไม่ได้สมัครชุมนุม' }));
             break;
         }
         case 'getUsersByRole': {
@@ -345,6 +359,16 @@ async function sknInvoke(method, args, periodId) {
                 const [ss, rr] = await Promise.all([all('students', p.id), all('registrations', p.id)]);
                 output = ss.map(s => studentView(s, rr)).sort((a, b) => a.level.localeCompare(b.level, 'th', { numeric: true }) || a.room.localeCompare(b.room, 'th', { numeric: true }) || Number(a.no) - Number(b.no));
             }
+            break;
+        }
+        case 'getUserPassword': {
+            mustAdmin(u);
+            const type = String(args[0]);
+            const targetId = String(args[1] || '');
+            assert(['teacher', 'student'].includes(type) && targetId, 'ประเภทหรือรหัสบัญชีไม่ถูกต้อง');
+            output = await result(db.rpc('skn_admin_get_password', {
+                p_period: p.id, p_role: type, p_user_id: targetId
+            }));
             break;
         }
         case 'saveUser': {
@@ -493,8 +517,16 @@ async function sknInvoke(method, args, periodId) {
                 break;
             }
             const ids = Object.entries(r.media || {}).filter(([_, v]) => v?.id).map(([k, v]) => ({ slot: k, id: v.id }));
-            const imgs = ids.length ? await gas('getFiles', { periodId: p.id, clubId: id, files: ids }) : { files: {} };
-            output = { found: true, data: { teacher: r.teacher, actData: r.act_data, logo: imgs.files?.logo || '', photos: { 1: imgs.files?.photo_1 || '', 2: imgs.files?.photo_2 || '', 3: imgs.files?.photo_3 || '', 4: imgs.files?.photo_4 || '' }, signatures: Object.fromEntries(['sigTeacher', 'sigHeadClub', 'sigHeadDev', 'sigDeputy', 'sigDirector'].map(k => [k, imgs.files?.[k] || ''])) } };
+            let imgs = { files: {} };
+            if (ids.length) {
+                try {
+                    imgs = await gas('getFiles', { periodId: p.id, clubId: id, files: ids });
+                }
+                catch (e) {
+                    console.warn('GAS image fetch failed; report text is still available', e);
+                }
+            }
+            output = { found: true, data: { teacher: r.teacher, actData: r.act_data, logo: imgs.files?.logo || '', photos: { 1: imgs.files?.photo_1 || '', 2: imgs.files?.photo_2 || '', 3: imgs.files?.photo_3 || '', 4: imgs.files?.photo_4 || '' }, mediaUrls: Object.fromEntries(Object.entries(r.media || {}).map(([k, v]) => [k, v?.url || ''])), signatures: Object.fromEntries(['sigTeacher', 'sigHeadClub', 'sigHeadDev', 'sigDeputy', 'sigDirector'].map(k => [k, imgs.files?.[k] || ''])) } };
             break;
         }
         case 'sendClubReportEmail': {
@@ -528,7 +560,7 @@ async function sknInvoke(method, args, periodId) {
                 }
             }
             else if (kind === 'Registration') {
-                const data = items.filter(x => x.student_id && x.club_id).map(x => ({ period_id: p.id, reg_id: String(x.reg_id || 'REG-' + crypto.randomUUID()), student_id: String(x.student_id), club_id: String(x.club_id) }));
+                const data = items.filter(x => x.student_id && x.club_id).map(x => ({ period_id: p.id, reg_id: String(x.reg_id || newRegistrationId()), student_id: String(x.student_id), club_id: String(x.club_id) }));
                 for (let i = 0; i < data.length; i += 50)
                     await result(db.rpc('skn_import_registration', { p_period: p.id, p_rows: data.slice(i, i + 50) }));
             }
