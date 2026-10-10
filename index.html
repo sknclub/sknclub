@@ -887,7 +887,7 @@
             <button class="btn btn-white border btn-fast shadow-sm" @click="goToManageUsers">
               <i class="fas fa-users-cog me-1 text-warning"></i> จัดการผู้ใช้
             </button>
-            <button class="btn btn-white border btn-fast shadow-sm" @click="view = 'admin_settings'">
+            <button class="btn btn-white border btn-fast shadow-sm" @click="view = 'admin_settings'; loadDriveFolderInfo()">
                <i class="fas fa-cogs me-1 text-danger"></i> ตั้งค่าระบบขั้นสูง
             </button>
           </template>
@@ -1264,8 +1264,13 @@
               <input type="email" v-model.trim="adminSettings.reportEmail" class="form-control form-fast" placeholder="report@school.ac.th"><div class="form-text">ปุ่มส่งอีเมลในหน้ารายงานจะส่ง PDF ไปยังที่อยู่นี้โดยอัตโนมัติ ไม่เกี่ยวข้องกับการล็อกอิน</div>
             </div>
             <div class="col-12">
-              <label class="small fw-bold text-muted">Google Drive Folder ID เดิม (ระบบใหม่ตั้งค่าโฟลเดอร์ผ่าน GAS Script Properties)</label>
-              <input type="text" v-model="adminSettings.driveFolderId" class="form-control form-fast" disabled>
+              <label class="small fw-bold text-muted">Google Drive — โฟลเดอร์หลักที่ GAS ใช้งานจริง (Folder ID)</label>
+              <div class="input-group">
+                <input type="text" :value="driveFolderInfo.id || adminSettings.driveFolderId || 'กำลังรอเชื่อมต่อ GAS'" class="form-control form-fast" readonly title="Folder ID จริงจาก GAS Script Properties">
+                <button type="button" class="btn btn-outline-primary" @click="loadDriveFolderInfo" title="อ่านรหัสจาก GAS อีกครั้ง"><i class="fas fa-sync-alt"></i></button>
+              </div>
+              <div class="form-text" v-if="driveFolderInfo.name">ชื่อโฟลเดอร์: {{ driveFolderInfo.name }} — <a :href="driveFolderInfo.url" target="_blank" rel="noopener noreferrer">เปิด Google Drive</a></div>
+              <div class="form-text">ปรับโฟลเดอร์ต้นทางได้ที่ GAS → Script Properties → SKN_DRIVE_FOLDER_ID เท่านั้น (ป้องกันการเปลี่ยนผิด)</div>
             </div>
           </div>
         </div>
@@ -1776,6 +1781,10 @@
 
             </div>
 
+            <div v-if="reportMediaErrors.length" class="alert alert-warning container-xl no-print d-flex flex-wrap justify-content-between align-items-center gap-2">
+              <span><i class="fas fa-image me-2"></i>มีรูปภาพจาก Drive โหลดไม่ครบ {{ reportMediaErrors.length }} รายการ ข้อมูลอ้างอิงเดิมยังอยู่ใน Supabase</span>
+              <button class="btn btn-sm btn-outline-dark" @click="reloadReportImages" :disabled="loading"><i class="fas fa-sync-alt me-1"></i>ลองโหลดภาพอีกครั้ง</button>
+            </div>
             <div class="a4-container cover-page page-break-after shadow-sm d-flex flex-column"
               style="padding: 1.5cm 1.5cm; height: 29.7cm; width: 21cm; box-sizing: border-box; background: white; margin: 0 auto; overflow: hidden;">
 
@@ -2078,6 +2087,9 @@
                       <i class="fas fa-camera fa-2x mb-2 opacity-25"></i><br>
                       <span class="small">เพิ่มรูปภาพกิจกรรม ({{n}})</span>
                     </div>
+                    <button v-if="reportData.photos[n] === '__DELETE__'" type="button" @click.stop="restorePhoto(n)"
+                      class="btn btn-outline-warning btn-sm position-absolute bottom-0 start-50 translate-middle-x mb-2 no-print"
+                      style="z-index:11;background:#fff;white-space:nowrap">ยกเลิกการลบรูป</button>
                     <input type="file" :ref="'photoInput'+n" class="d-none" @change="uploadPhoto($event, n)" accept="image/*">
                     
                     <!-- ปุ่มกากบาท ลบรูปภาพ (ซ่อนตอนปริ้นด้วยคลาส no-print) -->
@@ -2386,6 +2398,8 @@ data() {
     attData: { dates: [], records: {} },
     reportData: { teacher: '', photos: {}, logo: '', signatures: {} },
     reportMediaErrors: [],
+    pendingPhotoUndo: {},
+    driveFolderInfo: {id:'',name:'',url:''},
     signatureSlot: '',
     adminSignatureSlot: '',
     adminReportSignatures: {},
@@ -2753,8 +2767,11 @@ syncAdvancedSettings() {
           Swal.fire({title:'กำลังบันทึกรายงานและรูปภาพลง Drive...',allowOutsideClick:false,
             didOpen:()=>Swal.showLoading()});
           try {
-            await this.queueReportSave();
-            Swal.fire({toast:true,position:'top-end',icon:'success',
+            const saved=await this.queueReportSave();
+            this.pendingPhotoUndo={};
+            if(saved?.cleanupPending)Swal.fire('บันทึกแล้ว แต่ลบภาพเก่ายังไม่ครบ',
+              'รายงานบันทึกสำเร็จแล้ว ส่วนภาพที่เลิกใช้จะถูกจัดการอีกครั้งเมื่อกดบันทึกรายงาน: '+(saved.cleanupErrors||[]).join(', '),'warning');
+            else Swal.fire({toast:true,position:'top-end',icon:'success',
               title:'บันทึกรายงานและรูปภาพเรียบร้อยแล้ว',timer:1900,showConfirmButton:false});
           }catch(err){Swal.fire('บันทึกไม่สำเร็จ',err.message||String(err),'error');}
           finally {this.loading=false;}
@@ -3759,7 +3776,7 @@ refreshData(isSilent = false) {
         goToAttendance(club) { this.loadClubData(club, 'attendance'); },
         goToReport(club) {
             this.reportData.teacher = club ? club.teacher_name : this.reportData.teacher;
-            if(club){this.reportData.signatures = {};this.reportMediaErrors=[];}
+            if(club){this.reportData.signatures = {};this.reportMediaErrors=[];this.pendingPhotoUndo={};}
             if(club) this.loadClubData(club, 'report');
             else this.view = 'report';
         },
@@ -4224,6 +4241,9 @@ downloadCSVTemplate() {
             this.adminSettings.signatureFiles={...(this.adminSettings.signatureFiles||{}),[slot]:{id:saved.id,url:saved.url||''}};
             const res=await window.SKNBackend.invoke('saveAdvancedSystemSettings',[{adminSettings:this.adminSettings}],periodId);
             if(!res.success)throw Error(res.message||'บันทึกลายเซ็นไม่สำเร็จ');
+            // Remove superseded admin signature ONLY after settings were committed.
+            try{await window.SKNBackend.invoke('cleanupOldMedia',['ADMIN-REPORT'],periodId);}
+            catch(cleanErr){console.warn('Admin signature cleanup pending:',cleanErr.message||cleanErr);}
             Swal.fire({toast:true,position:'top-end',icon:'success',title:'บันทึกภาพลายเซ็นแล้ว',timer:1400,showConfirmButton:false});
           }catch(err){Swal.fire('ไม่สามารถบันทึก',err.message||String(err),'error');}
         },
@@ -4483,28 +4503,51 @@ downloadCSVTemplate() {
         // ฟังก์ชันลบรูปภาพกิจกรรม
         // ---------------------------------------------------------
         removePhoto(index) {
-           Swal.fire({
-             title: 'ต้องการลบรูปภาพนี้?',
-             icon: 'warning',
-             showCancelButton: true,
-             confirmButtonColor: '#d33',
-             cancelButtonColor: '#6c757d',
-             confirmButtonText: 'ลบรูปภาพ',
-             cancelButtonText: 'ยกเลิก'
-           }).then((result) => {
-             if (result.isConfirmed) {
-               // ล้างค่ารูปภาพทิ้ง
-               if(this.archiveReadonly)return;
-    this.reportData.photos[index] = '__DELETE__'; 
-               
-               // แอบเซฟลงระบบอัตโนมัติ เพื่อลบภาพออกจากฐานข้อมูลชีตทันที
-               this.saveCurrentReportSilently(); 
-               
-               const Toast = Swal.mixin({toast: true, position: 'top-end', showConfirmButton: false, timer: 1500});
-               Toast.fire({ icon: 'success', title: 'ลบรูปภาพเรียบร้อย' });
-             }
-           });
+          if(this.archiveReadonly)return;
+          Swal.fire({title:'เตรียมลบรูปภาพนี้?',
+            text:'ระบบจะลบไฟล์ใน Google Drive หลังจากกด “บันทึกรายงาน” สำเร็จเท่านั้น ก่อนบันทึกสามารถยกเลิกได้',
+            icon:'question',showCancelButton:true,confirmButtonText:'ทำเครื่องหมายลบ',cancelButtonText:'ยกเลิก'}).then(result=>{
+            if(!result.isConfirmed)return;
+            this.pendingPhotoUndo={...this.pendingPhotoUndo,[index]:this.reportData.photos[index]};
+            this.reportData.photos={...this.reportData.photos,[index]:'__DELETE__'};
+            Swal.fire({toast:true,position:'top-end',icon:'info',title:'ทำเครื่องหมายลบแล้ว — กรุณากดบันทึกรายงาน',timer:2700,showConfirmButton:false});
+          });
         },
+        restorePhoto(index) {
+          const old=this.pendingPhotoUndo[index];
+          if(old){this.reportData.photos={...this.reportData.photos,[index]:old};}
+          else this.reportData.photos={...this.reportData.photos,[index]:''};
+          const next={...this.pendingPhotoUndo};delete next[index];this.pendingPhotoUndo=next;
+        },
+        async reloadReportImages() {
+          if(!this.currentClubId||this.loading)return;
+          this.loading=true;
+          try{
+            const res=await window.SKNBridge.invoke('getSavedClubReport',[this.currentClubId]);
+            if(!res?.found)throw Error('ไม่พบรายงาน');
+            const d=res.data||{};
+            if(d.logo&&!this.reportData.logo)this.reportData.logo=d.logo;
+            const photos={...this.reportData.photos};
+            for(let i=1;i<=4;i++)if(d.photos?.[i]&&!photos[i])photos[i]=d.photos[i];
+            this.reportData.photos=photos;
+            const sigs={...this.reportData.signatures};
+            for(const [k,v] of Object.entries(d.signatures||{}))if(v&&!sigs[k])sigs[k]=v;
+            this.reportData.signatures=sigs;
+            this.reportMediaErrors=d.mediaErrors||[];
+            if(this.reportMediaErrors.length)Swal.fire('ยังโหลดภาพไม่ครบ',this.reportMediaErrors.join('\n').slice(0,800),'warning');
+            else Swal.fire({toast:true,position:'top-end',icon:'success',title:'โหลดรูปภาพจาก Drive เรียบร้อยแล้ว',timer:1800,showConfirmButton:false});
+          }catch(err){Swal.fire('โหลดรูปภาพไม่สำเร็จ',err.message||String(err),'error');}
+          finally{this.loading=false;}
+        },
+        async loadDriveFolderInfo() {
+          if(this.user?.role!=='admin'||!this.activePeriodId)return;
+          try {
+            const info=await window.SKNFile.invoke('getDriveInfo',{periodId:this.activePeriodId,clubId:'ADMIN-REPORT'});
+            if(info?.success){this.driveFolderInfo={id:info.id,name:info.name,url:info.url};
+              this.adminSettings.driveFolderId=info.id;}
+          }catch(error){console.warn('SKN folder info:',error.message||error);}
+        },
+
 
 
 // ---------------------------------------------------------
@@ -4517,6 +4560,7 @@ downloadCSVTemplate() {
           // Clone the actual report, including user-edited text, images and signatures.
           const pages=[...document.querySelectorAll('.a4-container')];
           if(pages.length<1)throw Error('ไม่พบเนื้อหารายงานสำหรับสร้าง PDF');
+          if(pages.map(x=>x.innerText||'').join('').trim().length<160)throw Error('รายงานไม่มีเนื้อหาพอสำหรับสร้าง PDF');
           const target=document.createElement('div');
           target.className='skn-pdf-document';
           target.style.cssText='background:#fff;width:210mm;box-sizing:border-box;color:#000';
@@ -4548,16 +4592,36 @@ downloadCSVTemplate() {
           });
           document.body.appendChild(target);
           target.style.position='absolute';target.style.left='0';target.style.top='0';
-          target.style.zIndex='-10';
+          target.style.zIndex='1000';target.style.pointerEvents='none';target.style.opacity='1';
           try{
-            const pdf=await window.html2pdf().set({margin:0,
-              image:{type:'jpeg',quality:0.78},
-              html2canvas:{scale:1.25,useCORS:true,backgroundColor:'#ffffff',logging:false},
+            // Wait for every report image to decode BEFORE the html2canvas snapshot.
+            const imgs=[...target.querySelectorAll('img')];
+            await Promise.all(imgs.map(im=>im.complete?Promise.resolve():new Promise((resolve,reject)=>{
+              im.onload=resolve;im.onerror=()=>reject(Error('ไม่สามารถโหลดรูปภาพรายงานก่อนสร้าง PDF'));
+            })));
+            if(imgs.some(im=>!im.naturalWidth))throw Error('รูปภาพบางส่วนยังไม่พร้อมสำหรับสร้าง PDF');
+            const worker=window.html2pdf().set({margin:0,
+              image:{type:'jpeg',quality:0.77},
+              html2canvas:{scale:1.10,useCORS:true,backgroundColor:'#ffffff',logging:false},
               jsPDF:{unit:'mm',format:'a4',orientation:'portrait',compress:true},
               pagebreak:{mode:['css','legacy'],after:'.page-break-after',before:'.page-break-before'}
-            }).from(target).outputPdf('blob');
-            if(!(pdf instanceof Blob)||pdf.type!=='application/pdf'&&pdf.size===0)
-              throw Error('สร้าง PDF ไม่สำเร็จ');
+            }).from(target);
+            await worker.toCanvas();
+            const canvas=await worker.get('canvas');
+            if(!canvas||!canvas.width||!canvas.height)throw Error('PDF ไม่มีภาพเอกสาร');
+            // Reject an all-white rendering; most blank attachments came from an invisible snapshot.
+            const ct=canvas.getContext('2d',{willReadFrequently:true});
+            const w=canvas.width,h=canvas.height;
+            let dark=0;const stepx=Math.max(1,Math.floor(w/45)),stepy=Math.max(1,Math.floor(h/65));
+            for(let y=stepy;y<h;y+=stepy)for(let x=stepx;x<w;x+=stepx){
+              const pix=ct.getImageData(x,y,1,1).data;
+              if(pix[3]>100&&(pix[0]<205||pix[1]<205||pix[2]<205))dark++;
+            }
+            if(dark<12)throw Error('ตัวสร้าง PDF ได้เอกสารว่าง ระบบจะไม่ส่งไฟล์นี้');
+            await worker.toPdf();
+            const pdf=await worker.outputPdf('blob');
+            if(!(pdf instanceof Blob)||pdf.size<12000)
+              throw Error('สร้าง PDF ได้ไฟล์ว่างหรือขนาดผิดปกติ');
             if(pdf.size>8*1024*1024)throw Error('PDF ใหญ่เกิน 8 MB กรุณาลดขนาดรูปภาพในรายงาน');
             return await new Promise((resolve,reject)=>{
               const fr=new FileReader();fr.onload=()=>resolve(fr.result);
@@ -4568,8 +4632,16 @@ downloadCSVTemplate() {
         },
         async promptSendEmail() {
           if(this.archiveReadonly||this.loading)return;
-          if(this.reportMediaErrors?.length)
-            return Swal.fire('ภาพในรายงานยังไม่ครบ','โปรดแก้ปัญหาโหลดรูปจาก Drive ก่อนส่ง PDF เพื่อป้องกันรายงานที่ภาพหาย','warning');
+          if(Object.values(this.reportData.photos||{}).includes('__DELETE__'))
+            return Swal.fire('มีภาพรอการลบ','กรุณากดบันทึกรายงานหรือยกเลิกการลบรูปก่อนส่งอีเมล','warning');
+          let forceManualPdf=false;
+          if(this.reportMediaErrors?.length){
+            const missing=await Swal.fire({title:'บางรูปจาก Drive ยังโหลดไม่ครบ',
+              text:'เพื่อป้องกันการส่งเอกสารภาพหาย กรุณาแนบ PDF ที่ตรวจสอบแล้วด้วยตนเอง หรือยกเลิกเพื่อแก้รูปก่อน',
+              icon:'warning',showCancelButton:true,confirmButtonText:'แนบ PDF ของฉัน',cancelButtonText:'ยกเลิก'});
+            if(!missing.isConfirmed)return;
+            forceManualPdf=true;
+          }
           // Read the currently saved recipient, not an unsaved/stale input value.
           let email='';
           try{
@@ -4592,7 +4664,29 @@ downloadCSVTemplate() {
           try{
             // Flush any pending report image uploads before snapshotting the report.
             await this.queueReportSave();
-            const pdfFile=await this.generateReportPdfDataUrl();
+            let pdfFile;
+            try{
+              if(forceManualPdf)throw Error('เลือกแนบ PDF ที่ตรวจสอบเนื้อหาแล้ว');
+              pdfFile=await this.generateReportPdfDataUrl();
+            }
+            catch(autoError){
+              Swal.close();
+              const manual=await Swal.fire({title:'สร้าง PDF อัตโนมัติไม่สำเร็จ',
+                text:String(autoError.message||autoError)+' — สามารถเลือก PDF ที่จัดทำไว้เองเพื่อแนบอีเมลได้',
+                input:'file',inputAttributes:{accept:'application/pdf,.pdf'},
+                showCancelButton:true,confirmButtonText:'แนบ PDF และส่ง',cancelButtonText:'ยกเลิก',
+                preConfirm:file=>{
+                  if(!file||!(/\.pdf$/i.test(file.name)||file.type==='application/pdf')||file.size<12000||file.size>8*1024*1024){
+                    Swal.showValidationMessage('โปรดเลือกไฟล์ PDF ที่มีเนื้อหา ขนาด 12 KB–8 MB');return false;
+                  }
+                  return new Promise((resolve,reject)=>{
+                    const fr=new FileReader();fr.onload=()=>resolve(fr.result);fr.onerror=reject;fr.readAsDataURL(file);
+                  });
+                }});
+              if(!manual.isConfirmed||!manual.value)return;
+              pdfFile=manual.value;
+              Swal.fire({title:'กำลังส่งไฟล์ PDF ที่แนบ...',allowOutsideClick:false,didOpen:()=>Swal.showLoading()});
+            }
             const payload={clubId:this.currentClubId,clubName:this.currentClubName,
               teacher:this.reportData.teacher,semester:this.adminSettings.semester,
               academicYear:this.adminSettings.academicYear,totalStudents:this.attStudents.length,

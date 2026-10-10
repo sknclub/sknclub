@@ -48,9 +48,17 @@ function validateGrid(g) { assert(g && Array.isArray(g.dates) && g.dates.length 
 function renderClub(c, regs, teachers) { return { id: c.id, name: c.name, max_capacity: c.max_capacity, current_count: regs.filter(r => r.club_id === c.id).length, level: c.level, owner_id: c.owner_ids.join(','), teacher_name: c.owner_ids.map((id) => teachers.find(t => t.id === id)?.name || '').filter(Boolean).join(', '), location: c.location, comment: c.comment }; }
 function studentView(s, regs) { return { ...s, password: '', club_id: regs.find(r => r.student_id === s.id)?.club_id || '' }; }
 async function gas(action, payload) { return window.SKNFile.invoke(action, payload); }
+async function cleanupOldDriveMedia(p, id) {
+    const jobs = await result(db.rpc('skn_media_cleanup_candidates', { p_period: p, p_club: id }));
+    if (!jobs.length)
+        return { cleanupPending: 0, cleanupErrors: [] };
+    const deleted = await gas('deleteFiles', { periodId: p, clubId: id, jobs: jobs.map(j => ({ jobId: j.job_id, fileId: j.file_id })) });
+    const cleanupErrors = Object.entries(deleted?.errors || {}).map(([key, value]) => key + ': ' + value);
+    return { cleanupPending: cleanupErrors.length, cleanupErrors };
+}
 const sknEncoder = typeof TextEncoder !== 'undefined' ? new TextEncoder() : null;
 function sknHex(bytes) { return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join(''); }
-function newRegistrationId() { return 'REG-' + Date.now().toString(36).toUpperCase() + '-' + crypto.randomUUID().slice(0, 6).toUpperCase(); }
+// Registration IDs are issued by skn_next_reg_id() inside PostgreSQL: REG-2569-1-00001.
 // Only account IDs beginning with A are primary admin accounts excluded from teacher statistics.
 // Roles are permission flags, not statistical categories: T01 with role=admin still counts.
 function isPrimaryAdminId(id) { return String(id ?? '').trim().toUpperCase().startsWith('A'); }
@@ -86,7 +94,7 @@ async function mediaSave(input, existing, p, c, slot) {
         return existing[slot];
     const r = await gas('saveFile', { periodId: p, clubId: c, slot, fileName: `${slot}-${sha.slice(0, 12)}.${match[1].split('/')[1]}`, mime: match[1], base64: match[2] });
     assert(r?.success === true && r.id, 'Google Drive ไม่ได้ส่ง File ID กลับมา');
-    return { id: r.id, sha, mime: match[1], url: r.url || `https://drive.google.com/file/d/${encodeURIComponent(r.id)}/view` };
+    return { id: r.id, sha, mime: match[1], name: r.name || '', url: r.url || `https://drive.google.com/file/d/${encodeURIComponent(r.id)}/view`, previewUrl: r.previewUrl || '' };
 }
 function csvParse(raw) { const text = raw.replace(/^\ufeff/, ''); const first = text.split(/\r?\n/, 1)[0]; const delim = (first.match(/;/g) || []).length > (first.match(/,/g) || []).length ? ';' : ','; const out = []; let row = [], cell = '', quoted = false; for (let i = 0; i < text.length; i++) {
     const ch = text[i];
@@ -526,8 +534,33 @@ async function sknInvoke(method, args, periodId) {
                 media[`photo_${i}`] = await mediaSave(f.photos?.[i], original, p.id, id, `photo_${i}`);
             for (const key of ['sigTeacher', 'sigHeadClub', 'sigHeadDev', 'sigDeputy', 'sigDirector'])
                 media[key] = await mediaSave(f.signatures?.[key], original, p.id, id, key);
+            // Human-readable media reference for admins; Google-generated file IDs remain authoritative.
+            for (const [slot, entry] of Object.entries(media)) {
+                const item = entry;
+                if (item?.id && !item.code)
+                    item.code = 'IMG-' + p.academic_year + '-' + p.semester + '-' + id + '-' + slot.toUpperCase() + '-' + String(item.sha || 'EXISTING').slice(0, 8).toUpperCase();
+            }
+            // Commit to Supabase first. The database trigger enqueues displaced image IDs atomically.
             await result(db.from('club_reports').upsert({ period_id: p.id, club_id: id, teacher: String(f.teacher || ''), act_data: f.actData || {}, media, updated_at: new Date().toISOString() }, { onConflict: 'period_id,club_id' }));
-            output = { success: true, message: 'บันทึกข้อมูลรายงานเรียบร้อยแล้ว' };
+            let cleanupPending = 0;
+            let cleanupErrors = [];
+            try {
+                const cleanup = await cleanupOldDriveMedia(p.id, id);
+                cleanupErrors = cleanup.cleanupErrors;
+                cleanupPending = cleanup.cleanupPending;
+            }
+            catch (err) {
+                cleanupPending = 1;
+                cleanupErrors.push(String(err?.message || err));
+            }
+            output = { success: true, message: cleanupPending ? 'บันทึกรายงานสำเร็จ แต่มีภาพเก่าที่รอการย้ายลงถังขยะ Drive' : 'บันทึกรายงานและจัดการรูปเก่าเรียบร้อย', cleanupPending, cleanupErrors };
+            break;
+        }
+        case 'cleanupOldMedia': {
+            mustAdmin(u);
+            const club = String(args[0]);
+            assert(club === 'ADMIN-REPORT', 'ใช้สำหรับลายเซ็นผู้ดูแลเท่านั้น');
+            output = { success: true, ...await cleanupOldDriveMedia(p.id, club) };
             break;
         }
         case 'getSavedClubReport': {
@@ -543,23 +576,29 @@ async function sknInvoke(method, args, periodId) {
             const refs = Object.entries(r.media || {}).filter(([_, v]) => v?.id).map(([slot, v]) => ({ slot, id: v.id }));
             const files = {};
             const imageErrors = [];
-            for (let i = 0; i < refs.length; i += 2) {
-                const batch = refs.slice(i, i + 2);
-                try {
-                    const response = await gas('getFiles', { periodId: p.id, clubId: id, files: batch });
-                    Object.assign(files, response?.files || {});
-                    for (const slot of Object.keys(response?.errors || {}))
-                        imageErrors.push(slot + ': ' + response.errors[slot]);
-                }
-                catch (e) {
-                    for (const ref of batch)
-                        imageErrors.push(ref.slot + ': ' + String(e?.message || e));
-                }
+            const groups = [];
+            for (let i = 0; i < refs.length; i += 2)
+                groups.push(refs.slice(i, i + 2));
+            // Up to 3 small GAS requests in parallel; one failed image cannot blank the others.
+            for (let i = 0; i < groups.length; i += 3) {
+                await Promise.all(groups.slice(i, i + 3).map(async (batch) => {
+                    try {
+                        const response = await gas('getFiles', { periodId: p.id, clubId: id, files: batch });
+                        Object.assign(files, response?.files || {});
+                        for (const slot of Object.keys(response?.errors || {}))
+                            imageErrors.push(slot + ': ' + response.errors[slot]);
+                    }
+                    catch (e) {
+                        for (const ref of batch)
+                            imageErrors.push(ref.slot + ': ' + String(e?.message || e));
+                    }
+                }));
             }
             output = { found: true, data: { teacher: r.teacher, actData: r.act_data,
                     logo: files.logo || '', photos: { 1: files.photo_1 || '', 2: files.photo_2 || '', 3: files.photo_3 || '', 4: files.photo_4 || '' },
                     mediaRefs: r.media || {}, mediaErrors: imageErrors,
                     mediaUrls: Object.fromEntries(Object.entries(r.media || {}).map(([k, v]) => [k, v?.url || ''])),
+                    previewUrls: Object.fromEntries(Object.entries(r.media || {}).map(([k, v]) => [k, v?.previewUrl || ''])),
                     signatures: Object.fromEntries(['sigTeacher', 'sigHeadClub', 'sigHeadDev', 'sigDeputy', 'sigDirector'].map(k => [k, files[k] || ''])) } };
             break;
         }
@@ -595,7 +634,7 @@ async function sknInvoke(method, args, periodId) {
                 }
             }
             else if (kind === 'Registration') {
-                const data = items.filter(x => x.student_id && x.club_id).map(x => ({ period_id: p.id, reg_id: String(x.reg_id || newRegistrationId()), student_id: String(x.student_id), club_id: String(x.club_id) }));
+                const data = items.filter(x => x.student_id && x.club_id).map(x => ({ period_id: p.id, reg_id: String(x.reg_id || 'AUTO'), student_id: String(x.student_id), club_id: String(x.club_id) }));
                 for (let i = 0; i < data.length; i += 50)
                     await result(db.rpc('skn_import_registration', { p_period: p.id, p_rows: data.slice(i, i + 50) }));
             }
