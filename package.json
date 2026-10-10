@@ -1,0 +1,12 @@
+{
+  "name": "skn-clubs-direct-supabase",
+  "version": "2.0.0",
+  "private": true,
+  "description": "GitHub Pages -> Supabase direct, GAS Drive/PDF/Email",
+  "scripts": {
+    "build": "node tools/build-backend.mjs",
+    "test": "node tests/check-compatibility.mjs && node tests/bridge-test.mjs && node tests/csv-test.mjs && node tests/grade-test.mjs && node tests/sql-invariants.mjs",
+    "check:web": "node --check web/bridge.js && node --check web/backend.js && node --check web/config.js"
+  },
+  "devDependencies": {"typescript":"^5.9.0"}
+}
