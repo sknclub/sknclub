@@ -1,0 +1,22 @@
+SKN CLUBS 2.0 — LOCAL VERIFICATION (2026-10-10)
+
+PASSED — npm test:
+  1. Vue inline JS syntax and 23 backend methods static compatibility
+  2. Direct Supabase browser adapter / period selection / logout mock
+  3. CSV parsing: Thai text, UTF-8 BOM, quoted commas/semicolons, doubled quote, malformed CSV
+  4. Attendance 20-session exact rules: present count zero OR absent > 3 => fail
+  5. SQL static invariants: term dependency checks, atomic registration lock, attendance validation
+
+PASSED — npm run check:web:
+  frontend bridge.js/backend.js/config.js pass node --check
+
+NOT TESTED against actual services:
+  Supabase SQL migrations and RLS against live PostgreSQL
+  Supabase Auth auto-provisioning with synthetic emails
+  GAS HtmlService POST form/iframe relay and postMessage in deployed browser
+  Drive CRUD, PDF emailing, backup/restore
+  End-to-end UI on deployed GitHub Pages
+
+A headless Chromium screenshot attempt timed out because external CDN libraries could not
+be confirmed to load in this environment. The 16-case acceptance checklist in README
+MUST be completed against a test project before using live student data.

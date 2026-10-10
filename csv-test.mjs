@@ -1,0 +1,12 @@
+import fs from 'node:fs';import vm from 'node:vm';import assert from 'node:assert/strict';
+const script=fs.readFileSync(new URL('../web/backend.js',import.meta.url),'utf8');
+const sandbox={window:{SKN_DB:{},SKNFile:{}},TextEncoder,console,Error,Promise,Array,Object,Map,Set};
+vm.runInNewContext(script,sandbox);
+const csv='\ufeffid,name,level,room,no,password\r\n62001,"เด็กชาย, ทดสอบ",ม.3,3/1,01,01/02/2569\r\n62002,"เด็กหญิง ""เก่ง""",ม.3,3/1,02,02/02/2569';
+const parsed=vm.runInNewContext('csvParse('+JSON.stringify(csv)+')',sandbox);
+assert.equal(parsed.length,3);assert.equal(parsed[1][1],'เด็กชาย, ทดสอบ');assert.equal(parsed[2][1],'เด็กหญิง "เก่ง"');
+const semicolon='id;name;level\n1001;"สมชาย; ใจดี";ม.1';
+const sem=vm.runInNewContext('csvParse('+JSON.stringify(semicolon)+')',sandbox);
+assert.equal(sem[1][1],'สมชาย; ใจดี');
+assert.throws(()=>vm.runInNewContext('csvParse('+JSON.stringify('id,name\n1,"unfinished')+')',sandbox));
+console.log('PASS: Thai CSV, BOM, quoted delimiter, escaped quotes, semicolon, malformed CSV');

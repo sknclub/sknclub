@@ -1,0 +1,1794 @@
+/**
+ * ระบบบริหารจัดการชุมนุม SKN 2026 - Master Full Update + Attendance Grid (Final Fix)
+ */
+const SS = SpreadsheetApp.getActiveSpreadsheet();
+
+
+
+
+function doGet() {
+  try {
+    initialSetup();
+    return HtmlService.createTemplateFromFile('Index')
+        .evaluate()
+        .setTitle('ระบบชุมนุม SKN')
+        .addMetaTag('viewport', 'width=device-width, initial-scale=1')
+        .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+  } catch (e) {
+    return HtmlService.createHtmlOutput("<h2>ระบบขัดข้อง</h2><p>" + e.message + "</p>");
+  }
+}
+
+
+function checkLogin(username, password) {
+  try {
+    // 1. เตรียมค่าจากหน้าจอ
+    const inputUser = String(username || "").toLowerCase().trim();
+    const inputPass = String(password || "").trim();
+
+    // 2. ตรวจสอบข้อมูลครู
+    const teacherSheet = SS.getSheetByName("Teachers");
+    const tData = teacherSheet.getDataRange().getDisplayValues();
+    const tKeys = tData[0];
+    const teachers = tData.slice(1).map(row => {
+      let obj = {};
+      tKeys.forEach((key, i) => obj[key] = String(row[i] || "").trim());
+      return obj;
+    });
+
+    const teacher = teachers.find(t =>
+      t.username.toLowerCase() === inputUser && t.password === inputPass
+    );
+   
+    if (teacher) {
+      // --- เพิ่ม Logic ตรวจสอบว่าครูมีชุมนุมหรือยัง ---
+      const clubSheet = SS.getSheetByName("Clubs");
+      const clubData = clubSheet.getDataRange().getDisplayValues();
+      const ownerIdIdx = clubData[0].indexOf("owner_id"); // หาคอลัมน์ owner_id
+      
+      // ตรวจสอบในทุกแถว (ยกเว้นหัวตาราง) ว่ามี ID ครูคนนี้อยู่ในคอลัมน์ owner_id หรือไม่
+      const hasClub = clubData.slice(1).some(row => {
+        const owners = row[ownerIdIdx].split(',').map(id => id.trim());
+        return owners.includes(String(teacher.id).trim());
+      });
+
+      return { 
+        success: true, 
+        user: { 
+          id: teacher.id, 
+          name: teacher.name, 
+          role: teacher.role,
+          hasClub: hasClub // ส่งสถานะไปเพื่อใช้ซ่อนปุ่มสร้างชุมนุม
+        } 
+      };
+    }
+
+    // 3. ตรวจสอบข้อมูลนักเรียน
+    const studentSheet = SS.getSheetByName("Students");
+    const sData = studentSheet.getDataRange().getDisplayValues();
+    const sKeys = sData[0];
+    const students = sData.slice(1).map(row => {
+      let obj = {};
+      sKeys.forEach((key, i) => obj[key] = String(row[i] || "").trim());
+      return obj;
+    });
+
+    const student = students.find(s =>
+      s.id.toLowerCase() === inputUser && s.password === inputPass
+    );
+
+    if (student) return {
+      success: true,
+      user: { 
+        id: student.id, 
+        name: student.name, 
+        level: student.level, 
+        role: 'student', 
+        clubId: student.club_id || "" 
+      }
+    };
+
+    return { success: false, message: "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง" };
+  } catch (e) {
+    return { success: false, message: "ระบบขัดข้อง: " + e.message };
+  }
+}
+
+function getAppData() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  
+  const clubs = getSheetData("Clubs");
+  const configData = getSheetData("Config");
+  const teachers = getSheetData("Teachers").map(t => ({id: t.id, name: t.name}));
+
+  // ---------- ส่วนที่แก้ไขเพื่อแก้ปัญหาตัวพิมพ์เล็ก ----------
+  const config = configData.reduce((acc, cur) => {
+    if(cur.key) {
+      let val = String(cur.value).trim();
+      // ถ้าข้อมูลขึ้นต้นด้วย { หรือ [ แสดงว่าเป็นก้อน JSON (เช่น ตั้งค่า Admin) ให้ปล่อยผ่านไม่ต้อง toLowerCase
+      if (val.startsWith('{') || val.startsWith('[')) {
+        acc[cur.key] = val;
+      } else {
+        acc[cur.key] = val.toLowerCase();
+      }
+    }
+    return acc;
+  }, {});
+  // --------------------------------------------------
+
+  let adminSummary = null;
+  try { adminSummary = getAdminSummary(); } catch(e) { adminSummary = null; }
+
+  return {
+    clubs: clubs,
+    config: config,
+    teachers: teachers,
+    summary: adminSummary,
+    serverTime: Date.now()
+  };
+}
+
+function getAdminSummary() {
+  try {
+    const students = getSheetData("Students");
+    const teachers = getSheetData("Teachers");
+    const clubs = getSheetData("Clubs");
+
+
+    // สถิตินักเรียน
+    const totalStudents = students.length;
+    const registeredStudents = students.filter(s => s.club_id && s.club_id !== "").length;
+   
+    // สถิติครู (เช็คจาก owner_id ในชีต Clubs)
+    const allOwnerIds = clubs.reduce((acc, club) => {
+      const ids = club.owner_id.toString().split(',').map(id => id.trim());
+      return acc.concat(ids);
+    }, []);
+    const uniqueOwners = [...new Set(allOwnerIds)];
+   
+    const totalTeachers = teachers.length;
+    const teachersWithClub = teachers.filter(t => uniqueOwners.includes(t.id.toString())).length;
+
+
+    return {
+      student: {
+        total: totalStudents,
+        registered: registeredStudents,
+        unregistered: totalStudents - registeredStudents
+      },
+      teacher: {
+        total: totalTeachers,
+        hasClub: teachersWithClub,
+        noClub: totalTeachers - teachersWithClub
+      },
+      clubsCount: clubs.length
+    };
+  } catch (e) {
+    console.error("Summary Error: " + e.message);
+    return null;
+  }
+}
+
+
+
+
+function registerClub(studentId, clubId) {
+  const lock = LockService.getScriptLock();
+  try {
+    // 1. รอคิวว่างสูงสุด 10 วินาที เพื่อป้องกัน Race Condition
+    lock.waitLock(10000); 
+
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const studentSheet = ss.getSheetByName('Students');
+    const clubSheet = ss.getSheetByName('Clubs');
+    const regSheet = ss.getSheetByName('Registration');
+    const attSheet = ss.getSheetByName('Attendance_Data');
+
+    const studentIdStr = String(studentId).trim();
+    const targetClubIdStr = String(clubId).trim();
+
+    // --- ส่วนที่ 1: ดึงข้อมูลนักเรียนและตรวจสอบชุมนุมเดิม ---
+    const studentData = studentSheet.getDataRange().getValues();
+    const studentHeader = studentData[0];
+    const stdIdIdx = studentHeader.indexOf('id');
+    const stdNameIdx = studentHeader.indexOf('name');
+    const stdClubIdx = studentHeader.indexOf('club_id');
+    
+    let studentRow = -1;
+    let oldClubId = "";
+    let studentName = "";
+
+    for (let i = 1; i < studentData.length; i++) {
+      if (String(studentData[i][stdIdIdx]).trim() === studentIdStr) {
+        studentRow = i + 1;
+        studentName = studentData[i][stdNameIdx];
+        oldClubId = String(studentData[i][stdClubIdx] || "").trim();
+        break;
+      }
+    }
+    if (studentRow === -1) throw new Error("ไม่พบข้อมูลนักเรียน");
+    if (oldClubId === targetClubIdStr) throw new Error("คุณอยู่ในชุมนุมนี้อยู่แล้ว");
+
+    // --- ส่วนที่ 2: ตรวจสอบที่ว่างในชุมนุมใหม่ ---
+    const clubData = clubSheet.getDataRange().getValues();
+    let clubRow = -1;
+    let capacity = 0;
+    let currentCount = 0;
+    let clubName = "";
+
+    for (let j = 1; j < clubData.length; j++) {
+      if (String(clubData[j][0]).trim() === targetClubIdStr) {
+        clubRow = j + 1;
+        clubName = clubData[j][1];
+        capacity = parseInt(clubData[j][2]); // max_capacity
+        currentCount = parseInt(clubData[j][3]) || 0; // current_count
+        break;
+      }
+    }
+    if (clubRow === -1) throw new Error("ไม่พบข้อมูลชุมนุมเป้าหมาย");
+    if (currentCount >= capacity) throw new Error("ขออภัย ชุมนุมเต็มแล้ว");
+
+    // --- ส่วนที่ 3: กระบวนการย้ายข้อมูล (Release & Re-assign) ---
+
+    // 3.1 คืนที่ว่างและลบข้อมูลจากชุมนุมเดิม (ถ้ามี)
+    if (oldClubId) {
+      handleStudentRelatedData(ss, studentIdStr); // ลบจาก Registration และ JSON เดิม
+      
+      // ลดจำนวนคนในชีต Clubs สำหรับชุมนุมเก่า
+      for (let k = 1; k < clubData.length; k++) {
+        if (String(clubData[k][0]).trim() === oldClubId) {
+          let count = Math.max(0, (parseInt(clubData[k][3]) || 1) - 1);
+          clubSheet.getRange(k + 1, 4).setValue(count);
+          break;
+        }
+      }
+    }
+
+    // 3.2 บันทึกเข้าชุมนุมใหม่
+    studentSheet.getRange(studentRow, stdClubIdx + 1).setValue(targetClubIdStr); 
+    
+    // เพิ่ม/อัปเดตใน Registration
+    const regData = regSheet.getDataRange().getValues();
+    const regIdx = regData.findIndex(r => String(r[1]) === studentIdStr);
+    if (regIdx !== -1) {
+      regSheet.getRange(regIdx + 1, 6, 1, 2).setValues([[targetClubIdStr, clubName]]);
+    } else {
+      // ดึงข้อมูล ห้อง และ เลขที่ จากชีต Students มาด้วย
+      const studentInfo = studentSheet.getRange(studentRow, 1, 1, 6).getValues()[0];
+      regSheet.appendRow(["REG-"+Date.now(), studentIdStr, studentName, studentInfo[3], studentInfo[4], targetClubIdStr, clubName]);
+    }
+
+    // อัปเดตยอดจำนวนคนในชุมนุมใหม่ (+1)
+    clubSheet.getRange(clubRow, 4).setValue(currentCount + 1);
+
+    // --- ส่วนที่ 4: อัปเดตรายชื่อเข้าก้อน JSON ของชุมนุมใหม่ (Attendance_Data) ---
+    if (attSheet) {
+      const attValues = attSheet.getDataRange().getValues();
+      const attRowIdx = attValues.findIndex(r => String(r[0]) === targetClubIdStr);
+      
+      let gridData = { dates: Array(20).fill(""), records: {} };
+      
+      if (attRowIdx !== -1) {
+        try {
+          gridData = JSON.parse(attValues[attRowIdx][1]);
+        } catch(e) { /* ใช้ค่า default ถ้า JSON พัง */ }
+        
+        // เพิ่ม ID นักเรียนเข้าไปใน records (ถ้ายังไม่มี)
+        if (!gridData.records[studentIdStr]) {
+          gridData.records[studentIdStr] = Array(20).fill(0);
+        }
+        attSheet.getRange(attRowIdx + 1, 2).setValue(JSON.stringify(gridData));
+      } else {
+        // ถ้ายังไม่มีแถวของชุมนุมนี้ใน Attendance_Data ให้สร้างใหม่
+        gridData.records[studentIdStr] = Array(20).fill(0);
+        attSheet.appendRow([targetClubIdStr, JSON.stringify(gridData)]);
+      }
+    }
+
+    return { success: true, message: "ลงทะเบียน '" + clubName + "' สำเร็จ" };
+
+  } catch (e) {
+    return { success: false, message: e.message };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+
+
+// ฟังก์ชันเสริมสำหรับอัปเดตยอดคนให้ตรงกับความจริงเสมอ
+function updateAllClubCounts() {
+  const cSheet = SS.getSheetByName("Clubs");
+  const rSheet = SS.getSheetByName("Registration");
+  const cData = cSheet.getDataRange().getValues();
+  const rData = rSheet.getDataRange().getValues();
+ 
+  for (let i = 1; i < cData.length; i++) {
+    const clubId = cData[i][0];
+    const count = rData.filter(r => r[5] === clubId).length;
+    cSheet.getRange(i + 1, 4).setValue(count);
+  }
+}
+
+
+
+
+/**
+ * จัดการข้อมูลครูที่สัมพันธ์กัน (Clubs)
+ */
+function handleTeacherRelatedData(ss, targetId) {
+  const clubSheet = ss.getSheetByName('Clubs');
+  if (!clubSheet) return;
+
+
+  const clubData = clubSheet.getDataRange().getValues();
+  const header = clubData[0];
+  const ownerIdIdx = header.indexOf('owner_id');
+
+
+  for (let k = clubData.length - 1; k >= 1; k--) {
+    let owners = String(clubData[k][ownerIdIdx]).split(',').map(s => s.trim()).filter(s => s !== "");
+
+
+    if (owners.includes(targetId)) {
+      if (owners.length <= 1) {
+        // กรณีเป็นเจ้าของคนเดียว -> เรียกใช้ฟังก์ชันลบชุมนุม (ล้างทุกตาราง)
+        deleteClub(clubData[k][0]);
+      } else {
+        // กรณีมีคนอื่นอยู่ด้วย -> แค่ถอดชื่อออก
+        let newOwners = owners.filter(oid => oid !== targetId);
+        clubSheet.getRange(k + 1, ownerIdIdx + 1).setValue(newOwners.join(","));
+        clubSheet.getRange(k + 1, ownerIdIdx + 2).setValue(getTeacherNames(newOwners));
+      }
+    }
+  }
+}
+
+
+
+/**
+ * ฟังก์ชันลบชุมนุม (เวอร์ชัน Admin) 
+ * ลบข้อมูลใน Clubs, Registration, Attendance_Data และล้างค่าใน Students
+ */
+function deleteClubAdmin(clubId) {
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(15000);
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const clubIdStr = String(clubId).trim();
+    
+    // 1. คืนสิทธิ์นักเรียนในชีต Students (ล้างค่า club_id)
+    const stdSheet = ss.getSheetByName("Students");
+    if (stdSheet) {
+      const stdData = stdSheet.getDataRange().getValues();
+      for (let i = 1; i < stdData.length; i++) {
+        if (String(stdData[i][6]).trim() === clubIdStr) {
+          stdSheet.getRange(i + 1, 7).setValue(""); // ล้างคอลัมน์ G
+        }
+      }
+    }
+
+    // 2. ลบประวัติใน Registration
+    const regSheet = ss.getSheetByName("Registration");
+    if (regSheet) {
+      const regData = regSheet.getDataRange().getValues();
+      for (let j = regData.length - 1; j >= 1; j--) {
+        if (String(regData[j][5]).trim() === clubIdStr) {
+          regSheet.deleteRow(j + 1);
+        }
+      }
+    }
+
+    // 3. ลบแถวใน Attendance_Data (ก้อน JSON)
+    const attSheet = ss.getSheetByName("Attendance_Data");
+    if (attSheet) {
+      const attData = attSheet.getDataRange().getValues();
+      const attRowIdx = attData.findIndex(r => String(r[0]).trim() === clubIdStr);
+      if (attRowIdx !== -1) attSheet.deleteRow(attRowIdx + 1);
+    }
+
+    // 4. ลบแถวใน Clubs
+    const clubSheet = ss.getSheetByName("Clubs");
+    const clubData = clubSheet.getDataRange().getValues();
+    const clubRowIdx = clubData.findIndex(r => String(r[0]).trim() === clubIdStr);
+    if (clubRowIdx !== -1) {
+      clubSheet.deleteRow(clubRowIdx + 1);
+    }
+
+    return { success: true, message: "ลบชุมนุมและล้างข้อมูลที่เกี่ยวข้องเรียบร้อยแล้ว" };
+
+  } catch (e) {
+    return { success: false, message: "Error: " + e.toString() };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+
+// --- 4. CRUD การจัดการชุมนุม ---
+function saveClub(clubObj, currentUser) {
+  const config = getAppData().config;
+  if (currentUser.role !== 'admin' && config.allow_edit_club !== 'true') return { success: false, message: "ระบบปิดการเพิ่มชุมนุม" };
+  const sheet = SS.getSheetByName("Clubs");
+  const clubs = getSheetData("Clubs");
+  let capacity = (currentUser.role === 'admin') ? Number(clubObj.max_capacity) : (clubObj.owner_ids.length * 20); // ปรับเลข 30 เป็น 20 
+  sheet.appendRow(["C"+(clubs.length+1).toString().padStart(2,'0'), clubObj.name, capacity, 0, clubObj.level, clubObj.owner_ids.join(","), getTeacherNames(clubObj.owner_ids),
+    clubObj.location || "", // สถานที่เรียน
+    clubObj.comment || ""   // หมายเหตุ
+  
+  ]);
+  return { success: true, message: "สร้างชุมนุมสำเร็จ" };
+}
+
+
+
+
+function updateClub(clubObj, currentUser) {
+  const sheet = SS.getSheetByName("Clubs");
+  const clubs = getSheetData("Clubs");
+  const rowIndex = clubs.findIndex(c => c.id === clubObj.id);
+  const oldClubName = clubs[rowIndex].name;
+  const newClubName = clubObj.name;
+
+
+  // 1. อัปเดตข้อมูลในชีต Clubs
+  let capacity = (currentUser.role === 'admin') ? Number(clubObj.max_capacity) : (clubObj.owner_ids.length * 20); // ปรับเลข 30 เป็น 20
+   // ปรับเลข 6 เป็น 8 เพื่อให้อัปเดตถึงคอลัมน์ที่ 9 (สถานที่และหมายเหตุ)
+  sheet.getRange(rowIndex + 2, 2, 1, 8).setValues([[
+    newClubName,
+    capacity,
+    clubs[rowIndex].current_count,
+    clubObj.level,
+    clubObj.owner_ids.join(","),
+    getTeacherNames(clubObj.owner_ids),
+
+    clubObj.location || "", // สถานที่เรียน
+    clubObj.comment || ""   // หมายเหตุ
+  ]]);
+
+
+  // 2. ถ้าชื่อชุมนุมเปลี่ยน -> ตามไปแก้ในชีต Registration
+  if (oldClubName !== newClubName) {
+    const regSheet = SS.getSheetByName("Registration");
+    const regData = regSheet.getDataRange().getValues();
+    for (let i = 1; i < regData.length; i++) {
+      if (regData[i][5].toString() === clubObj.id) { // คอลัมน์ F คือ club_id
+        regSheet.getRange(i + 1, 7).setValue(newClubName); // คอลัมน์ G คือ club_name
+      }
+    }
+  }
+  return { success: true, message: "อัปเดตข้อมูลชุมนุมและรายชื่อนักเรียนแล้ว" };
+}
+
+
+
+
+function updateConfig(configObj) {
+  const sheet = SS.getSheetByName("Config");
+  const data = sheet.getDataRange().getValues();
+  for (let key in configObj) {
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][0] === key) sheet.getRange(i+1, 2).setValue(configObj[key].toString());
+    }
+  }
+  return { success: true };
+}
+
+
+
+
+// --- 5. ระบบเช็คชื่อ Grid View ---
+function getClubAttendanceGrid(clubId) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName("Attendance_Data");
+ 
+  if (!sheet) {
+    sheet = ss.insertSheet("Attendance_Data");
+    sheet.appendRow(["club_id", "data_json"]);
+  }
+ 
+  const data = sheet.getDataRange().getValues();
+  const row = data.find(r => r[0].toString() === clubId.toString());
+  const students = getSheetData("Students").filter(s => s.club_id === clubId);
+ 
+  // เรียงตามห้อง/เลขที่
+  students.sort((a, b) => (a.room - b.room) || (a.no - b.no));
+
+
+
+
+  if (row) {
+    return { found: true, gridData: JSON.parse(row[1]), students: students };
+  }
+ 
+  return {
+    found: false,
+    gridData: { dates: Array(20).fill(""), records: {} },
+    students: students
+  };
+}
+
+
+
+
+function saveAttendanceGrid(clubId, gridData) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName("Attendance_Data");
+  if(!sheet) sheet = ss.insertSheet("Attendance_Data");
+ 
+  const data = sheet.getDataRange().getValues();
+  const rowIndex = data.findIndex(r => r[0].toString() === clubId.toString());
+  const jsonString = JSON.stringify(gridData);
+ 
+  if (rowIndex !== -1) {
+    sheet.getRange(rowIndex + 1, 2).setValue(jsonString);
+  } else {
+    sheet.appendRow([clubId, jsonString]);
+  }
+  return { success: true, message: "บันทึกข้อมูลเรียบร้อยแล้ว" };
+}
+
+
+
+
+// --- Helpers ---
+function getTeacherNames(ids) {
+  const teachers = getSheetData("Teachers");
+  return ids.map(id => (teachers.find(t => t.id.toString() === id.toString()) || {}).name || "").join(", ");
+}
+
+
+
+
+// อัพเดทไม่โชว์ข้อมูลชุมนุม 050569
+function getSheetData(name) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(name);
+  if (!sheet) return [];
+  
+  const data = sheet.getDataRange().getValues();
+  if (data.length < 2) return [];
+  
+  const keys = data[0];
+  
+  return data.slice(1)
+    .filter(row => row[0] !== undefined && row[0].toString().trim() !== "") // กรองแถวว่างทิ้ง ป้องกันตารางเว็บพัง
+    .map(row => {
+      let obj = {};
+      keys.forEach((key, i) => {
+        // แก้บั๊กเลข 0 หาย (เพราะ 0 || "" ใน JS จะกลายเป็นค่าว่าง)
+        obj[key] = (row[i] !== undefined && row[i] !== "") ? row[i] : "";
+      });
+      return obj;
+  });
+}
+
+
+
+/* =========================================
+   ฟังก์ชันติดตั้งระบบครั้งแรก (Initial Setup) - เวอร์ชันสมบูรณ์รองรับระบบรูปภาพใหม่
+   ========================================= */
+function initialSetup() {
+  const SS = SpreadsheetApp.getActiveSpreadsheet();
+  
+  // กำหนดโครงสร้างชีตและหัวคอลัมน์ให้สอดคล้องกับระบบหน้า Index 
+  const sheets = {
+    "Config": ["key", "value"],
+    "Teachers": ["id", "name", "username", "password", "role"],
+    "Students": ["id", "name", "level", "room", "no", "password", "club_id"],
+    "Clubs": ["id", "name", "max_capacity", "current_count", "level", "owner_id", "teacher_name", "location", "comment"],
+    "Registration": ["reg_id", "student_id", "student_name", "room", "no", "club_id", "club_name"],
+    "Attendance_Data": ["club_id", "data_json"],
+    // อัปเดตชีต Club_Reports ให้มีคอลัมน์แยกเก็บรูปภาพ (logo และ photo_1 ถึง photo_4) ตามฟังก์ชัน saveClubReportData
+    "Club_Reports": ["club_id", "report_json", "logo", "photo_1", "photo_2", "photo_3", "photo_4"]
+  };
+  
+  for (let name in sheets) {
+    let sheet = SS.getSheetByName(name);
+    
+    // ถ้ายังไม่มีชีต ให้สร้างใหม่และใส่หัวตาราง
+    if (!sheet) {
+      sheet = SS.insertSheet(name);
+      sheet.getRange(1, 1, 1, sheets[name].length)
+           .setValues([sheets[name]])
+           .setFontWeight("bold")
+           .setBackground("#f8fafc");
+      sheet.setFrozenRows(1);
+    } else {
+      // ถ้ามีชีตอยู่แล้ว ตรวจสอบและอัปเกรดหัวตาราง Club_Reports อัตโนมัติ (กรณีอัปเดตจากเวอร์ชันเก่า)
+      if (name === "Club_Reports") {
+        const currentHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn() || 1).getValues()[0];
+        if (currentHeaders.length < sheets[name].length) {
+          sheet.getRange(1, 1, 1, sheets[name].length).setValues([sheets[name]]);
+          sheet.setFontWeight("bold").setBackground("#f8fafc");
+        }
+      }
+    }
+    
+    // ตั้งค่าเริ่มต้นสำหรับแผ่นงาน Config
+    if (name === "Config") {
+      const data = sheet.getDataRange().getValues();
+      const keys = data.map(r => r[0]); 
+      
+      if (!keys.includes("open_reg")) sheet.appendRow(["open_reg", "true"]);
+      if (!keys.includes("allow_transfer")) sheet.appendRow(["allow_transfer", "false"]);
+      if (!keys.includes("allow_edit_club")) sheet.appendRow(["allow_edit_club", "true"]);
+      if (!keys.includes("quota_per_teacher")) sheet.appendRow(["quota_per_teacher", "20"]);
+      
+      if (!keys.includes("adminSettings")) {
+         const defaultAdmin = {
+           schoolName: 'โรงเรียนสมุทรสาครบูรณะ',
+           semester: '1',
+           academicYear: '2569',
+           studentQuota: 20, 
+           reportEmail: '',
+           driveFolderId: '',
+           sigDirector: 'ดร.อรรณพ ชุ่มเพ็งพันธ์',
+           sigDeputy: '(ชื่อรองผู้อำนวยการกลุ่มบริหารงานวิชาการ)',
+           sigHeadDev: '(ชื่อหัวหน้ากิจกรรมพัฒนาผู้เรียน)',
+           sigHeadClub: '(ชื่อหัวหน้างานกิจกรรมชุมนุม)'
+         };
+         sheet.appendRow(["adminSettings", JSON.stringify(defaultAdmin)]);
+      }
+      
+      if (!keys.includes("systemDates")) {
+         sheet.appendRow(["systemDates", JSON.stringify(Array(20).fill(''))]);
+      }
+      if (!keys.includes("holidays")) {
+         sheet.appendRow(["holidays", JSON.stringify([])]);
+      }
+      
+      sheet.setColumnWidth(1, 180);
+      sheet.setColumnWidth(2, 450);
+    }
+    
+    // เพิ่มบัญชีผู้ดูแลระบบ (Admin) เริ่มต้นหากตาราง Teachers ยังว่าง
+    if (name === "Teachers" && sheet.getLastRow() === 1) {
+      sheet.appendRow(["T01", "Admin ระบบ", "admin", "1234", "admin"]);
+    }
+  }
+  
+  Logger.log("✅ ติดตั้งและอัปเดตโครงสร้างฐานข้อมูล (Initial Setup) เรียบร้อยแล้ว!");
+}
+
+
+
+
+
+
+/* =========================================
+   Code.gs - ระบบจัดการผู้ใช้และฐานข้อมูล
+   ========================================= */
+
+
+
+
+// ดึงข้อมูลผู้ใช้
+function getUsersByRole(role) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheetName = role === 'teacher' ? 'Teachers' : 'Students';
+  var sheet = ss.getSheetByName(sheetName);
+ 
+  // 1. กรณีไม่พบชีต: สร้างใหม่พร้อมหัวตารางที่ถูกต้อง
+  if (!sheet) {
+    sheet = ss.insertSheet(sheetName);
+    var headers = role === 'teacher'
+      ? ['id', 'name', 'username', 'password', 'role']
+      : ['id', 'name', 'level', 'room', 'no', 'password', 'club_id'];
+    sheet.appendRow(headers);
+    return [];
+  }
+
+
+  // 2. ดึงข้อมูลทั้งหมด (ใช้ getDisplayValues เพื่อให้ได้รหัสผ่านตามที่ตาเห็นในชีต)
+  var data = sheet.getDataRange().getDisplayValues();
+  if (data.length <= 1) return []; // ถ้ามีแค่หัวตาราง ให้ส่งอาเรย์ว่างกลับไป
+
+
+  var users = [];
+ 
+  for (var i = 1; i < data.length; i++) {
+    var r = data[i];
+   
+    // ตรวจสอบว่า ID (ช่องแรก) ต้องไม่ว่าง
+    if (!r[0] || r[0].toString().trim() === "") continue;
+
+
+    // ล้างช่องว่างที่อาจติดมา (Trim) เพื่อความแม่นยำในการเปรียบเทียบข้อมูล
+    var cleanRow = r.map(cell => cell.toString().trim());
+
+
+    if (role === 'teacher') {
+      // โครงสร้างครู: id, name, username, password, role
+      users.push({
+        id: cleanRow[0],
+        name: cleanRow[1],
+        username: cleanRow[2] || cleanRow[0], // ถ้าไม่มี username ให้ใช้ ID แทน
+        password: cleanRow[3] || cleanRow[0], // ถ้าไม่มี password ให้ใช้ ID แทน
+        role: cleanRow[4] || 'teacher'
+      });
+    } else {
+      // โครงสร้างนักเรียน: id, name, level, room, no, password, club_id
+      users.push({
+        id: cleanRow[0],
+        name: cleanRow[1],
+        level: cleanRow[2],
+        room: cleanRow[3],  
+        no: cleanRow[4],    
+        password: cleanRow[5] || cleanRow[0], // ถ้าไม่มี password ให้ใช้ ID แทน
+        club_id: cleanRow[6] || ""
+      });
+    }
+  }
+ 
+  // ก่อนจะ return users ให้เพิ่มโค้ดจัดเรียงตรงนี้ครับ
+if (role === 'teacher') {
+    // 1. เรียงลำดับฝั่งครู: Admin อยู่บนสุด ต่อด้วย ID
+    users.sort((a, b) => {
+      if (a.role === 'admin' && b.role !== 'admin') return -1;
+      if (a.role !== 'admin' && b.role === 'admin') return 1;
+      return a.id.toString().localeCompare(b.id.toString(), undefined, {numeric: true});
+    });
+  } else {
+    // 2. เรียงลำดับฝั่งนักเรียน: ชั้น > ห้อง > เลขที่
+    users.sort((a, b) => {
+      // เรียงตามชั้นก่อน (Level)
+      if (a.level !== b.level) {
+        return a.level.toString().localeCompare(b.level.toString(), undefined, {numeric: true});
+      }
+      // ถ้าชั้นเดียวกัน ให้เรียงตามห้อง (Room)
+      if (a.room !== b.room) {
+        return a.room.toString().localeCompare(b.room.toString(), undefined, {numeric: true});
+      }
+      // ถ้าชั้นและห้องเดียวกัน ให้เรียงตามเลขที่ (No)
+      return a.no.toString().localeCompare(b.no.toString(), undefined, {numeric: true});
+    });
+  }
+
+
+  return users;
+}
+
+
+
+
+function saveUser(form) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheetName = form.role_type === 'teacher' ? 'Teachers' : 'Students';
+  const sheet = ss.getSheetByName(sheetName);
+  
+  if (!sheet) throw new Error("ไม่พบชีตข้อมูล: " + sheetName);
+  
+  const data = sheet.getDataRange().getDisplayValues(); 
+  const oldId = form.id ? String(form.id).trim() : "";
+  const newId = String(form.new_id).trim();
+  const newName = String(form.name).trim();
+  
+  let rowIndex = -1;
+  
+  // ค้นหาตำแหน่งแถวเดิมจาก ID
+  if (oldId) {
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][0]).trim() === oldId) {
+        rowIndex = i + 1;
+        break;
+      }
+    }
+  }
+
+  // --- ส่วนการบันทึกข้อมูล ---
+  if (rowIndex > 0) {
+    // 1. กรณี "แก้ไขข้อมูล" (Update)
+    const oldRowData = data[rowIndex - 1];
+    const oldName = String(oldRowData[1]).trim(); 
+
+    if (form.role_type === 'teacher') {
+      // โครงสร้างชีต Teachers: [0]id, [1]name, [2]username, [3]password, [4]role
+      const passwordToSave = (form.password && String(form.password).trim() !== "") 
+                             ? String(form.password).trim() 
+                             : oldRowData[3];
+      const roleToSave = form.role ? form.role : oldRowData[4];
+      
+      sheet.getRange(rowIndex, 1, 1, 5).setValues([[newId, newName, form.username, passwordToSave, roleToSave]]);
+    } else {
+      // โครงสร้างชีต Students: [0]id, [1]name, [2]level, [3]room, [4]no, [5]password, [6]club_id
+      const passwordToSave = (form.password && String(form.password).trim() !== "") 
+                             ? String(form.password).trim() 
+                             : oldRowData[5];
+      const clubIdToSave = oldRowData[6]; 
+      
+      sheet.getRange(rowIndex, 1, 1, 7).setValues([[newId, newName, form.level, form.room, form.no, passwordToSave, clubIdToSave]]);
+    }
+
+    // *** ตรวจสอบการ Sync: แก้ไขให้ส่ง 'form' ไปด้วยเพื่ออัปเดต ห้อง และ เลขที่ ในชีต Registration ***
+    // เราสั่ง sync เสมอถ้าเป็นนักเรียน เพื่อให้มั่นใจว่าห้อง/เลขที่ใน Registration จะถูกอัปเดตตาม
+    if (oldId !== newId || oldName !== newName || form.role_type === 'student') {
+      syncUserChanges(ss, form.role_type, oldId, newId, newName, form);
+    }
+
+  } else {
+    // 2. กรณี "เพิ่มใหม่" (Create)
+    checkDuplicateId(data, newId);
+    if (form.role_type === 'teacher') {
+      sheet.appendRow([newId, newName, form.username, form.password || newId, form.role || 'teacher']);
+    } else {
+      sheet.appendRow([newId, newName, form.level, form.room, form.no, form.password || newId, '']);
+    }
+  }
+  
+  return { success: true, message: "บันทึกข้อมูลเรียบร้อยแล้ว" };
+}
+
+
+/**
+ * ฟังก์ชันช่วยอัปเดตข้อมูลที่กระจายอยู่ตามชีตต่างๆ เมื่อมีการแก้ไขข้อมูลผู้ใช้ (Master Version)
+ */
+function syncUserChanges(ss, role, oldId, newId, newName, form) {
+  const oldIdStr = String(oldId).trim();
+  const newIdStr = String(newId).trim();
+  const newNameStr = String(newName).trim();
+
+  if (role === 'student') {
+    // --- 1. อัปเดตในชีต Registration (ID, ชื่อ, ห้อง, เลขที่) ---
+    const regSheet = ss.getSheetByName("Registration");
+    if (regSheet) {
+      const regData = regSheet.getDataRange().getValues();
+      for (let i = 1; i < regData.length; i++) {
+        if (String(regData[i][1]).trim() === oldIdStr) {
+          // อัปเดตคอลัมน์ B: student_id, C: student_name, D: room, E: no
+          regSheet.getRange(i + 1, 2, 1, 4).setValues([[
+            newIdStr, 
+            newNameStr, 
+            form.room, 
+            form.no
+          ]]); 
+        }
+      }
+    }
+
+    // --- 2. อัปเดตใน Attendance_Data (JSON) เพื่อให้ข้อมูล Sync กัน ---
+    const attSheet = ss.getSheetByName("Attendance_Data");
+    if (attSheet) {
+      const attData = attSheet.getDataRange().getValues();
+      for (let k = 1; k < attData.length; k++) {
+        let jsonString = attData[k][1];
+        if (jsonString && jsonString.toString().startsWith('{')) {
+          try {
+            let jsonObj = JSON.parse(jsonString);
+            
+            // กรณีมีการเปลี่ยนรหัส (ID) ต้องย้ายข้อมูลจาก Key เดิมไป Key ใหม่
+            if (jsonObj.records && jsonObj.records.hasOwnProperty(oldIdStr)) {
+              if (oldIdStr !== newIdStr) {
+                jsonObj.records[newIdStr] = jsonObj.records[oldIdStr];
+                delete jsonObj.records[oldIdStr];
+              }
+              // บันทึกก้อน JSON ที่อัปเดตแล้วกลับลงไป
+              attSheet.getRange(k + 1, 2).setValue(JSON.stringify(jsonObj));
+            }
+          } catch (e) { 
+            Logger.log("Sync JSON Error at row " + (k+1) + ": " + e.message); 
+          }
+        }
+      }
+    }
+
+  } else if (role === 'teacher') {
+    // --- 3. อัปเดตข้อมูลครูในชีต Clubs (ID และ ชื่อที่ปรึกษา) ---
+    const clubSheet = ss.getSheetByName("Clubs");
+    if (clubSheet) {
+      const clubData = clubSheet.getDataRange().getValues(); // ใช้ getValues เพื่อหา Index คอลัมน์ที่แน่นอน
+      const header = clubData[0];
+      const ownerIdIdx = header.indexOf('owner_id');
+      const teacherNameIdx = header.indexOf('teacher_name');
+
+      for (let i = 1; i < clubData.length; i++) {
+        let owners = String(clubData[i][ownerIdIdx]).split(',').map(s => s.trim());
+        
+        if (owners.includes(oldIdStr)) {
+          // 3.1 อัปเดตรายการ ID ครู (เผื่อมีการเปลี่ยน ID)
+          let newOwners = owners.map(id => id === oldIdStr ? newIdStr : id);
+          clubSheet.getRange(i + 1, ownerIdIdx + 1).setValue(newOwners.join(", "));
+          
+          // 3.2 อัปเดตชื่อครู (เรียกใช้ฟังก์ชันเดิมเพื่อดึงชื่อล่าสุดจากชีต Teachers)
+          // หรือใช้ค่า newNameStr ที่ส่งมาอัปเดตโดยตรงเพื่อความเร็ว
+          const updatedNames = getTeacherNames(newOwners); 
+          clubSheet.getRange(i + 1, teacherNameIdx + 1).setValue(updatedNames);
+        }
+      }
+    }
+  }
+}
+
+
+
+function checkDuplicateId(data, new_id) {
+  for (var i = 1; i < data.length; i++) {
+    if (data[i][0].toString() === new_id.toString()) throw new Error("รหัสนี้มีอยู่แล้ว");
+  }
+}
+
+
+
+
+
+/**
+ * ฟังก์ชันลบผู้ใช้ (Master Version) - ปรับปรุงเพื่อความเสถียร
+ */
+function deleteUser(id, role_type) {
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(15000); 
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const targetId = String(id).trim();
+    const sheetName = role_type === 'teacher' ? 'Teachers' : 'Students';
+    const sheet = ss.getSheetByName(sheetName);
+    
+    if (!sheet) return { success: false, message: "ไม่พบชีต: " + sheetName };
+
+    const data = sheet.getDataRange().getDisplayValues();
+    const rowIndex = data.findIndex(r => r[0].toString().trim() === targetId);
+
+    if (rowIndex === -1) return { success: false, message: "ไม่พบรหัสผู้ใช้ในระบบ" };
+
+    // 1. ลบจากชีตหลัก
+    sheet.deleteRow(rowIndex + 1);
+    
+    // 2. ล้างข้อมูลสัมพันธ์
+    if (role_type === 'student') {
+      handleStudentRelatedData(ss, targetId);
+    } else if (role_type === 'teacher') {
+      handleTeacherRelatedData(ss, targetId);
+    }
+    
+    updateAllClubCounts();
+    return { success: true, message: "ลบข้อมูลเรียบร้อยแล้ว" };
+  } catch (e) {
+    return { success: false, message: "Error: " + e.toString() };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
+ * จัดการล้างข้อมูลนักเรียนที่สัมพันธ์กันในทุกตาราง (เวอร์ชันสมบูรณ์ที่สุด)
+ * ใช้สำหรับ: การลบผู้ใช้, การย้ายชุมนุม หรือการล้างสิทธิ์นักเรียน
+ */
+function handleStudentRelatedData(ss, targetId) {
+  const studentIdStr = String(targetId).trim();
+  
+  // 1. จัดการชีต Registration (ลบแถวที่เกี่ยวข้อง)
+  const regSheet = ss.getSheetByName('Registration');
+  if (regSheet) {
+    const regData = regSheet.getDataRange().getValues();
+    // วนลูปจากล่างขึ้นบนเพื่อป้องกัน index เคลื่อนเวลาลบแถว
+    for (let i = regData.length - 1; i >= 1; i--) {
+      if (String(regData[i][1]).trim() === studentIdStr) {
+        regSheet.deleteRow(i + 1);
+      }
+    }
+  }
+
+  // 2. จัดการชีต Attendance_Data (ลบ ID ออกจากก้อน JSON ในทุกชุมนุม)
+  const attSheet = ss.getSheetByName('Attendance_Data');
+  if (attSheet) {
+    const attData = attSheet.getDataRange().getValues(); // Column A: club_id, Column B: data_json
+    
+    for (let k = 1; k < attData.length; k++) {
+      let jsonString = attData[k][1];
+      
+      if (jsonString && jsonString.toString().startsWith('{')) {
+        try {
+          let jsonObj = JSON.parse(jsonString);
+          
+          // ตรวจสอบว่าใน records มี ID ของเด็กคนนี้หรือไม่
+          if (jsonObj.records && jsonObj.records.hasOwnProperty(studentIdStr)) {
+            // ลบข้อมูลการเช็คชื่อของเด็กคนนี้ออก
+            delete jsonObj.records[studentIdStr];
+            
+            // บันทึกก้อน JSON ที่อัปเดตแล้วกลับลงไปในชีต
+            attSheet.getRange(k + 1, 2).setValue(JSON.stringify(jsonObj));
+            Logger.log("Removed student " + studentIdStr + " from Attendance JSON of Club: " + attData[k][0]);
+          }
+        } catch (e) {
+          Logger.log("JSON Parse Error at row " + (k + 1) + ": " + e.message);
+        }
+      }
+    }
+  }
+}
+
+//อัพเดท อัปโหลด ไฟล์ csv แก้ไขข้อมูลที่มีการเปลี่ยนแปลงได้ 26/05/69
+
+function importUsersFromCSV(csvData, role_type) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(role_type === 'teacher' ? 'Teachers' : 'Students');
+  
+  try {
+    let cleanCsvData = csvData.replace(/^\ufeff/, "");
+    let delimiter = (cleanCsvData.split('\n')[0].split(';').length > cleanCsvData.split('\n')[0].split(',').length) ? ";" : ",";
+    const rows = Utilities.parseCsv(cleanCsvData, delimiter);
+    const data = sheet.getDataRange().getDisplayValues();
+    
+    const idMap = {};
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][0]) idMap[String(data[i][0]).trim()] = { rowIndex: i + 1, rowData: data[i] };
+    }
+
+    let addedCount = 0, updatedCount = 0;
+    let addedNames = [], updatedNames = [];
+    let duplicateInCsvCount = 0;
+    const processedIds = new Set();
+    
+    function isDataEqual(val1, val2) {
+      const s1 = String(val1 || "").trim();
+      const s2 = String(val2 || "").trim();
+      if (s1 === s2) return true;
+      if (s1 !== "" && s2 !== "" && !isNaN(s1) && !isNaN(s2)) {
+        return Number(s1) === Number(s2);
+      }
+      return false;
+    }
+
+    rows.forEach(function(row, index) {
+      if (index === 0 || !row[0] || row[0].toString().toLowerCase().includes('id')) return;
+      
+      const cleanRow = row.map(cell => String(cell || "").trim());
+      const id = cleanRow[0];
+      const name = cleanRow[1] || "";
+
+      if (processedIds.has(id)) {
+        duplicateInCsvCount++;
+        return; 
+      }
+      processedIds.add(id);
+
+      if (idMap[id]) {
+        const rowIndex = idMap[id].rowIndex;
+        const oldRow = idMap[id].rowData;
+        let isChanged = false;
+
+        if (role_type === 'teacher') {
+          // เปรียบเทียบ Teacher: ชื่อ(1), User(2), Pass(3), Role(4)
+          if (!isDataEqual(oldRow[1], cleanRow[1]) || 
+              !isDataEqual(oldRow[2], cleanRow[2]) || 
+              !isDataEqual(oldRow[3], cleanRow[3]) || 
+              !isDataEqual(oldRow[4], cleanRow[4])) {
+            
+            // 🔥 ฝั่งครู: เจาะจงใส่ ' เฉพาะรหัสผ่าน (cleanRow[3]) ส่วนช่องอื่นลงข้อมูลดิบปกติ
+            const updatedTeacherData = [
+              cleanRow[1], 
+              cleanRow[2], 
+              "'" + cleanRow[3], // ล็อกรหัสผ่านครูเป็นข้อความ
+              cleanRow[4]
+            ];
+            sheet.getRange(rowIndex, 2, 1, 4).setValues([updatedTeacherData]);
+            isChanged = true;
+          }
+          
+          if (isChanged) {
+            updatedNames.push({ id: id, name: name, username: cleanRow[2], role: cleanRow[4] }); 
+            updatedCount++;
+          }
+          
+        } else {
+          // เปรียบเทียบ Student: ชื่อ(1), Level(2), Room(3), No(4), Pass(5)
+          if (!isDataEqual(oldRow[1], cleanRow[1]) || 
+              !isDataEqual(oldRow[2], cleanRow[2]) || 
+              !isDataEqual(oldRow[3], cleanRow[3]) || 
+              !isDataEqual(oldRow[4], cleanRow[4]) || 
+              !isDataEqual(oldRow[5], cleanRow[5])) {
+            
+            // 🔥 ฝั่งนักเรียน: เจาะจงใส่ ' เฉพาะรหัสผ่านที่เป็นวันที่ (cleanRow[5]) เท่านั้น ช่องอื่นปล่อยเป็นข้อมูลปกติของชีต
+            const updatedStudentData = [
+              cleanRow[1], 
+              cleanRow[2], 
+              cleanRow[3], 
+              cleanRow[4], 
+              "'" + cleanRow[5] // ล็อกรหัสผ่านวันเกิดเด็กเป็นข้อความ
+            ];
+            sheet.getRange(rowIndex, 2, 1, 5).setValues([updatedStudentData]);
+            isChanged = true;
+          }
+          
+          if (isChanged) {
+            updatedNames.push({ id: id, name: name, room: cleanRow[3], no: cleanRow[4] }); 
+            updatedCount++;
+          }
+        }
+
+      } else {
+        // --- เพิ่มรายใหม่เข้าตาราง พร้อมเจาะจงล็อกข้อความเฉพาะช่องรหัสผ่าน ---
+        if (role_type === 'teacher') {
+          const teacherRowData = [
+            id, 
+            cleanRow[1], 
+            cleanRow[2], 
+            "'" + cleanRow[3], // เจาะจงล็อกช่องนี้
+            cleanRow[4]
+          ];
+          sheet.appendRow(teacherRowData);
+          sheet.getRange(sheet.getLastRow(), 1, 1, 5).setFontWeight("normal");
+          addedNames.push({ id: id, name: name, username: cleanRow[2], role: cleanRow[4] });
+        } else {
+          const studentRowData = [
+            id, 
+            cleanRow[1], 
+            cleanRow[2], 
+            cleanRow[3], 
+            cleanRow[4], 
+            "'" + cleanRow[5] // เจาะจงล็อกช่องนี้ (วันเกิดล็อกเป็นข้อความ)
+          ];
+          studentRowData.push(''); // คอลัมน์ที่ 7: club_id เริ่มต้นเป็นค่าว่าง
+          sheet.appendRow(studentRowData);
+          sheet.getRange(sheet.getLastRow(), 1, 1, 7).setFontWeight("normal");
+          addedNames.push({ id: id, name: name, room: cleanRow[3], no: cleanRow[4] });
+        }
+        addedCount++;
+      }
+    });
+    
+    updateAllClubCounts();
+    
+    return { 
+      addedCount: addedCount, 
+      updatedCount: updatedCount,
+      addedNames: addedNames,
+      updatedNames: updatedNames,
+      duplicateInCsvCount: duplicateInCsvCount
+    };
+    
+  } catch (e) {
+    return { error: e.toString() };
+  }
+}
+
+
+
+//เพิ่มฟังก์ชันค้นหาว่าอยู่ชุมนุมอะไร
+function findStudentClub(query) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const studentData = getSheetData("Students"); // ฟังก์ชันดึงข้อมูลที่มีอยู่เดิม
+  const clubData = getSheetData("Clubs");
+ 
+  // สร้าง Map ชื่อชุมนุม [id] : [name]
+  const clubMap = {};
+  clubData.forEach(c => { clubMap[c.id.toString()] = c.name; });
+ 
+  const q = query.toString().toLowerCase().trim();
+ 
+  // ค้นหาในรายชื่อนักเรียน
+  const student = studentData.find(s =>
+    s.id.toString().toLowerCase().includes(q) ||
+    s.name.toLowerCase().includes(q)
+  );
+ 
+  if (!student) return null;
+ 
+  return {
+    name: student.name,
+    id: student.id,
+    level: student.level,
+    room: student.room,
+    club_name: clubMap[student.club_id] || "ยังไม่ได้สมัครชุมนุม"
+  };
+}
+
+
+
+// ดึงข้อมูลชุมนุมทั้งหมด (เพื่อให้ Admin ใช้เปรียบเทียบรายชื่อครู)
+function getClubs() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName("Clubs");
+  if (!sheet) return [];
+
+  const data = sheet.getDataRange().getDisplayValues();
+  const keys = data[0];
+  
+  // แปลงจาก Array 2 มิติ เป็น Array ของ Object
+  return data.slice(1).map(row => {
+    let obj = {};
+    keys.forEach((key, i) => obj[key] = row[i] || "");
+    return obj;
+  });
+}
+
+
+
+// เพิ่มค้นหารายห้อง เรียน เพิ่มต่อท้ายในไฟล์ Code.gs
+function getStudentsByRoom(level, room) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const studentData = getSheetData("Students");
+  const clubData = getSheetData("Clubs");
+
+  // สร้าง Map ชื่อชุมนุมเพื่อใช้แสดงผล
+  const clubMap = {};
+  clubData.forEach(c => { clubMap[c.id.toString()] = c.name; });
+
+  // กรองนักเรียนตามระดับชั้นและห้อง
+  const filtered = studentData.filter(s => 
+    s.level === level && s.room === room
+  );
+
+  // เรียงตามเลขที่
+  return filtered.sort((a, b) => Number(a.no) - Number(b.no)).map(s => ({
+    id: s.id,
+    name: s.name,
+    no: s.no,
+    club_name: clubMap[s.club_id] || "ยังไม่ได้สมัครชุมนุม"
+  }));
+}
+
+
+
+/**
+ * 15/05/69 ฟังก์ชันดึงข้อมูลดึงข้อมูล JSON จากทุกชุมนุมมาเช็กว่าใคร "ไม่ผ่าน" บ้าง
+ */
+
+function getGlobalFailedSummary() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const students = getSheetData("Students");
+  const clubs = getSheetData("Clubs");
+  const attData = ss.getSheetByName("Attendance_Data").getDataRange().getValues();
+
+  // 1. สร้าง Map ของนักเรียนไว้ก่อน เพื่อให้ค้นหาได้ทันทีไม่ต้องวนลูปซ้ำ
+  const studentMap = {};
+  students.forEach(s => { studentMap[s.id.toString()] = s; });
+
+  const clubMap = {};
+  clubs.forEach(c => { clubMap[c.id.toString()] = c.name; });
+
+  let failedList = [];
+
+  // 2. ประมวลผล JSON ในรอบเดียว
+  for (let i = 1; i < attData.length; i++) {
+    const clubId = attData[i][0];
+    const clubName = clubMap[clubId] || "ไม่ระบุ";
+    let gridData;
+    try {
+      gridData = JSON.parse(attData[i][1]);
+    } catch (e) { continue; }
+
+    const records = gridData.records;
+    for (let stdId in records) {
+      const row = records[stdId];
+      const present = row.filter(x => x === 1).length;
+      const absent = row.filter(x => x === 3).length;
+
+      if (present === 0 || absent > 3) {
+        const s = studentMap[stdId]; // ค้นหาจาก Map จะเร็วมาก
+        if (s) {
+          failedList.push({
+            id: stdId, name: s.name, level: s.level, room: s.room,
+            no: s.no, clubName: clubName, present: present, absent: absent
+          });
+        }
+      }
+    }
+  }
+  return failedList;
+}
+
+// บรรทัดล่างสุดของไฟล์ Code.gs (ห้ามมีปีกกาใดๆ ครอบอยู่ด้านนอก)
+
+function deleteStudentsBulkServer(targetType, roomValue) {
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(30000);
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const studentSheet = ss.getSheetByName("Students");
+    const regSheet = ss.getSheetByName("Registration");
+    
+    if (!studentSheet) return { success: false, message: "ไม่พบชีต Students" };
+    
+    const studentData = studentSheet.getDataRange().getDisplayValues();
+    const targetRoom = String(roomValue || "").trim().toLowerCase();
+    const targetStudentIds = [];
+    
+    for (let i = 1; i < studentData.length; i++) {
+      const id = String(studentData[i][0]).trim();
+      const level = String(studentData[i][2]).trim();
+      const room = String(studentData[i][3]).trim().toLowerCase();
+      let isMatch = false;
+      
+      if (targetType === "ม.ต้น") {
+        isMatch = ['ม.1', 'ม.2', 'ม.3', 'ม.ต้น'].some(l => level.includes(l));
+      } else if (targetType === "ม.ปลาย") {
+        isMatch = ['ม.4', 'ม.5', 'ม.6', 'ม.ปลาย'].some(l => level.includes(l));
+      } else if (targetType === "ระบุห้อง") {
+        if (room.includes(targetRoom)) {
+          const pos = room.indexOf(targetRoom);
+          const charAfter = room.charAt(pos + targetRoom.length);
+          if (!charAfter || !/\d/.test(charAfter)) isMatch = true;
+        }
+      }
+      if (isMatch && id !== "") targetStudentIds.push(id);
+    }
+    
+    if (targetStudentIds.length === 0) return { success: false, message: "ไม่พบข้อมูลนักเรียนตามเงื่อนไข" };
+    
+    const idSet = new Set(targetStudentIds);
+    
+    // ลบใน Students
+    for (let j = studentData.length - 1; j >= 1; j--) {
+      if (idSet.has(String(studentData[j][0]).trim())) studentSheet.deleteRow(j + 1);
+    }
+    
+    // ลบใน Registration
+    if (regSheet) {
+      const regData = regSheet.getDataRange().getValues();
+      for (let k = regData.length - 1; k >= 1; k--) {
+        if (idSet.has(String(regData[k][1]).trim())) regSheet.deleteRow(k + 1);
+      }
+    }
+    
+    // ลบใน Attendance_Data
+    const attSheet = ss.getSheetByName('Attendance_Data');
+    if (attSheet) {
+      const attData = attSheet.getDataRange().getValues();
+      for (let m = 1; m < attData.length; m++) {
+        let jsonString = attData[m][1];
+        if (jsonString && jsonString.toString().startsWith('{')) {
+          try {
+            let jsonObj = JSON.parse(jsonString);
+            if (jsonObj.records) {
+              let hasDeleted = false;
+              for (let stdId in jsonObj.records) {
+                if (idSet.has(String(stdId).trim())) {
+                  delete jsonObj.records[stdId];
+                  hasDeleted = true;
+                }
+              }
+              if (hasDeleted) attSheet.getRange(m + 1, 2).setValue(JSON.stringify(jsonObj));
+            }
+          } catch (e) {}
+        }
+      }
+    }
+    
+    updateAllClubCounts();
+    return { success: true, message: `ลบนักเรียนกลุ่มนี้จำนวน ${targetStudentIds.length} คน เรียบร้อยแล้ว` };
+    
+  } catch (e) {
+    return { success: false, message: "Server Error: " + e.toString() };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/* =========================================
+   ส่วนขยายที่ 1: ฟังก์ชันตั้งค่าระดับสูงของ Admin และบันทึกรายงาน
+   ========================================= */
+
+// 1.1 บันทึกการตั้งค่า Admin (โรงเรียน, วันที่, วันหยุด)
+function saveAdvancedSystemSettings(settingsObj) {
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(10000);
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    let sheet = ss.getSheetByName("Config");
+    
+    // ถ้ายังไม่มี sheet ให้สร้าง (ป้องกัน error)
+    if (!sheet) {
+      sheet = ss.insertSheet("Config");
+      sheet.appendRow(["key", "value"]);
+    }
+    
+    const data = sheet.getDataRange().getValues();
+    const keyRowMap = {};
+    
+    // หาตำแหน่งของแต่ละ Key
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][0]) keyRowMap[data[i][0]] = i + 1;
+    }
+
+    // วนลูปบันทึกหรืออัปเดตข้อมูล
+    for (let key in settingsObj) {
+      let valueToSave = typeof settingsObj[key] === 'object' ? JSON.stringify(settingsObj[key]) : settingsObj[key];
+      
+      if (keyRowMap[key]) {
+        sheet.getRange(keyRowMap[key], 2).setValue(valueToSave);
+      } else {
+        sheet.appendRow([key, valueToSave]);
+      }
+    }
+    return { success: true, message: "บันทึกการตั้งค่าระบบเรียบร้อย" };
+  } catch (e) {
+    return { success: false, message: e.message };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// 1. เพิ่มคอลัมน์เก็บรูปแยกจาก JSON ป้องกันเซลล์ล้น
+function setupReportSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName("Club_Reports");
+  if (!sheet) {
+    sheet = ss.insertSheet("Club_Reports");
+    sheet.appendRow(["club_id", "report_json", "logo", "photo_1", "photo_2", "photo_3", "photo_4"]).setFontWeight("bold");
+  } else {
+    // อัปเกรดหัวตารางเดิมให้รองรับรูปภาพ
+    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    if (headers.length < 7) {
+      sheet.getRange(1, 1, 1, 7).setValues([["club_id", "report_json", "logo", "photo_1", "photo_2", "photo_3", "photo_4"]]);
+    }
+  }
+}
+
+
+// 2. บันทึกข้อมูล โดยแยกรูปภาพลงคอลัมน์ของตัวเอง
+function saveClubReportData(clubId, reportDataObj) {
+  setupReportSheet();
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(10000);
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName("Club_Reports");
+    const data = sheet.getDataRange().getValues();
+    const rowIndex = data.findIndex(r => r[0].toString() === clubId.toString());
+    
+    // JSON เก็บแค่ตัวอักษร
+    const jsonString = JSON.stringify({
+      teacher: reportDataObj.teacher,
+      actData: reportDataObj.actData
+    });
+
+    // ดึงรูปมาเตรียมเซฟ
+    const logo = reportDataObj.logo || "";
+    const p1 = (reportDataObj.photos && reportDataObj.photos[1]) ? reportDataObj.photos[1] : "";
+    const p2 = (reportDataObj.photos && reportDataObj.photos[2]) ? reportDataObj.photos[2] : "";
+    const p3 = (reportDataObj.photos && reportDataObj.photos[3]) ? reportDataObj.photos[3] : "";
+    const p4 = (reportDataObj.photos && reportDataObj.photos[4]) ? reportDataObj.photos[4] : "";
+
+    if (rowIndex !== -1) {
+      sheet.getRange(rowIndex + 1, 2, 1, 6).setValues([[jsonString, logo, p1, p2, p3, p4]]);
+    } else {
+      sheet.appendRow([clubId, jsonString, logo, p1, p2, p3, p4]);
+    }
+    return { success: true, message: "บันทึกข้อมูลรายงานเรียบร้อยแล้ว" };
+  } catch (e) {
+    return { success: false, message: e.message };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+
+// 3. ตอนดึงข้อมูล ให้ดึงรูปจากคอลัมน์กลับมาแสดงด้วย
+function getSavedClubReport(clubId) {
+  setupReportSheet(); 
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName("Club_Reports");
+  const data = sheet.getDataRange().getValues();
+  const row = data.find(r => r[0].toString() === clubId.toString());
+  
+  if (row) { 
+    let parsedData = {};
+    try { parsedData = JSON.parse(row[1]); } catch(e) {}
+    
+    return { 
+      found: true, 
+      data: {
+        teacher: parsedData.teacher || "",
+        actData: parsedData.actData || null,
+        logo: row[2] || "",
+        photos: {
+          1: row[3] || "",
+          2: row[4] || "",
+          3: row[5] || "",
+          4: row[6] || ""
+        }
+      } 
+    }; 
+  }
+  return { found: false, data: null };
+}
+
+
+/* =========================================
+   ส่วนขยายที่ 5: ระบบเริ่มภาคเรียนใหม่ (Archive & Reset)
+   ========================================= */
+function startNewSemester(options) {
+  const lock = LockService.getScriptLock();
+  try {
+    // ล็อกไว้ 30 วินาที เพราะเป็นกระบวนการที่ดึงข้อมูลหนัก
+    lock.waitLock(30000); 
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+    // 1. สำรองข้อมูลก่อนล้าง (Backup)
+    if (options.doBackup) {
+      backupDatabaseBeforeReset(ss);
+    }
+
+    // 2. ดำเนินการล้างข้อมูลตามที่เลือก (Selective Reset)
+    
+    // 2.1 ล้างการสมัครเข้าชุมนุม
+    if (options.resetRegistrations) {
+      clearSheetDataPreserveHeader(ss.getSheetByName("Registration"));
+    }
+
+    // 2.2 ล้างประวัติการเช็คชื่อ (แยกออกมาเช็คเงื่อนไขอิสระตาม options.resetAttendance)
+    if (options.resetAttendance) {
+      clearSheetDataPreserveHeader(ss.getSheetByName("Attendance_Data"));
+    }
+
+    // 2.3 ล้างรายงานกิจกรรมและรูปภาพ
+    if (options.resetReports) {
+      clearSheetDataPreserveHeader(ss.getSheetByName("Club_Reports"));
+    }
+
+    // 2.4 ล้างข้อมูลนักเรียนทั้งหมด (เพื่อเตรียมอัปโหลด CSV ใหม่)
+    if (options.clearStudents) {
+      clearSheetDataPreserveHeader(ss.getSheetByName("Students"));
+    } else if (options.resetRegistrations) {
+      // ถ้าไม่ลบเด็กทิ้ง แต่ติ๊กรีเซ็ตการสมัคร ต้องไปเคลียร์คอลัมน์ club_id ใน Students ด้วย
+      const stdSheet = ss.getSheetByName("Students");
+      if (stdSheet && stdSheet.getLastRow() > 1) {
+        stdSheet.getRange(2, 7, stdSheet.getLastRow() - 1, 1).clearContent();
+      }
+    }
+
+    // 2.5 จัดการชุมนุมของครู
+    const clubSheet = ss.getSheetByName("Clubs");
+    if (options.clearClubs) {
+      // เลือกลบชุมนุมทิ้งทั้งหมด
+      clearSheetDataPreserveHeader(clubSheet);
+      
+    } else if (options.resetRegistrations) {
+      // เก็บชุมนุมไว้ แต่ล้างยอดนักเรียน (current_count เป็น 0) 
+      // *** ทำงานเฉพาะเมื่อติ๊กล้างข้อมูลการสมัครชุมนุมเท่านั้น ***
+      if (clubSheet && clubSheet.getLastRow() > 1) {
+        const lastRow = clubSheet.getLastRow();
+        clubSheet.getRange(2, 4, lastRow - 1, 1).setValue(0);
+      }
+    }
+
+    // 3. จัดการอัปเดต ปีการศึกษา/เทอม ให้อัตโนมัติ (ถ้าส่งมา)
+    if (options.newSemester && options.newYear) {
+      updateSemesterConfig(ss, options.newSemester, options.newYear);
+    }
+
+    return { success: true, message: "ระบบได้ทำการรีเซ็ตเตรียมพร้อมสำหรับภาคเรียนใหม่แล้ว" };
+
+  } catch (e) {
+    return { success: false, message: "New Semester Error: " + e.message };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// ฟังก์ชันช่วย: เคลียร์ข้อมูลในชีตแต่เก็บหัวตารางไว้
+function clearSheetDataPreserveHeader(sheet) {
+  if (!sheet) return;
+  const lastRow = sheet.getLastRow();
+  const lastCol = sheet.getLastColumn();
+  if (lastRow > 1) {
+    sheet.getRange(2, 1, lastRow - 1, lastCol).clearContent();
+  }
+}
+
+// ฟังก์ชันช่วย: อัปเดตภาคเรียนในหน้า Config
+function updateSemesterConfig(ss, semester, year) {
+  const configSheet = ss.getSheetByName("Config");
+  if (!configSheet) return;
+  
+  const data = configSheet.getDataRange().getValues();
+  const settingsRowIndex = data.findIndex(r => r[0] === 'adminSettings');
+  
+  if (settingsRowIndex !== -1 && data[settingsRowIndex][1]) {
+    try {
+      let settings = JSON.parse(data[settingsRowIndex][1]);
+      settings.semester = semester;
+      settings.academicYear = year;
+      configSheet.getRange(settingsRowIndex + 1, 2).setValue(JSON.stringify(settings));
+    } catch (e) { /* Ignore parse error */ }
+  }
+}
+
+/* =========================================
+   ฟังก์ชันแบคอัปสมบูรณ์: โคลนไฟล์ทั้งระบบ (รวม GS และ HTML)
+   ========================================= */
+function backupDatabaseBeforeReset(ss) {
+  try {
+    // 1. ดึงข้อมูล Config เพื่อหา Folder ID, เทอม และปีการศึกษา
+    const configSheet = ss.getSheetByName("Config");
+    const data = configSheet.getDataRange().getValues();
+    let folderId = "";
+    let currentSemester = "1";
+    let currentYear = "2569";
+    
+    const settingsRow = data.find(r => r[0] === 'adminSettings');
+    if (settingsRow && settingsRow[1]) {
+       try {
+         const settings = JSON.parse(settingsRow[1]);
+         folderId = settings.driveFolderId;
+         currentSemester = settings.semester || "1";
+         currentYear = settings.academicYear || "2569";
+       } catch (err) {
+         // ใช้ค่าเริ่มต้นถ้า Parse ไม่ผ่าน
+       }
+    }
+    
+    // 2. จัดการค้นหาหรือสร้างโฟลเดอร์สำหรับเก็บไฟล์แบคอัป
+    let folder;
+    if (folderId) {
+      try {
+        folder = DriveApp.getFolderById(folderId);
+      } catch (e) {
+        folder = null; // ถ้าไอดีมีปัญหา ให้ไปสร้างโฟลเดอร์สำรองด้านล่าง
+      }
+    }
+    
+    if (!folder) {
+      const folderIterator = DriveApp.getFoldersByName("SKN_Club_Backup");
+      if (folderIterator.hasNext()) {
+        folder = folderIterator.next();
+      } else {
+        folder = DriveApp.createFolder("SKN_Club_Backup");
+      }
+    }
+
+    // 3. สร้างชื่อไฟล์แบคอัป
+    const timestamp = Utilities.formatDate(new Date(), "Asia/Bangkok", "yyyyMMdd_HHmm");
+    const backupFileName = `SKN_Club_Clone_Term${currentSemester}_${currentYear}_${timestamp}`;
+    
+    // ----------------------------------------------------
+    // 4. ส่วนสำคัญที่เปลี่ยน: ทำสำเนาไฟล์ทั้งก้อนผ่าน DriveApp
+    // วิธีนี้จะได้ทั้ง ชีต(ข้อมูล) + Code.gs + Index.html แน่นอน 100%
+    // ----------------------------------------------------
+    const currentFileId = ss.getId();
+    const currentFile = DriveApp.getFileById(currentFileId);
+    
+    // สั่ง Make a copy ตรงเข้าโฟลเดอร์แบคอัปทันที
+    const copiedFile = currentFile.makeCopy(backupFileName, folder);
+    
+    // 5. (ทางเลือก) เข้าไปลบชีตขยะที่อาจติดมากับไฟล์แบคอัป
+    const backupSpreadsheet = SpreadsheetApp.openById(copiedFile.getId());
+    const allSheets = backupSpreadsheet.getSheets();
+    allSheets.forEach(sheet => {
+      const sheetName = sheet.getName();
+      // ลบชีตทดสอบหรือชีตแบคอัปเก่าซ้อนแบคอัป (ถ้ามี)
+      if (sheetName.startsWith("Backup_") || sheetName.startsWith("Test_")) {
+        backupSpreadsheet.deleteSheet(sheet);
+      }
+    });
+
+  } catch (e) {
+    Logger.log("Full Clone Backup Error: " + e.message);
+  }
+}
+
+/* =========================================
+   ฟังก์ชันดึงลิงก์ Web App สำหรับใช้รีเฟรชหน้าจอ
+   ========================================= */
+function getWebAppUrl() {
+  return ScriptApp.getService().getUrl();
+}
+
+
+/* =========================================
+   แก้ไขล่าสุด: ฟังก์ชันดึงรายชื่อไฟล์แบคอัปแบบโคลนทั้ง 7 ชีต
+   ========================================= */
+function getBackupFilesList() {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const configSheet = ss.getSheetByName("Config");
+    const data = configSheet.getDataRange().getValues();
+    let folderId = "";
+    
+    const settingsRow = data.find(r => r[0] === 'adminSettings');
+    if (settingsRow && settingsRow[1]) {
+       folderId = JSON.parse(settingsRow[1]).driveFolderId;
+    }
+
+    let folder;
+    if (folderId) {
+      folder = DriveApp.getFolderById(folderId);
+    } else {
+      const folderIterator = DriveApp.getFoldersByName("SKN_Club_Backup");
+      if (folderIterator.hasNext()) {
+        folder = folderIterator.next();
+      } else {
+        return { success: false, message: "ยังไม่มีโฟลเดอร์แบคอัป" };
+      }
+    }
+
+    // ค้นหาไฟล์ Google Sheets ที่ขึ้นต้นด้วยชื่อ SKN_Club_Clone ให้ตรงกับตอนสร้าง
+    const files = folder.getFilesByType(MimeType.GOOGLE_SHEETS);
+    let fileList = [];
+    
+    while (files.hasNext()) {
+      let file = files.next();
+      if (file.getName().includes("SKN_Club_Clone")) {
+        fileList.push({
+          name: file.getName(),
+          url: file.getUrl(),
+          date: file.getDateCreated().getTime(),
+          dateText: Utilities.formatDate(file.getDateCreated(), "Asia/Bangkok", "dd/MM/yyyy HH:mm")
+        });
+      }
+    }
+    
+    // เรียงลำดับจากใหม่สุดไปเก่าสุด
+    fileList.sort((a, b) => b.date - a.date);
+    
+    return { success: true, data: fileList };
+
+  } catch (e) {
+    return { success: false, message: e.message };
+  }
+}
+
+
+/* =========================================
+   ฟังก์ชันสำหรับส่งอีเมลรายงาน พร้อมไฟล์แนบ PDF
+   ========================================= */
+function sendClubReportEmail(emailAddress, data) {
+  try {
+    const subject = `รายงานผลการจัดกิจกรรมชุมนุม: ${data.clubName} (${data.semester}/${data.academicYear})`;
+    
+    // เนื้อหาอีเมลแจ้งเตือน
+    let htmlBody = `
+      <div style="font-family: 'Sarabun', sans-serif, Tahoma; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #ddd; padding: 20px; border-radius: 8px;">
+        <h2 style="color: #2563eb; text-align: center;">สรุปผลการจัดกิจกรรมชุมนุม</h2>
+        <h3 style="text-align: center;">${data.clubName}</h3>
+        
+        <p>เรียน ผู้ที่เกี่ยวข้อง,</p>
+        <p>ระบบได้ทำการจัดส่งรายงานผลการจัดกิจกรรมชุมนุม (ฉบับสมบูรณ์) มาพร้อมกับอีเมลฉบับนี้ <b>ในรูปแบบไฟล์แนบ (PDF)</b> ซึ่งมีรูปแบบและรายละเอียดตรงตามหน้าเว็บ 100%</p>
+        
+        <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
+        <p><b>ครูที่ปรึกษา:</b> ${data.teacher}</p>
+        <p><b>ภาคเรียนที่:</b> ${data.semester} <b>ปีการศึกษา:</b> ${data.academicYear}</p>
+        
+        <h4 style="background-color: #f8fafc; padding: 10px; border-radius: 4px;">สรุปผลการประเมิน</h4>
+        <ul style="line-height: 1.6;">
+          <li>นักเรียนทั้งหมด: <b>${data.totalStudents}</b> คน</li>
+          <li>ผ่านการประเมิน: <b style="color: #16a34a;">${data.passCount}</b> คน</li>
+          <li>ไม่ผ่านการประเมิน: <b style="color: #dc2626;">${data.failCount}</b> คน</li>
+        </ul>
+        
+        <p style="text-align: center; margin-top: 30px; font-size: 12px; color: #888;">
+          <i>ส่งจากระบบบริหารจัดการชุมนุม SKN (โรงเรียนสมุทรสาครบูรณะ)</i>
+        </p>
+      </div>
+    `;
+
+    // แปลงรหัส Base64 ของ PDF ให้กลับมาเป็นไฟล์แนบ
+    var base64Data = data.pdfFile.split(',')[1]; 
+    var pdfBlob = Utilities.newBlob(Utilities.base64Decode(base64Data), 'application/pdf', `รายงานชุมนุม_${data.clubName}.pdf`);
+
+    // สั่งส่งอีเมลพร้อมแนบไฟล์ PDF
+    MailApp.sendEmail({
+      to: emailAddress,
+      subject: subject,
+      htmlBody: htmlBody,
+      name: "ระบบบริหารจัดการชุมนุม SKN",
+      attachments: [pdfBlob]
+    });
+
+    return { success: true };
+  } catch (e) {
+    return { success: false, message: e.message };
+  }
+}
+
+/* =========================================
+   ฟังก์ชันสำหรับกดยืนยันสิทธิ์อีเมล (รันครั้งเดียว)
+   ========================================= */
+function forceAuthEmail() {
+  // คำสั่งนี้ไม่มีผลเสียอะไร แค่เรียกใช้เพื่อให้ Google รู้ว่าเราต้องการสิทธิ์ส่งอีเมล
+  var quota = MailApp.getRemainingDailyQuota(); 
+  Logger.log("โควตาส่งอีเมลที่เหลือวันนี้: " + quota + " ฉบับ (ยืนยันสิทธิ์สำเร็จ!)");
+}
+
+/* =========================================
+   ฟังก์ชันทดสอบเพื่อบังคับขอสิทธิ์อีเมล (รันแล้วลบทิ้งได้)
+   ========================================= */
+function testSendEmailAuth() {
+  // สั่งส่งอีเมลหาตัวเองเพื่อเรียกหน้าต่างขอสิทธิ์
+  var myEmail = Session.getEffectiveUser().getEmail();
+  MailApp.sendEmail({
+    to: myEmail,
+    subject: "ยืนยันสิทธิ์ SKN Club สำเร็จ",
+    body: "หากคุณได้รับอีเมลฉบับนี้ แสดงว่าระบบพร้อมส่งอีเมลรายงานแล้วครับ"
+  });
+}
