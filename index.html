@@ -1380,6 +1380,15 @@
           <div class="text-muted small">
             เครื่องมือนี้ใช้สร้างภาคเรียนใหม่ โดยสำรองข้อมูลภาคเรียนเดิมลง Google Drive และคงข้อมูลเก่าทั้งหมดไว้
           </div>
+          <div class="d-flex flex-wrap gap-2 mt-3">
+            <button class="btn btn-outline-primary btn-sm" @click="openPeriodManagementModal" :disabled="user?.role!=='admin'">
+              <i class="fas fa-calendar-check me-1"></i> จัดการ / ลบปีการศึกษา และกำหนดเทอมปัจจุบัน
+            </button>
+            <button class="btn btn-outline-success btn-sm" @click="openRestoreBackupModal" :disabled="user?.role!=='admin'">
+              <i class="fas fa-file-import me-1"></i> นำเข้า / กู้คืนไฟล์สำรอง JSON จาก Drive หรือเครื่อง
+            </button>
+          </div>
+          <p class="small text-muted mt-2 mb-0">การลบข้อมูลเทอม/ปีจะสำรอง JSON ไป Drive ก่อนเสมอ ไฟล์ภาพและบัญชีครูที่ใช้ร่วมกันจะไม่ถูกลบ</p>
         </div>
       </div>
 
@@ -2422,6 +2431,106 @@
 
 
 
+
+    <!-- V4.5: Admin only period lifecycle -->
+    <div class="modal fade" id="periodManagementModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered modal-xl modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+          <div class="modal-header bg-light"><h5 class="modal-title fw-bold"><i class="fas fa-calendar-alt text-primary me-2"></i>จัดการปี/ภาคเรียนและกำหนดปัจจุบัน</h5>
+            <button class="btn-close" data-bs-dismiss="modal" :disabled="periodBusy"></button></div>
+          <div class="modal-body p-4">
+            <p class="text-muted small">บัญชีครู/ข้อมูลยืนยันตัวตนที่ใช้ร่วมกันหลายเทอมจะยังอยู่ และไฟล์รูปใน Drive จะเก็บไว้เพื่อกู้คืน</p>
+            <div class="row g-3 align-items-end">
+              <div class="col-md-4"><label class="form-label fw-bold">ภาคเรียน</label>
+                <select class="form-select" v-model="managePeriodId" @change="loadManagedPeriodImpact">
+                  <option value="">-- เลือกภาคเรียน --</option>
+                  <option v-for="item in periods" :key="item.id" :value="item.id">{{item.semester}}/{{item.academicYear}}{{item.isCurrent?' (ปัจจุบัน)':''}}</option>
+                </select></div>
+              <div class="col-md-4"><button class="btn btn-primary w-100" :disabled="periodBusy||!managePeriodId" @click="applyCurrentPeriod"><i class="fas fa-check-circle me-2"></i>กำหนดเทอมนี้เป็นปัจจุบัน</button></div>
+              <div class="col-md-4"><label class="form-label fw-bold">ขอบเขตการลบ</label>
+                <select class="form-select" v-model="deleteScope" @change="loadManagedPeriodImpact">
+                  <option value="term">เฉพาะภาคเรียนที่เลือก</option>
+                  <option value="year">ทั้งปีการศึกษา (ทุกภาคเรียน)</option>
+                </select></div>
+            </div>
+            <div v-if="periodImpactLoading" class="small text-primary mt-3"><span class="spinner-border spinner-border-sm me-2"></span>กำลังตรวจข้อมูลที่เชื่อมโยง...</div>
+            <div v-if="periodImpact" class="bg-light rounded-3 p-3 mt-3 border">
+              <div class="fw-bold mb-2">รายการที่จะได้รับผลกระทบ: {{periodDeleteLabel}}</div>
+              <div class="d-flex flex-wrap gap-3 small">
+                <span>ครูในเทอม <b>{{periodImpact.teachers}}</b></span><span>นักเรียน <b>{{periodImpact.students}}</b></span>
+                <span>ชุมนุม <b>{{periodImpact.clubs}}</b></span><span>การสมัคร <b>{{periodImpact.registrations}}</b></span>
+                <span>เช็กชื่อ <b>{{periodImpact.attendance}}</b></span><span>รายงาน <b>{{periodImpact.reports}}</b></span>
+              </div>
+              <div v-if="deleteScope==='year'" class="small text-muted mt-2">รวมข้อมูลจาก {{periodImpact.termCount}} ภาคเรียน</div>
+            </div>
+            <div class="row mt-3 g-3" v-if="managePeriodId">
+              <div class="col-md-6">
+                <label class="form-label fw-bold">เทอมที่จะให้เป็นปัจจุบันหลังลบ (เลือกเมื่อจะลบเทอมปัจจุบัน)</label>
+                <select class="form-select" v-model="replacementPeriodId">
+                  <option value="">-- ไม่ต้องเปลี่ยน / เลือกภาคเรียน --</option>
+                  <option v-for="item in availableReplacementPeriods" :key="item.id" :value="item.id">{{item.semester}}/{{item.academicYear}}</option>
+                </select>
+              </div>
+              <div class="col-md-6"><label class="form-label fw-bold text-danger">พิมพ์รหัสยืนยัน: {{periodDeleteConfirmText}}</label>
+                <input class="form-control" v-model="periodDeleteConfirm" :placeholder="periodDeleteConfirmText" autocomplete="off" />
+              </div>
+            </div>
+            <div class="alert alert-warning small mt-3 mb-0">
+              <b>คำเตือน:</b> ลบข้อมูลจาก Supabase จริง รวมข้อมูลเชื่อมโยงในเทอม/ปีที่เลือก แต่ไม่ลบบัญชีผู้ใช้ที่ใช้ร่วมกันหรือไฟล์รูปใน Drive
+              ระบบจะสำรอง JSON ก่อนลบ และเก็บประวัติ Backup แม้เทอมต้นทางถูกลบแล้ว
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-light" data-bs-dismiss="modal" :disabled="periodBusy">ปิด</button>
+            <button class="btn btn-danger" :disabled="periodBusy||!periodImpact||periodDeleteConfirm!==periodDeleteConfirmText" @click="executePeriodDelete">
+              <span v-if="periodBusy" class="spinner-border spinner-border-sm me-2"></span>
+              สำรองและลบ{{deleteScope==='year'?'ทั้งปีการศึกษา':'ภาคเรียน'}}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- V4.5: Restore from previously saved Drive JSON or local uploaded JSON -->
+    <div class="modal fade" id="restoreBackupModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+          <div class="modal-header bg-light"><h5 class="modal-title fw-bold"><i class="fas fa-file-import me-2 text-success"></i>นำเข้า / กู้คืนข้อมูลจาก JSON Backup</h5>
+            <button class="btn-close" data-bs-dismiss="modal" :disabled="restoreBusy"></button></div>
+          <div class="modal-body p-4">
+            <p class="small text-muted">รองรับไฟล์ SKN-SUPABASE-V1 ที่เคยสำรองไว้ใน Drive หรือไฟล์ JSON จากเครื่อง ไม่รองรับการนำไฟล์ Google Sheets Clone มา Restore โดยตรง</p>
+            <div class="mb-3"><label class="form-label fw-bold">เลือกไฟล์สำรองจากประวัติ Google Drive</label>
+              <div class="input-group">
+                <select class="form-select" v-model="selectedBackupFileId" :disabled="restoreBusy">
+                  <option value="">-- เลือกไฟล์สำรอง --</option>
+                  <option v-for="file in backupFiles" :key="file.fileId" :value="file.fileId">{{file.periodCode||'ไม่ระบุเทอม'}} — {{file.name}}</option>
+                </select>
+                <button class="btn btn-outline-primary" @click="readSelectedDriveBackup" :disabled="restoreBusy||!selectedBackupFileId">อ่านจาก Drive</button>
+              </div>
+            </div>
+            <div class="mb-3"><label class="form-label fw-bold">หรืออัปโหลดไฟล์ JSON จากเครื่อง</label>
+              <input type="file" accept=".json,application/json" class="form-control" @change="readUploadedBackupFile" :disabled="restoreBusy" />
+            </div>
+            <div v-if="restorePreview" class="bg-light rounded-3 border p-3 mb-3">
+              <div class="fw-bold text-success">ตรวจพบไฟล์: {{restoreFileName}}</div>
+              <div class="small">ต้นทาง: ภาคเรียน {{restorePreview.semester}}/{{restorePreview.year}}
+                · นักเรียน {{restorePreview.students}} คน · ชุมนุม {{restorePreview.clubs}} · การสมัคร {{restorePreview.registrations}}
+                · เช็กชื่อ {{restorePreview.attendance}} · รายงาน {{restorePreview.reports}}</div>
+            </div>
+            <div class="row g-3">
+              <div class="col-4"><label class="form-label fw-bold">ปีการศึกษาปลายทาง</label><input type="number" class="form-control" min="2500" max="2800" v-model.number="restoreYear" :disabled="restoreBusy" /></div>
+              <div class="col-4"><label class="form-label fw-bold">ภาคเรียนปลายทาง</label><select class="form-select" v-model.number="restoreSemester" :disabled="restoreBusy"><option :value="1">1</option><option :value="2">2</option><option :value="3">3</option></select></div>
+              <div class="col-4 d-flex align-items-end"><label class="form-check mb-2"><input type="checkbox" class="form-check-input" v-model="restoreMakeCurrent" :disabled="restoreBusy" /><span class="form-check-label">ตั้งเป็นปัจจุบัน</span></label></div>
+            </div>
+            <div class="alert alert-info small mt-3 mb-0">กู้คืนเป็นเทอมใหม่เท่านั้น <b>ไม่ทับข้อมูลเดิม</b> บัญชีครูและรหัสผ่านนักเรียนต้องมีอยู่ในฐานข้อมูลก่อน (ไฟล์สำรองไม่มีรหัสผ่าน) ไฟล์ JSON ไม่รวมไบต์รูปภาพจาก Drive</div>
+            <div v-if="restoreError" class="alert alert-danger small mt-3 mb-0">{{restoreError}}</div>
+          </div>
+          <div class="modal-footer"><button class="btn btn-light" data-bs-dismiss="modal" :disabled="restoreBusy">ปิด</button>
+            <button class="btn btn-success" @click="executeRestoreBackup" :disabled="restoreBusy||!restorePreview"><span v-if="restoreBusy" class="spinner-border spinner-border-sm me-2"></span>ยืนยันกู้คืนเป็นภาคเรียนใหม่</button></div>
+        </div>
+      </div>
+    </div>
+
     </div> <!-- ปิด div id="app" v-cloak -->
 
 
@@ -2527,6 +2636,11 @@ data() {
 
     backupFiles: [],
     loadingBackup: false,
+    managePeriodId: '', deleteScope: 'term', replacementPeriodId: '',
+    periodImpact: null, periodImpactLoading: false, periodBusy: false, periodDeleteConfirm: '',
+    selectedBackupFileId: '', restoreBusy: false, restorePreview: null,
+    restoreFileName: '', restoreOrigin: 'local', restoreError: '',
+    restoreYear: 2569, restoreSemester: 1, restoreMakeCurrent: true,
 
     calcStartDate: '', // วันที่เริ่มต้นคำนวณ
     exportFilter: { type: 'ทั้งหมด', room: '' },
@@ -2575,6 +2689,18 @@ data() {
       }
     },
     computed: {
+      periodDeleteLabel(){
+        const p=this.periods.find(x=>x.id===this.managePeriodId);
+        return !p?'':this.deleteScope==='year'?'ทั้งปี '+p.academicYear:('ภาคเรียน '+p.semester+'/'+p.academicYear);
+      },
+      periodDeleteConfirmText(){
+        const p=this.periods.find(x=>x.id===this.managePeriodId);
+        return !p?'':this.deleteScope==='year'?'YEAR-'+p.academicYear:(p.periodCode||p.academicYear+'-'+p.semester);
+      },
+      availableReplacementPeriods(){
+        const p=this.periods.find(x=>x.id===this.managePeriodId);
+        return this.periods.filter(x=>p && x.id!==p.id && (this.deleteScope!=='year'||x.academicYear!==p.academicYear));
+      },
 
 
 //อัพเดท ดูข้อมูลชุมนุมและสถานที่เรียน
@@ -2725,6 +2851,128 @@ filteredClubs() {
 
 
       methods: {
+        async openPeriodManagementModal(){
+          if(this.user?.role!=='admin')return;
+          this.managePeriodId=this.activePeriodId||this.periods[0]?.id||'';
+          this.deleteScope='term';this.periodDeleteConfirm='';this.replacementPeriodId='';this.periodImpact=null;
+          bootstrap.Modal.getOrCreateInstance(document.getElementById('periodManagementModal')).show();
+          await this.loadManagedPeriodImpact();
+        },
+        async loadManagedPeriodImpact(){
+          const selected=this.periods.find(x=>x.id===this.managePeriodId);
+          const scope=this.deleteScope;
+          this.periodDeleteConfirm='';this.periodImpact=null;
+          if(!selected)return;
+          this.periodImpactLoading=true;
+          try{
+            const items=this.deleteScope==='year'?this.periods.filter(p=>p.academicYear===selected.academicYear):[selected];
+            const res=await Promise.all(items.map(item=>window.SKNBridge.invoke('getPeriodImpact',[item.id])));
+            if(this.managePeriodId!==selected.id||this.deleteScope!==scope)return;
+            const merged={termCount:items.length,teachers:0,students:0,clubs:0,registrations:0,attendance:0,reports:0,config:0,backupFiles:0};
+            for(const r of res)for(const key of Object.keys(merged))if(key!=='termCount')merged[key]+=Number(r[key]||0);
+            this.periodImpact=merged;
+          }catch(err){Swal.fire('ตรวจสอบข้อมูลไม่สำเร็จ',err.message||String(err),'error');}
+          finally{this.periodImpactLoading=false;}
+        },
+        async applyCurrentPeriod(){
+          if(this.user?.role!=='admin'||!this.managePeriodId||this.periodBusy)return;
+          const selected=this.periods.find(p=>p.id===this.managePeriodId);
+          const confirm=await Swal.fire({title:'กำหนดเทอมปัจจุบัน?',text:`เปลี่ยนเป็น ${selected?.semester}/${selected?.academicYear} โดยไม่ลบข้อมูล`,icon:'question',showCancelButton:true,confirmButtonText:'ยืนยัน',cancelButtonText:'ยกเลิก'});
+          if(!confirm.isConfirmed)return;
+          this.periodBusy=true;
+          try{
+            await window.SKNBridge.invoke('setCurrentPeriod',[this.managePeriodId]);
+            window.SKNBridge.periodId=this.managePeriodId;
+            this.activePeriodId=this.managePeriodId;
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('periodManagementModal')).hide();
+            this.view='dashboard';await this.refreshData(true);
+            Swal.fire('เรียบร้อย','กำหนดเทอมปัจจุบันแล้ว','success');
+          }catch(err){Swal.fire('เปลี่ยนเทอมไม่สำเร็จ',err.message||String(err),'error');}
+          finally{this.periodBusy=false;}
+        },
+        async executePeriodDelete(){
+          if(this.user?.role!=='admin'||this.periodBusy||!this.periodImpact)return;
+          const selected=this.periods.find(p=>p.id===this.managePeriodId);
+          if(!selected||this.periodDeleteConfirm!==this.periodDeleteConfirmText)return;
+          const members=this.deleteScope==='year'?this.periods.filter(p=>p.academicYear===selected.academicYear):[selected];
+          if(members.length>=this.periods.length)return Swal.fire('ไม่สามารถลบได้','ต้องเหลือภาคเรียนอย่างน้อย 1 เทอม','warning');
+          if(members.some(p=>p.isCurrent)&&!this.replacementPeriodId)return Swal.fire('เลือกเทอมทดแทน','กรุณาระบุเทอมใหม่ที่จะเป็นปัจจุบัน','warning');
+          const ok=await Swal.fire({title:'ยืนยันการลบข้อมูลจริง',html:`<b>${this.periodDeleteLabel}</b><p>ระบบจะสำรอง JSON ลง Drive ก่อน แล้วจึงลบข้อมูลที่เชื่อมโยงจาก Supabase</p>`,icon:'warning',showCancelButton:true,confirmButtonText:'ยืนยัน สำรองและลบ',cancelButtonText:'ยกเลิก',confirmButtonColor:'#dc2626'});
+          if(!ok.isConfirmed)return;
+          this.periodBusy=true;
+          Swal.fire({title:'กำลังสำรองข้อมูลและตรวจสอบ...',html:'กรุณาอย่าปิดหน้าต่าง ระบบจะยกเลิกการลบหากสำรองไม่สำเร็จ',allowOutsideClick:false,allowEscapeKey:false,didOpen:()=>Swal.showLoading()});
+          try{
+            const res=this.deleteScope==='year'
+              ?await window.SKNBridge.invoke('deleteAcademicYearWithBackup',[selected.academicYear,this.replacementPeriodId||null])
+              :await window.SKNBridge.invoke('deletePeriodWithBackup',[selected.id,selected.periodCode||`${selected.academicYear}-${selected.semester}`,this.replacementPeriodId||null]);
+            if(!res?.success)throw Error(res?.message||'ลบข้อมูลไม่สำเร็จ');
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('periodManagementModal')).hide();
+            window.SKNBridge.periodId=res.currentPeriodId||'';
+            this.activePeriodId=res.currentPeriodId||'';this.view='dashboard';
+            await this.refreshData(true);
+            Swal.fire('ลบข้อมูลเรียบร้อย','ข้อมูลเทอมที่เลือกถูกลบจาก Supabase โดยเก็บ JSON สำรองใน Drive','success');
+          }catch(err){Swal.fire('ลบข้อมูลไม่สำเร็จ',err.message||String(err),'error');}
+          finally{this.periodBusy=false;}
+        },
+        async openRestoreBackupModal(){
+          if(this.user?.role!=='admin')return;
+          this.restorePreview=null;this.restoreFileName='';this.restoreError='';
+          this.selectedBackupFileId='';this._restoreSnapshot=null;
+          bootstrap.Modal.getOrCreateInstance(document.getElementById('restoreBackupModal')).show();
+          try{const res=await window.SKNBridge.invoke('getBackupFilesList',[]);this.backupFiles=res?.data||[];}
+          catch(err){this.restoreError='โหลดประวัติ Backup ไม่ได้: '+(err.message||String(err));}
+        },
+        inspectRestorableJson(text,name,origin){
+          if(text.length>5000000)throw Error('ไฟล์ใหญ่เกิน 5 MB สำหรับการกู้ผ่านหน้าเว็บ');
+          const parsed=JSON.parse(text.replace(/^\uFEFF/,''));
+          if(parsed.format!=='SKN-SUPABASE-V1'||!parsed.period||!parsed.tables)throw Error('ไฟล์ไม่ใช่ JSON Backup รูปแบบ SKN-SUPABASE-V1');
+          const names=['period_teachers','students','clubs','registrations','attendance','club_reports','period_config'];
+          if(names.some(k=>!Array.isArray(parsed.tables[k])))throw Error('ไฟล์สำรองขาดตารางข้อมูลที่จำเป็น');
+          this._restoreSnapshot=parsed;
+          this.restorePreview={year:Number(parsed.period.academic_year),semester:Number(parsed.period.semester),
+            students:parsed.tables.students.length,clubs:parsed.tables.clubs.length,
+            registrations:parsed.tables.registrations.length,attendance:parsed.tables.attendance.length,
+            reports:parsed.tables.club_reports.length};
+          this.restoreFileName=name;this.restoreOrigin=origin;
+          this.restoreYear=this.restorePreview.year;this.restoreSemester=this.restorePreview.semester;
+          this.restoreError='';
+        },
+        async readSelectedDriveBackup(){
+          if(!this.selectedBackupFileId||this.restoreBusy)return;
+          this.restoreBusy=true;this.restoreError='';
+          try{const res=await window.SKNBridge.invoke('readBackupFromDrive',[this.selectedBackupFileId]);
+            if(!res?.success)throw Error('โหลดไฟล์จาก Google Drive ไม่สำเร็จ');
+            this.inspectRestorableJson(res.content,res.name,'drive');
+          }catch(err){this.restoreError=err.message||String(err);}
+          finally{this.restoreBusy=false;}
+        },
+        async readUploadedBackupFile(event){
+          const file=event.target.files?.[0];if(!file)return;
+          this.restoreBusy=true;this.restoreError='';
+          try{if(file.size>5000000)throw Error('ไฟล์ JSON ใหญ่เกิน 5 MB');
+            this.inspectRestorableJson(await file.text(),file.name,'local');
+          }catch(err){this.restoreError=err.message||String(err);}
+          finally{this.restoreBusy=false;}
+        },
+        async executeRestoreBackup(){
+          if(this.user?.role!=='admin'||this.restoreBusy||!this._restoreSnapshot)return;
+          if(!Number.isInteger(Number(this.restoreYear))||this.restoreYear<2500||this.restoreYear>2800||![1,2,3].includes(Number(this.restoreSemester)))return Swal.fire('ปี/เทอมไม่ถูกต้อง','','warning');
+          if(this.periods.some(x=>x.academicYear===Number(this.restoreYear)&&x.semester===Number(this.restoreSemester)))return Swal.fire('มีเทอมนี้แล้ว','ระบบไม่กู้ทับเทอมที่มีอยู่ กรุณาเลือกปี/เทอมอื่นหรือลบชุดที่ผิดหลังสำรอง','warning');
+          const yes=await Swal.fire({title:'ยืนยันกู้คืนข้อมูล?',text:`สร้างภาคเรียน ${this.restoreSemester}/${this.restoreYear} จาก ${this.restoreFileName} โดยไม่ทับข้อมูลเทอมเดิม`,icon:'question',showCancelButton:true,confirmButtonText:'เริ่มกู้คืน',cancelButtonText:'ยกเลิก'});
+          if(!yes.isConfirmed)return;
+          this.restoreBusy=true;
+          Swal.fire({title:'กำลังกู้ข้อมูลแบบธุรกรรมเดียว...',html:'กำลังตรวจข้อมูลครู นักเรียน การลงทะเบียน รายงาน และความสัมพันธ์ใน Supabase',allowOutsideClick:false,allowEscapeKey:false,didOpen:()=>Swal.showLoading()});
+          try{
+            const res=await window.SKNBridge.invoke('restoreBackupSnapshot',[this._restoreSnapshot,Number(this.restoreYear),Number(this.restoreSemester),this.restoreMakeCurrent,this.restoreOrigin]);
+            if(!res?.success)throw Error('กู้คืนไม่สำเร็จ');
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('restoreBackupModal')).hide();
+            if(this.restoreMakeCurrent){window.SKNBridge.periodId=res.periodId;this.activePeriodId=res.periodId;}
+            this.view='dashboard';await this.refreshData(true);
+            Swal.fire('กู้ข้อมูลเรียบร้อย','สร้างภาคเรียนใหม่จากไฟล์ JSON สำเร็จแล้ว ตรวจสอบรายชื่อนักเรียนและรูปภาพที่เชื่อม Drive อีกครั้ง','success');
+          }catch(err){Swal.fire('กู้คืนไม่สำเร็จ',err.message||String(err),'error');}
+          finally{this.restoreBusy=false;}
+        },
+
 
 
         switchPeriod() {
@@ -3802,6 +4050,11 @@ refreshData(isSilent = false) {
             })
             .withSuccessHandler(data => {
               if (!data) { this._refreshInFlight=false; if(!isSilent)this.loading=false; return; }
+              // Ignore a response started before Admin switched or deleted a term.
+              if(window.SKNBridge.periodId && data.periodId !== window.SKNBridge.periodId){
+                this._refreshInFlight=false;if(!isSilent)this.loading=false;
+                this.refreshData(true);return;
+              }
 
               this.clubs = data.clubs || []; 
               this.config = data.config || {}; 

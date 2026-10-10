@@ -689,6 +689,104 @@ async function sknInvoke(method, args, periodId) {
             output = { success: true, count: items.length, kind };
             break;
         }
+        case 'getPeriodImpact': {
+            mustAdmin(u);
+            output = await result(db.rpc('skn_period_impact', { p_period: String(args[0] || '') }));
+            break;
+        }
+        case 'setCurrentPeriod': {
+            mustAdmin(u);
+            output = await result(db.rpc('skn_set_current_period', { p_period: String(args[0] || '') }));
+            break;
+        }
+        case 'deletePeriodWithBackup': {
+            mustAdmin(u);
+            const targetId = String(args[0] || '');
+            const expectedCode = String(args[1] || '');
+            const replacementId = args[2] ? String(args[2]) : null;
+            assert(targetId && expectedCode, 'ต้องระบุปี/เทอมและรหัสยืนยันการลบ');
+            const targetInfo = await getPeriod(targetId);
+            assert(targetInfo.period.period_code === expectedCode, 'รหัสเทอมไม่ตรงกัน');
+            // Fail closed: deletion will not proceed without a successful Drive backup.
+            const snap = await snapshot(targetId);
+            const backup = await gas('saveBackup', {
+                periodId: targetId, clubId: 'ADMIN-REPORT',
+                fileName: `SKN_Backup_Before_Delete_${expectedCode}.json`,
+                content: JSON.stringify(snap)
+            });
+            assert(backup?.success && backup?.id, 'สำรองข้อมูลลง Google Drive ไม่สำเร็จ ยกเลิกการลบ');
+            await result(db.from('backup_logs').insert({
+                period_id: targetId, period_code: expectedCode,
+                file_id: backup.id, name: backup.name
+            }));
+            output = await result(db.rpc('skn_delete_period_v45', {
+                p_period: targetId, p_expected_code: expectedCode,
+                p_replacement: replacementId, p_backup_file: backup.id
+            }));
+            output.backupFileId = backup.id;
+            break;
+        }
+        case 'deleteAcademicYearWithBackup': {
+            mustAdmin(u);
+            const year = Number(args[0]);
+            const replacement = args[1] ? String(args[1]) : null;
+            assert(year >= 2500 && year <= 2800, 'ปีการศึกษาไม่ถูกต้อง');
+            const periodsForYear = (await getPeriod()).periods.filter(x => x.academic_year === year);
+            assert(periodsForYear.length > 0, 'ไม่พบปีการศึกษานี้');
+            const backupFiles = [];
+            for (const term of periodsForYear) {
+                const snap = await snapshot(term.id);
+                const saved = await gas('saveBackup', {
+                    periodId: term.id, clubId: 'ADMIN-REPORT',
+                    fileName: `SKN_Before_Delete_${term.period_code}.json`,
+                    content: JSON.stringify(snap)
+                });
+                assert(saved?.success && saved.id, `สำรองภาคเรียน ${term.period_code} ไม่สำเร็จ ยกเลิกการลบ`);
+                await result(db.from('backup_logs').insert({
+                    period_id: term.id, period_code: term.period_code,
+                    file_id: saved.id, name: saved.name
+                }));
+                backupFiles.push({ periodId: term.id, fileId: saved.id });
+            }
+            output = await result(db.rpc('skn_delete_academic_year_v45', {
+                p_year: year, p_replacement: replacement, p_backup_files: backupFiles
+            }));
+            break;
+        }
+        case 'readBackupFromDrive': {
+            mustAdmin(u);
+            output = await gas('readBackup', {
+                periodId: p.id, clubId: 'ADMIN-REPORT', fileId: String(args[0] || '')
+            });
+            break;
+        }
+        case 'restoreBackupSnapshot': {
+            mustAdmin(u);
+            const snap = args[0];
+            const year = Number(args[1]);
+            const semester = Number(args[2]);
+            const makeCurrent = args[3] === true;
+            assert(snap?.format === 'SKN-SUPABASE-V1' && snap.tables && snap.period,
+                'รองรับเฉพาะไฟล์สำรอง SKN-SUPABASE-V1');
+            assert(JSON.stringify(snap).length <= 5000000, 'ไฟล์ JSON เกิน 5 MB สำหรับหน้าเว็บ');
+            if (String(args[4] || 'local') === 'local') {
+                // Archive uploaded JSON in Drive before invoking the restore transaction.
+                const uploaded = await gas('saveImportedBackup', {
+                    periodId: p.id, clubId: 'ADMIN-REPORT', content: JSON.stringify(snap)
+                });
+                assert(uploaded?.success && uploaded.id, 'เก็บไฟล์ JSON ต้นฉบับใน Drive ไม่สำเร็จ');
+                await result(db.from('backup_logs').insert({
+                    period_id: p.id,
+                    period_code: String(snap.period?.period_code || `${snap.period?.academic_year}-${snap.period?.semester}`),
+                    file_id: uploaded.id, name: uploaded.name
+                }));
+            }
+            output = await result(db.rpc('skn_restore_snapshot_v45', {
+                p_snapshot: snap, p_year: year, p_sem: semester,
+                p_make_current: makeCurrent
+            }));
+            break;
+        }
         case 'startNewSemester': {
             mustAdmin(u);
             assert(p.is_current, 'กรุณาเลือกภาคเรียนปัจจุบันก่อนขึ้นเทอมใหม่');
@@ -696,7 +794,7 @@ async function sknInvoke(method, args, periodId) {
             // Mandatory backup: never proceed if Drive backup fails. Historical data is never erased.
             const data = await snapshot(p.id);
             const backup = await gas('saveBackup', { periodId: p.id, fileName: `SKN_Backup_Term${p.semester}_${p.academic_year}_${new Date().toISOString().replace(/[:.]/g, '-')}.json`, content: JSON.stringify(data) });
-            await result(db.from('backup_logs').insert({ period_id: p.id, file_id: backup.id, name: backup.name }));
+            await result(db.from('backup_logs').insert({ period_id: p.id, period_code: p.period_code || `${p.academic_year}-${p.semester}`, file_id: backup.id, name: backup.name }));
             const opts = { p_source: p.id, p_year: Number(o.newYear), p_sem: Number(o.newSemester), p_teachers: o.copyTeachers === true, p_students: o.copyStudents === true, p_clubs: o.copyClubs === true, p_regs: o.copyRegistrations === true, p_att: o.copyAttendance === true, p_reports: o.copyReports === true };
             const newId = await result(db.rpc('skn_create_period', opts));
             output = { success: true, message: 'สร้างภาคเรียนใหม่เรียบร้อยแล้ว (เก็บข้อมูลเดิมไว้)', newPeriodId: newId, backupFileId: backup.id };
@@ -705,7 +803,7 @@ async function sknInvoke(method, args, periodId) {
         case 'getBackupFilesList': {
             mustAdmin(u);
             const rows = await all('backup_logs');
-            output = { success: true, data: rows.sort((a, b) => b.created_at.localeCompare(a.created_at)).map(x => ({ name: x.name, url: `https://drive.google.com/file/d/${encodeURIComponent(x.file_id)}/view`, date: new Date(x.created_at).getTime(), dateText: new Date(x.created_at).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' }) })) };
+            output = { success: true, data: rows.sort((a, b) => b.created_at.localeCompare(a.created_at)).map(x => ({ fileId: x.file_id, periodCode: x.period_code || '', name: x.name, url: `https://drive.google.com/file/d/${encodeURIComponent(x.file_id)}/view`, date: new Date(x.created_at).getTime(), dateText: new Date(x.created_at).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' }) })) };
             break;
         }
         case 'getWebAppUrl': {
