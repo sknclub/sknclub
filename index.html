@@ -2,7 +2,7 @@
 <!-- const SUPABASE_URL = 'https://oigggpdambseabrezhuh.supabase.co'; // URL จาก Supabase
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9pZ2dncGRhbWJzZWFicmV6aHVoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE0MzQyNjQsImV4cCI6MjEwNzAxMDI2NH0.YEnpBEqfybFOw2VbMLGw1qtUKj8pMBUI8FZIT6yFlM0'; // KEY จาก Supabase
 const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbya8N3NC_QbN9diZRcX6_che3lEDO-su7KQqR4R3PKM6g5cPI54NFTsRkj6cSlBds6j/exec' -->
-v.03
+v.04
 
 <!DOCTYPE html>
 <!-- <marquee behavior="alternate" >ทดสอบ ระบบชุมนุม SKN โรงเรียนสมุทรสาครบูรณะ ประจำภาคเรียนที่ 1/2569</marquee> -->
@@ -3124,8 +3124,9 @@ methods: {
         },
         async uploadImageToDrive(dataUrl, fileName, assetType='image') {
           const res=await fetchGAS('uploadImage',{base64Data:dataUrl,fileName,assetType,term:String(this.activeTerm),year:String(this.activeYear),folderId:this.adminSettings.driveImageFolderId||''});
-          if(!res || !res.success || !res.url || !(res.fileId||res.id)) throw new Error(`อัปโหลด ${fileName} ไป Google Drive ไม่สำเร็จ: ${res&&res.message||'ไม่ได้รับ fileId/url กลับมา'}`);
-          return {url:res.url,fileId:res.fileId||res.id};
+          const imageUrl = res && (res.imageUrl || res.directUrl || res.url || res.webViewLink);
+          if(!res || !res.success || !imageUrl || !(res.fileId||res.id)) throw new Error(`อัปโหลด ${fileName} ไป Google Drive ไม่สำเร็จ: ${res&&res.message||'ไม่ได้รับ fileId/url กลับมา'}`);
+          return {url:imageUrl,fileId:res.fileId||res.id};
         },
         async deleteDriveUrl(url) {
           const fileId=extractDriveFileId(url); if(!fileId) return;
@@ -3180,25 +3181,141 @@ methods: {
         async loadFailedData() { this.loading = true; try { this.globalFailedList = await this.getGlobalFailedSummary(); if (this.globalFailedList.length === 0) { Swal.fire({toast: true, position: 'top-end', showConfirmButton: false, timer: 2000, icon: 'success', title: 'ทุกคนผ่านกิจกรรมครบถ้วน' }); } } catch(e) {} finally { this.loading = false; } },
         async openAdminPrintReport() { Swal.fire({ title: 'กำลังเตรียมข้อมูลสรุป...', didOpen: () => Swal.showLoading() }); this.globalFailedList = await this.getGlobalFailedSummary(); Swal.close(); this.view = 'admin_report'; },
         async fetchUsers(role) { if(!this.user || this.user.role!=='admin') { Swal.fire('ไม่มีสิทธิ์','เฉพาะ Admin เท่านั้น','warning'); return; } Swal.fire({ toast: true, position: 'top-end', title: 'กำลังโหลด...', showConfirmButton: false, didOpen: () => Swal.showLoading() }); const table = role === 'teacher' ? 'teachers' : 'students'; const {data} = await db.from(table).select('*'); this.usersList = data || []; Swal.close(); },
+        // ซิงก์ข้อมูลนักเรียนที่ถูกคัดลอกเก็บไว้ใน registrations และลบ/อัปเดตคีย์ใน attendance_data ทุกภาคเรียน
+        async syncStudentLinkedData(studentId, student, removeAttendance = false) {
+          const id = String(studentId);
+          const pageSize = 500;
+          let offset = 0;
+          while (true) {
+            const { data: rows, error } = await db.from('attendance_data')
+              .select('club_id,term,year,data_json')
+              .range(offset, offset + pageSize - 1);
+            if (error) throw error;
+            const page = rows || [];
+            for (const row of page) {
+              const json = row.data_json && typeof row.data_json === 'object'
+                ? JSON.parse(JSON.stringify(row.data_json)) : {};
+              if (!json.records || typeof json.records !== 'object') continue;
+              let changed = false;
+              if (Object.prototype.hasOwnProperty.call(json.records, id) && removeAttendance) {
+                delete json.records[id];
+                changed = true;
+              }
+              if (changed) {
+                const { error: updateError } = await db.from('attendance_data')
+                  .update({ data_json: json })
+                  .eq('club_id', row.club_id).eq('term', String(row.term)).eq('year', String(row.year));
+                if (updateError) throw updateError;
+              }
+            }
+            if (page.length < pageSize) break;
+            offset += pageSize;
+          }
+
+          if (removeAttendance) return;
+
+          const { data: registrations, error: regSelectError } = await db.from('registrations')
+            .select('reg_id,student_id,term,year')
+            .eq('student_id', id);
+          if (regSelectError) throw regSelectError;
+          for (const reg of (registrations || [])) {
+            const patch = {
+              student_name: student.name || '',
+              student_level: student.level || '',
+              room: student.room || '',
+              no: student.no == null ? '' : String(student.no)
+            };
+            const { error: regUpdateError } = await db.from('registrations')
+              .update(patch).eq('student_id', id)
+              .eq('term', String(reg.term)).eq('year', String(reg.year));
+            if (regUpdateError) throw regUpdateError;
+          }
+        },
+
+        // ลบข้อมูลสัมพันธ์ของนักเรียนก่อนลบ master record: registration ทุกภาคเรียนและ attendance JSON ทุกชุมนุม
+        async deleteStudentsAndLinkedData(studentIds) {
+          const ids = [...new Set((studentIds || []).map(v => String(v)).filter(Boolean))];
+          if (!ids.length) return;
+          const pageSize = 500;
+          let offset = 0;
+          while (true) {
+            const { data: rows, error } = await db.from('attendance_data')
+              .select('club_id,term,year,data_json')
+              .range(offset, offset + pageSize - 1);
+            if (error) throw error;
+            const page = rows || [];
+            for (const row of page) {
+              const json = row.data_json && typeof row.data_json === 'object'
+                ? JSON.parse(JSON.stringify(row.data_json)) : {};
+              if (!json.records || typeof json.records !== 'object') continue;
+              let changed = false;
+              ids.forEach(id => {
+                if (Object.prototype.hasOwnProperty.call(json.records, id)) {
+                  delete json.records[id];
+                  changed = true;
+                }
+              });
+              if (changed) {
+                const { error: updateError } = await db.from('attendance_data')
+                  .update({ data_json: json })
+                  .eq('club_id', row.club_id).eq('term', String(row.term)).eq('year', String(row.year));
+                if (updateError) throw updateError;
+              }
+            }
+            if (page.length < pageSize) break;
+            offset += pageSize;
+          }
+
+          const { error: regError } = await db.from('registrations').delete().in('student_id', ids);
+          if (regError) throw regError;
+          const { error: studentError } = await db.from('students').delete().in('id', ids);
+          if (studentError) throw studentError;
+        },
+
         async submitUser() { if(!this.user || this.user.role!=='admin') { Swal.fire('ไม่มีสิทธิ์','เฉพาะ Admin เท่านั้น','warning'); return; }
             this.loading = true; 
             try {
                 const table = this.manageRole === 'teacher' ? 'teachers' : 'students';
-                const payload = { id: this.userForm.new_id, name: this.userForm.name, password: this.userForm.password || this.userForm.new_id };
-                if(this.manageRole === 'teacher') { payload.username = this.userForm.username || null; payload.role = this.userForm.role || 'teacher'; } 
+                const editing = !!this.userForm.id;
+                const originalId = String(this.userForm.id || '');
+                const payload = { id: editing ? originalId : this.userForm.new_id, name: this.userForm.name, password: this.userForm.password || (editing ? originalId : this.userForm.new_id) };
+                if(this.manageRole === 'teacher') { payload.username = this.userForm.username || null; payload.role = this.userForm.role || 'teacher'; }
                 else { payload.level = this.userForm.level || null; payload.room = this.userForm.room || null; payload.no = this.userForm.no || null; }
-                if(this.userForm.id) { await db.from(table).update(payload).eq('id', this.userForm.id); } else { await db.from(table).insert(payload); }
+                if(editing) {
+                  const { error: updateError } = await db.from(table).update(payload).eq('id', originalId);
+                  if (updateError) throw updateError;
+                  if (this.manageRole === 'student') await this.syncStudentLinkedData(originalId, payload, false);
+                } else {
+                  const { error: insertError } = await db.from(table).insert(payload);
+                  if (insertError) throw insertError;
+                }
                 bootstrap.Modal.getInstance(document.getElementById('userModal')).hide(); await this.fetchUsers(this.manageRole); Swal.fire({ icon: 'success', title: 'สำเร็จ', text: 'บันทึกข้อมูลเรียบร้อยแล้ว', timer: 1500, showConfirmButton: false });
             } catch(e) { Swal.fire('ข้อผิดพลาด', e.message, 'error'); } finally { this.loading = false; }
         },
         async deleteUserConfirm(id, role) {
-          Swal.fire({ title: 'ยืนยันการลบ?', text: "ข้อมูลใน Supabase และรายชื่อสมัครจะถูกลบออกถาวร", icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'ใช่, ลบเลย', cancelButtonText: 'ยกเลิก' }).then(async (result) => {
-            if (result.isConfirmed) {
-              this.loading = true;
-              try { const table = role === 'teacher' ? 'teachers' : 'students'; await db.from(table).delete().eq('id', id); if(role === 'student') await db.from('registrations').delete().eq('student_id', id); Swal.fire('สำเร็จ', 'ลบข้อมูลเรียบร้อยแล้ว', 'success'); await this.refreshData(); await this.fetchUsers(role); } 
-              catch(e) { Swal.fire('ผิดพลาด', e.message, 'error'); } finally { this.loading = false; }
-            }
+          const result = await Swal.fire({
+            title: 'ยืนยันการลบ?',
+            text: role === 'student'
+              ? 'จะลบนักเรียน รายการสมัคร และข้อมูลเช็กชื่อที่สืบทอดทุกภาคเรียนอย่างถาวร'
+              : 'ข้อมูลครูจะถูกลบออกจากระบบ',
+            icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33',
+            confirmButtonText: 'ยืนยันลบ', cancelButtonText: 'ยกเลิก'
           });
+          if (!result.isConfirmed) return;
+          this.loading = true;
+          try {
+            if (role === 'student') {
+              await this.deleteStudentsAndLinkedData([id]);
+            } else {
+              const { error } = await db.from('teachers').delete().eq('id', id);
+              if (error) throw error;
+            }
+            Swal.fire('สำเร็จ', 'ลบข้อมูลและข้อมูลที่เชื่อมโยงเรียบร้อยแล้ว', 'success');
+            await this.refreshData();
+            await this.fetchUsers(role);
+          } catch(e) {
+            Swal.fire('ผิดพลาด', e.message || String(e), 'error');
+          } finally { this.loading = false; }
         },
         async handleBulkDelete() {
           const target = this.bulkAction.target; const roomValue = this.bulkAction.room.trim();
@@ -3214,7 +3331,18 @@ methods: {
               Swal.fire({ title: 'ตรวจสอบรายชื่อกลุ่ม [' + groupLabel + ']', html: '<div class="text-start mb-2 small text-danger fw-bold"><i class="fas fa-exclamation-triangle"></i> ตรวจพบนักเรียนทั้งหมด ' + matchedStudents.length + ' คน ที่กำลังจะถูกลบถาวร:</div><div style="max-height: 220px; overflow-y: auto; border: 1px solid #dc3545; border-radius: 6px; padding: 2px; box-shadow: inset 0 0 4px rgba(0,0,0,0.05);">' + studentTableHtml + '</div>', input: 'checkbox', inputValue: 0, inputPlaceholder: ' ฉันได้ตรวจสอบตารางรายชื่อด้านบนดีแล้ว และขอยืนยันว่าต้องการลบรายชื่อกลุ่มนี้ออกจากระบบถาวร', width: '600px', icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc3545', confirmButtonText: '<i class="fas fa-trash-alt me-1"></i> ยืนยันลบถาวร', cancelButtonText: 'ยกเลิก', allowOutsideClick: false, preConfirm: (value) => { if (!value) { Swal.showValidationMessage('โปรดคลิกติ๊กถูกในช่องสี่เหลี่ยมด้านบนก่อน เพื่อยืนยันสิทธิ์การลบข้อมูล'); } } }).then(async (confirmRes) => {
                   if (confirmRes.isConfirmed) {
                       this.loading = true; Swal.fire({ title: 'กำลังเคลียร์ข้อมูลสัมพันธ์ของกลุ่มนักเรียน...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-                      try { const idsToDelete = matchedStudents.map(s => s.id); await db.from('students').delete().in('id', idsToDelete); await db.from('registrations').delete().in('student_id', idsToDelete); Swal.fire({ title: 'ลบข้อมูลสำเร็จ', text: `ลบนักเรียนกลุ่มนี้จำนวน ${idsToDelete.length} คน เรียบร้อยแล้ว`, icon: 'success', confirmButtonText: 'ตกลง', confirmButtonColor: '#2563eb', allowOutsideClick: false }).then(() => { bootstrap.Modal.getInstance(document.getElementById('bulkDeleteModal')).hide(); this.bulkAction.room = ''; this.refreshData(); this.fetchUsers('student'); }); } catch(e) { Swal.fire('เกิดข้อผิดพลาด', e.message, 'error'); } finally { this.loading = false; }
+                      try {
+                        const idsToDelete = matchedStudents.map(s => s.id);
+                        await this.deleteStudentsAndLinkedData(idsToDelete);
+                        Swal.fire({ title: 'ลบข้อมูลสำเร็จ', text: `ลบนักเรียน ${idsToDelete.length} คน พร้อมข้อมูลสมัครและเช็กชื่อที่เชื่อมโยงทุกภาคเรียนแล้ว`, icon: 'success', confirmButtonText: 'ตกลง', confirmButtonColor: '#2563eb', allowOutsideClick: false }).then(async () => {
+                          bootstrap.Modal.getInstance(document.getElementById('bulkDeleteModal'))?.hide();
+                          this.bulkAction.room = '';
+                          await this.refreshData();
+                          await this.fetchUsers('student');
+                        });
+                      } catch(e) {
+                        Swal.fire('เกิดข้อผิดพลาด', e.message || String(e), 'error');
+                      } finally { this.loading = false; }
                   }
               });
           } catch(e) { Swal.fire('ข้อผิดพลาด', e.message, 'error'); this.loading = false; }
