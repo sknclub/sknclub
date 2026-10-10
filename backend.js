@@ -694,19 +694,6 @@ async function sknInvoke(method, args, periodId) {
                     previewUrls: {}, deferredMedia: true } };
             break;
         }
-        case 'sendClubReportAutoPdf': {
-            mustWrite(u, p);
-            const f = args[0] || {}, club = await clubById(p.id, String(f.clubId || ''));
-            assert(owner(u, club), 'ไม่มีสิทธิ์ส่งรายงานของชุมนุมนี้');
-            const jobId = String(f.mailJobId || '');
-            assert(/^[A-Za-z0-9-]{10,90}$/.test(jobId), 'Mail Job ID ไม่ถูกต้อง');
-            const send = await gas('sendReportEmailGenerated', {
-                periodId: p.id, clubId: club.id, data: { mailJobId: jobId }
-            });
-            output = { success: send?.success === true, sentTo: send?.sentTo || '',
-                pdfBytes: send?.pdfBytes || 0, method: 'Google Docs', mailJobId: jobId };
-            break;
-        }
         case 'sendClubReportEmail': {
             mustWrite(u, p);
             const f = args[1] || {};
