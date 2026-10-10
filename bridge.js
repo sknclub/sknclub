@@ -4,10 +4,18 @@
 (()=>{
   'use strict';
   const c=window.SKN_CONFIG||{};
-  if(!c.supabaseUrl || !c.publishableKey || c.supabaseUrl.includes('YOUR_')) {
-    console.warn('Configure web/config.js before installing SKN Clubs.');
-  }
-  window.SKN_DB=window.supabase.createClient(c.supabaseUrl,c.publishableKey,{auth:{autoRefreshToken:true,persistSession:true,detectSessionInUrl:false}});
+  // Fail clearly when sample config.js is uploaded unchanged. Never place a secret database key in the browser.
+  const rawUrl=String(c.supabaseUrl||'').trim();
+  const key=String(c.publishableKey||'').trim();
+  let reason='';
+  if(!rawUrl||/YOUR_|PROJECT_REF|placeholder/i.test(rawUrl))reason='web/config.js ยังไม่ได้ใส่ Supabase Project URL จริง';
+  else {try {const u=new URL(rawUrl);if(u.protocol!=='https:'||!u.hostname||u.username||u.password||u.search||u.hash)reason='Supabase URL ต้องเป็น HTTPS Project URL เท่านั้น';}catch(e){reason='Supabase Project URL ไม่ถูกต้อง';}}
+  if(!reason&&(!key||/YOUR_|PUBLISHABLE_KEY|placeholder/i.test(key)))reason='web/config.js ยังไม่ได้ใส่ Supabase Publishable Key / anon key จริง';
+  if(!reason&&(/^(sb_secret_)/i.test(key)))reason='ห้ามใช้ Supabase Secret Key บน GitHub Pages กรุณาใช้ Publishable Key';
+  if(!reason&&(!window.supabase||typeof window.supabase.createClient!=='function'))reason='โหลด supabase-js ไม่สำเร็จ กรุณาตรวจอินเทอร์เน็ต/CDN';
+  window.SKN_CONFIG_ERROR=reason;
+  if(reason)console.error('SKN setup:',reason);
+  window.SKN_DB=reason?null:window.supabase.createClient(rawUrl.replace(/\/+$/,''),key,{auth:{autoRefreshToken:true,persistSession:true,detectSessionInUrl:false}});
   const periodKey='skn_period_v3';
   const bridge={
     get periodId(){return sessionStorage.getItem(periodKey)||'';},

@@ -109,16 +109,59 @@ function filterBulk(s, target, room) { if (target === 'ม.ต้น')
     const index = str.indexOf(q);
     return !!q && index >= 0 && !/\d/.test(str[index + q.length] || '');
 } return false; }
+// Human-readable diagnostics: distinguish a browser/network failure from a real Auth API rejection.
+function sknAuthError(error) {
+    const code = String(error?.code || '').toLowerCase();
+    const status = Number(error?.status || 0);
+    const detail = String(error?.message || error || 'unknown error');
+    if (code === 'anonymous_provider_disabled')
+        return Error('Supabase ปิด Anonymous Sign-Ins: เปิดที่ Authentication → Sign In / Providers → Anonymous (' + code + ')');
+    if (code === 'signup_disabled')
+        return Error('Supabase ปิดการสร้างผู้ใช้ใหม่: ตรวจ Allow new users to sign up สำหรับ Anonymous Auth (' + code + ')');
+    if (code === 'captcha_failed' || /captcha/i.test(detail))
+        return Error('Supabase ปฏิเสธ CAPTCHA: ตรวจ Bot and Abuse Protection และการส่ง captchaToken (' + code + ': ' + detail + ')');
+    if (status === 429 || code === 'over_request_rate_limit')
+        return Error('Supabase จำกัดจำนวนการเปิดเซสชันชั่วคราว (429) กรุณาตรวจ Rate Limits');
+    if (status === 401 || status === 403)
+        return Error('Supabase ปฏิเสธคำขอ (' + status + '): ตรวจ Project URL, Publishable Key และการตั้งค่า Auth (' + detail + ')');
+    if (/failed to fetch|networkerror|load failed|fetch failed|network request failed/i.test(detail) || error?.name === 'AuthRetryableFetchError')
+        return Error('เชื่อมต่อ Supabase ไม่สำเร็จ (Failed to fetch): ตรวจ web/config.js, Project URL, สถานะ Project, เครือข่าย, DNS และส่วนขยายที่บล็อกคำขอ เปิด diagnostics.html เพื่อทดสอบ (ไม่ใช่ข้อสรุปว่า CAPTCHA ผิด)');
+    return Error('เปิดเซสชัน Supabase ไม่สำเร็จ: ' + detail + (code ? ' [' + code + ']' : ''));
+}
 async function checkLogin(username, password) {
-    // No email provider, signup or user email is used. Supabase anonymous auth is
-    // only the trusted JWT identity that allows RLS to bind a credential-checked session.
-    const { data: { session: existing } } = await db.auth.getSession();
+    // No email login. Supabase Anonymous Auth only supplies the JWT for RLS;
+    // Teachers.username / Students.id and their password hashes are checked by SQL RPC.
+    if (!db)
+        throw Error(window.SKN_CONFIG_ERROR || 'ยังไม่ได้ตั้งค่า Supabase ใน web/config.js');
+    let existing;
+    try {
+        const response = await db.auth.getSession();
+        if (response.error)
+            throw sknAuthError(response.error);
+        existing = response.data?.session;
+    }
+    catch (e) {
+        if (e?.message?.startsWith('เชื่อมต่อ Supabase') || e?.message?.startsWith('เปิดเซสชัน Supabase'))
+            throw e;
+        throw sknAuthError(e);
+    }
     if (!existing?.user?.is_anonymous) {
-        if (existing)
-            await db.auth.signOut(); // V2 email session must not be reused
-        const anonymous = await db.auth.signInAnonymously();
+        if (existing) {
+            const revoked = await db.auth.signOut();
+            if (revoked.error)
+                throw sknAuthError(revoked.error);
+        } // V2 email session must not be reused
+        let anonymous;
+        try {
+            anonymous = await db.auth.signInAnonymously();
+        }
+        catch (e) {
+            throw sknAuthError(e);
+        }
         if (anonymous.error)
-            throw Error('ไม่สามารถเปิดเซสชันได้: กรุณาเปิด Anonymous Sign-Ins และปิดการบังคับ CAPTCHA หรือกำหนดให้ถูกต้องใน Supabase (' + anonymous.error.message + ')');
+            throw sknAuthError(anonymous.error);
+        if (!anonymous.data?.session)
+            throw Error('Supabase ไม่ส่งข้อมูลเซสชันกลับมา: ตรวจการตั้งค่า Anonymous Auth');
     }
     const v = await result(db.rpc('skn_login_credentials', {
         p_username: String(username || ''), p_password: String(password || '')
