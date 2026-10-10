@@ -586,37 +586,16 @@ async function sknInvoke(method, args, periodId) {
                 output = { found: false, data: null };
                 break;
             }
-            // Each column stores the separate Drive reference; old media JSON is a compatibility fallback.
+            // V4.2: never block opening the report on large Drive images. The frontend
+            // progressively loads the private originals after rendering text and grades.
             const references = sknImageSlots(r);
-            // Use a genuine, direct Google image URL when one exists in a TEXT column.
-            // Private images without a usable direct URL are fetched with authorized GAS.
             const directUrls = Object.fromEntries(SKN_IMAGE_SLOTS.map(slot => [slot, sknDirectImageUrl(r[slot])]));
-            const refs = Object.entries(references).filter(([slot, v]) => v?.id).map(([slot, v]) => ({ slot, id: v.id }));
-            const files = {};
-            const imageErrors = [];
-            const groups = [];
-            for (let i = 0; i < refs.length; i++)
-                groups.push(refs.slice(i, i + 1));
-            // Up to 3 small GAS requests in parallel; one failed image cannot blank the others.
-            for (let i = 0; i < groups.length; i += 3) {
-                await Promise.all(groups.slice(i, i + 3).map(async (batch) => {
-                    try {
-                        const response = await gas('getFiles', { periodId: p.id, clubId: id, files: batch });
-                        Object.assign(files, response?.files || {});
-                        for (const slot of Object.keys(response?.errors || {}))
-                            imageErrors.push(slot + ': ' + response.errors[slot]);
-                    }
-                    catch (e) {
-                        for (const ref of batch)
-                            imageErrors.push(ref.slot + ': ' + String(e?.message || e));
-                    }
-                }));
-            }
             output = { found: true, data: { teacher: r.teacher, actData: r.act_data,
-                    logo: files.logo || directUrls.logo || '', photos: { 1: files.photo_1 || directUrls.photo_1 || '', 2: files.photo_2 || directUrls.photo_2 || '', 3: files.photo_3 || directUrls.photo_3 || '', 4: files.photo_4 || directUrls.photo_4 || '' },
-                    mediaRefs: references, mediaErrors: imageErrors, mediaUrls: directUrls,
-                    previewUrls: Object.fromEntries(Object.entries(references).map(([k, v]) => [k, v?.previewUrl || ''])),
-                    signatures: Object.fromEntries(['sigTeacher', 'sigHeadClub', 'sigHeadDev', 'sigDeputy', 'sigDirector'].map(k => [k, files[k] || directUrls[k] || ''])) } };
+                    logo: directUrls.logo || '',
+                    photos: { 1: directUrls.photo_1 || '', 2: directUrls.photo_2 || '', 3: directUrls.photo_3 || '', 4: directUrls.photo_4 || '' },
+                    signatures: Object.fromEntries(['sigTeacher', 'sigHeadClub', 'sigHeadDev', 'sigDeputy', 'sigDirector'].map(k => [k, directUrls[k] || ''])),
+                    mediaRefs: references, mediaErrors: [], mediaUrls: directUrls,
+                    previewUrls: {}, deferredMedia: true } };
             break;
         }
         case 'sendClubReportEmail': {

@@ -574,6 +574,14 @@
 
     .skn-signature-space {height: 48px; min-height: 48px; width: 220px; max-width: 95%; margin: 0 auto 4px; cursor: pointer; display:flex; justify-content:center; align-items:center; background:transparent; border:0;}
   .skn-signature-image {max-height:48px; max-width:100%; object-fit:contain;}
+    .skn-signature-holder{position:relative;width:220px;max-width:95%;margin:0 auto;}
+    .skn-signature-line{width:88%;border-bottom:1px dashed #777;margin:0 auto 7px;height:1px;}
+    .skn-remove-signature{position:absolute;right:-5px;top:-7px;z-index:12;width:22px;height:22px;
+      padding:0!important;border-radius:50%;display:flex;align-items:center;justify-content:center;}
+    .skn-sig-restore{font-size:10px;max-width:100%;}
+    @media print {.skn-remove-signature,.skn-sig-restore{display:none!important;}}
+    .skn-report-image-loading{font-size:12px;color:#475569;}
+
   @media print {.skn-signature-space {cursor:default;}}
     /* V3.4 - spacious attendance grid (20 sessions and fixed name columns) */
     .skn-attendance-layout { max-width: 1720px; margin: 0 auto; padding: 12px clamp(12px,2.7vw,42px) 24px !important; }
@@ -802,24 +810,36 @@
       <div class="signature-grid px-3 mt-5" style="page-break-inside: avoid;">
         <div class="row text-center mb-4">
           <div class="col-6">
+            <div class="skn-signature-holder">
             <div class="skn-signature-space" role="button" tabindex="0" title="คลิกเพื่อแนบลายเซ็น" @click="chooseAdminSignature('sigHeadClub')" @keydown.enter="chooseAdminSignature('sigHeadClub')">
                  <img v-if="adminReportSignatures['sigHeadClub']" :src="adminReportSignatures['sigHeadClub']" alt="ภาพลายเซ็น" class="skn-signature-image">
                </div>
+              <button v-if="adminReportSignatures['sigHeadClub']" type="button" class="btn btn-danger btn-sm skn-remove-signature no-print" title="ลบลายเซ็น" @click.stop="removeAdminSignature('sigHeadClub')"><i class="fas fa-times"></i></button>
+              <div class="skn-signature-line"></div>
+            </div>
             <span class="small fw-bold">( {{ adminSettings.sigHeadClub }} )</span><br>
             <span style="font-size: 9pt;">หัวหน้างานกิจกรรมชุมนุม</span>
           </div>
           <div class="col-6">
+            <div class="skn-signature-holder">
             <div class="skn-signature-space" role="button" tabindex="0" title="คลิกเพื่อแนบลายเซ็น" @click="chooseAdminSignature('sigHeadDev')" @keydown.enter="chooseAdminSignature('sigHeadDev')">
                  <img v-if="adminReportSignatures['sigHeadDev']" :src="adminReportSignatures['sigHeadDev']" alt="ภาพลายเซ็น" class="skn-signature-image">
                </div>
+              <button v-if="adminReportSignatures['sigHeadDev']" type="button" class="btn btn-danger btn-sm skn-remove-signature no-print" title="ลบลายเซ็น" @click.stop="removeAdminSignature('sigHeadDev')"><i class="fas fa-times"></i></button>
+              <div class="skn-signature-line"></div>
+            </div>
             <span class="small fw-bold">( {{ adminSettings.sigHeadDev }} )</span><br>
             <span style="font-size: 9pt;">หัวหน้ากิจกรรมพัฒนาผู้เรียน</span>
           </div>
         </div>
         <div class="text-center mt-5">
+          <div class="skn-signature-holder">
           <div class="skn-signature-space" role="button" tabindex="0" title="คลิกเพื่อแนบลายเซ็น" @click="chooseAdminSignature('sigDirector')" @keydown.enter="chooseAdminSignature('sigDirector')">
                  <img v-if="adminReportSignatures['sigDirector']" :src="adminReportSignatures['sigDirector']" alt="ภาพลายเซ็น" class="skn-signature-image">
                </div>
+            <button v-if="adminReportSignatures['sigDirector']" type="button" class="btn btn-danger btn-sm skn-remove-signature no-print" title="ลบลายเซ็น" @click.stop="removeAdminSignature('sigDirector')"><i class="fas fa-times"></i></button>
+            <div class="skn-signature-line"></div>
+          </div>
           <div class="fw-bold" style="font-size: 11pt;">( {{ adminSettings.sigDirector }} )</div>
           <div style="font-size: 9pt;">ผู้อำนวยการ{{ adminSettings.schoolName }}</div>
         </div>
@@ -1752,6 +1772,9 @@
 
               <!-- <button @click="printReport" class="btn btn-dark btn-fast shadow-sm px-4"><i class="fas fa-print me-2"></i>พิมพ์เอกสาร</button> -->
 
+              <div v-if="reportImagesPending > 0" class="alert alert-info no-print py-2 px-3 mb-3 skn-report-image-loading">
+                <i class="fas fa-spinner fa-spin me-1"></i> เปิดหน้ารายงานแล้ว — กำลังโหลดรูปจาก Drive เบื้องหลัง {{reportImagesPending}} รูป
+              </div>
               <div class="d-flex justify-content-end gap-2 mb-4 no-print">
                 <button @click="saveCurrentReport" class="btn btn-success btn-fast shadow-sm px-4 me-2 skn-writable" :disabled="loading || archiveReadonly">
                   <i v-if="!loading" class="fas fa-cloud-upload-alt me-2"></i>
@@ -1886,15 +1909,25 @@
                 <div class="signature-grid px-3">
                   <div class="row text-center mb-4">
                     <div class="col-6">
+                      <div class="skn-signature-holder">
                       <div class="skn-signature-space" role="button" tabindex="0" title="คลิกเพื่อแนบรูปลายเซ็น" @click="chooseSignature('sigTeacher')" @keydown.enter="chooseSignature('sigTeacher')">
-                        <img v-if="reportData.signatures && reportData.signatures.sigTeacher" @error="onReportImageLoadError('sigTeacher')" :src="reportData.signatures.sigTeacher" alt="ภาพลายเซ็น" class="skn-signature-image">
+                        <img v-if="reportData.signatures && reportData.signatures['sigTeacher'] && reportData.signatures['sigTeacher'] !== '__DELETE__'" @error="onReportImageLoadError('sigTeacher')" :src="reportData.signatures.sigTeacher" alt="ภาพลายเซ็น" class="skn-signature-image">
+                      </div>
+                        <button v-if="reportData.signatures && reportData.signatures['sigTeacher'] && reportData.signatures['sigTeacher'] !== '__DELETE__'" type="button" class="btn btn-danger btn-sm skn-remove-signature no-print" title="ลบลายเซ็น" @click.stop="removeSignature('sigTeacher')"><i class="fas fa-times"></i></button>
+                        <div class="skn-signature-line"></div>
+                        <button v-if="reportData.signatures?.['sigTeacher'] === '__DELETE__'" class="btn btn-link text-warning skn-sig-restore no-print" type="button" @click="restoreSignature('sigTeacher')">ยกเลิกการลบลายเซ็น</button>
                       </div>
                       <span class="small fw-bold">( <span class="editable" :contenteditable="!archiveReadonly">{{ reportData.teacher }}</span> )</span><br>
                       <span style="font-size: 9pt;">ครูที่ปรึกษาชุมนุม</span>
                     </div>
                     <div class="col-6">
+                      <div class="skn-signature-holder">
                       <div class="skn-signature-space" role="button" tabindex="0" title="คลิกเพื่อแนบรูปลายเซ็น" @click="chooseSignature('sigHeadClub')" @keydown.enter="chooseSignature('sigHeadClub')">
-                        <img v-if="reportData.signatures && reportData.signatures.sigHeadClub" @error="onReportImageLoadError('sigHeadClub')" :src="reportData.signatures.sigHeadClub" alt="ภาพลายเซ็น" class="skn-signature-image">
+                        <img v-if="reportData.signatures && reportData.signatures['sigHeadClub'] && reportData.signatures['sigHeadClub'] !== '__DELETE__'" @error="onReportImageLoadError('sigHeadClub')" :src="reportData.signatures.sigHeadClub" alt="ภาพลายเซ็น" class="skn-signature-image">
+                      </div>
+                        <button v-if="reportData.signatures && reportData.signatures['sigHeadClub'] && reportData.signatures['sigHeadClub'] !== '__DELETE__'" type="button" class="btn btn-danger btn-sm skn-remove-signature no-print" title="ลบลายเซ็น" @click.stop="removeSignature('sigHeadClub')"><i class="fas fa-times"></i></button>
+                        <div class="skn-signature-line"></div>
+                        <button v-if="reportData.signatures?.['sigHeadClub'] === '__DELETE__'" class="btn btn-link text-warning skn-sig-restore no-print" type="button" @click="restoreSignature('sigHeadClub')">ยกเลิกการลบลายเซ็น</button>
                       </div>
                       <span class="small fw-bold">( {{ adminSettings.sigHeadClub }} )</span><br>
                       <span style="font-size: 9pt;">หัวหน้างานกิจกรรมชุมนุม</span>
@@ -1903,15 +1936,25 @@
 
                   <div class="row text-center mb-4">
                     <div class="col-6">
+                      <div class="skn-signature-holder">
                       <div class="skn-signature-space" role="button" tabindex="0" title="คลิกเพื่อแนบรูปลายเซ็น" @click="chooseSignature('sigHeadDev')" @keydown.enter="chooseSignature('sigHeadDev')">
-                        <img v-if="reportData.signatures && reportData.signatures.sigHeadDev" @error="onReportImageLoadError('sigHeadDev')" :src="reportData.signatures.sigHeadDev" alt="ภาพลายเซ็น" class="skn-signature-image">
+                        <img v-if="reportData.signatures && reportData.signatures['sigHeadDev'] && reportData.signatures['sigHeadDev'] !== '__DELETE__'" @error="onReportImageLoadError('sigHeadDev')" :src="reportData.signatures.sigHeadDev" alt="ภาพลายเซ็น" class="skn-signature-image">
+                      </div>
+                        <button v-if="reportData.signatures && reportData.signatures['sigHeadDev'] && reportData.signatures['sigHeadDev'] !== '__DELETE__'" type="button" class="btn btn-danger btn-sm skn-remove-signature no-print" title="ลบลายเซ็น" @click.stop="removeSignature('sigHeadDev')"><i class="fas fa-times"></i></button>
+                        <div class="skn-signature-line"></div>
+                        <button v-if="reportData.signatures?.['sigHeadDev'] === '__DELETE__'" class="btn btn-link text-warning skn-sig-restore no-print" type="button" @click="restoreSignature('sigHeadDev')">ยกเลิกการลบลายเซ็น</button>
                       </div>
                       <span class="small fw-bold">( {{ adminSettings.sigHeadDev }} )</span><br>
                       <span style="font-size: 9pt;">หัวหน้ากิจกรรมพัฒนาผู้เรียน</span>
                     </div>
                     <div class="col-6">
+                      <div class="skn-signature-holder">
                       <div class="skn-signature-space" role="button" tabindex="0" title="คลิกเพื่อแนบรูปลายเซ็น" @click="chooseSignature('sigDeputy')" @keydown.enter="chooseSignature('sigDeputy')">
-                        <img v-if="reportData.signatures && reportData.signatures.sigDeputy" @error="onReportImageLoadError('sigDeputy')" :src="reportData.signatures.sigDeputy" alt="ภาพลายเซ็น" class="skn-signature-image">
+                        <img v-if="reportData.signatures && reportData.signatures['sigDeputy'] && reportData.signatures['sigDeputy'] !== '__DELETE__'" @error="onReportImageLoadError('sigDeputy')" :src="reportData.signatures.sigDeputy" alt="ภาพลายเซ็น" class="skn-signature-image">
+                      </div>
+                        <button v-if="reportData.signatures && reportData.signatures['sigDeputy'] && reportData.signatures['sigDeputy'] !== '__DELETE__'" type="button" class="btn btn-danger btn-sm skn-remove-signature no-print" title="ลบลายเซ็น" @click.stop="removeSignature('sigDeputy')"><i class="fas fa-times"></i></button>
+                        <div class="skn-signature-line"></div>
+                        <button v-if="reportData.signatures?.['sigDeputy'] === '__DELETE__'" class="btn btn-link text-warning skn-sig-restore no-print" type="button" @click="restoreSignature('sigDeputy')">ยกเลิกการลบลายเซ็น</button>
                       </div>
                       <span class="small fw-bold">( {{ adminSettings.sigDeputy }} )</span><br>
                       <span style="font-size: 9pt;">รองผู้อำนวยการกลุ่มบริหารงานวิชาการ</span>
@@ -1922,9 +1965,14 @@
                     <div style="border: 1px solid #000; display: inline-block; padding: 4px 15px; border-radius: 4px; font-size: 10pt;" class="mb-2">
                       <input type="checkbox"> อนุมัติ &nbsp;&nbsp; <input type="checkbox"> ไม่อนุมัติ
                     </div><br>
+                    <div class="skn-signature-holder">
                     <div class="skn-signature-space" role="button" tabindex="0" title="คลิกเพื่อแนบรูปลายเซ็น" @click="chooseSignature('sigDirector')" @keydown.enter="chooseSignature('sigDirector')">
-                        <img v-if="reportData.signatures && reportData.signatures.sigDirector" @error="onReportImageLoadError('sigDirector')" :src="reportData.signatures.sigDirector" alt="ภาพลายเซ็น" class="skn-signature-image">
+                        <img v-if="reportData.signatures && reportData.signatures['sigDirector'] && reportData.signatures['sigDirector'] !== '__DELETE__'" @error="onReportImageLoadError('sigDirector')" :src="reportData.signatures.sigDirector" alt="ภาพลายเซ็น" class="skn-signature-image">
                       </div>
+                      <button v-if="reportData.signatures && reportData.signatures['sigDirector'] && reportData.signatures['sigDirector'] !== '__DELETE__'" type="button" class="btn btn-danger btn-sm skn-remove-signature no-print" title="ลบลายเซ็น" @click.stop="removeSignature('sigDirector')"><i class="fas fa-times"></i></button>
+                      <div class="skn-signature-line"></div>
+                      <button v-if="reportData.signatures?.['sigDirector'] === '__DELETE__'" class="btn btn-link text-warning skn-sig-restore no-print" type="button" @click="restoreSignature('sigDirector')">ยกเลิกการลบลายเซ็น</button>
+                    </div>
                     <div class="fw-bold" style="font-size: 11pt;">( {{ adminSettings.sigDirector }} )</div>
                     <div style="font-size: 9pt;">ผู้อำนวยการ{{ adminSettings.schoolName }}</div>
                   </div>
@@ -2418,6 +2466,10 @@ data() {
     reportOriginalSources: {},
     reportPermissionDiagnostics: [],
     pendingPhotoUndo: {},
+    pendingSignatureUndo: {},
+    reportImagesPending: 0,
+    reportImageLoadProgress: '',
+
     driveFolderInfo: {id:'',name:'',url:''},
     signatureSlot: '',
     adminSignatureSlot: '',
@@ -2787,7 +2839,7 @@ syncAdvancedSettings() {
             didOpen:()=>Swal.showLoading()});
           try {
             const saved=await this.queueReportSave();
-            this.pendingPhotoUndo={};
+            this.pendingPhotoUndo={};this.pendingSignatureUndo={};
             if(saved?.cleanupPending)Swal.fire('บันทึกแล้ว แต่ลบภาพเก่ายังไม่ครบ',
               'รายงานบันทึกสำเร็จแล้ว ส่วนภาพที่เลิกใช้จะถูกจัดการอีกครั้งเมื่อกดบันทึกรายงาน: '+(saved.cleanupErrors||[]).join(', '),'warning');
             else Swal.fire({toast:true,position:'top-end',icon:'success',
@@ -3809,7 +3861,7 @@ refreshData(isSilent = false) {
         goToAttendance(club) { this.loadClubData(club, 'attendance'); },
         goToReport(club) {
             this.reportData.teacher = club ? club.teacher_name : this.reportData.teacher;
-            if(club){this.reportData.signatures = {};this.reportMediaErrors=[];this.reportMediaRefs={};this.reportOriginalSources={};this.reportPermissionDiagnostics=[];this.pendingPhotoUndo={};}
+            if(club){this.reportData.signatures = {};this.reportMediaErrors=[];this.reportMediaRefs={};this.reportOriginalSources={};this.reportPermissionDiagnostics=[];this.pendingPhotoUndo={};this.pendingSignatureUndo={};this.reportImagesPending=0;this._reportImageLoadPromise=null;}
             if(club) this.loadClubData(club, 'report');
             else this.view = 'report';
         },
@@ -3899,7 +3951,9 @@ refreshData(isSilent = false) {
                                 showConfirmButton:false,timer:6500}),450);
                             }
                         }
-                        this.view = viewName; 
+                        this.view = viewName;
+                        // Do not block the report on large Drive photos; load originals progressively.
+                        this.loadReportImagesProgressively().catch(e=>console.warn('SKN progressive media:',e));
                     }).getSavedClubReport(club.id);
                 } else {
                     Swal.close();
@@ -4252,13 +4306,47 @@ downloadCSVTemplate() {
               mime:file.type,base64:uri.split(',')[1],fileName:slot+'.'+(file.type.split('/')[1]==='jpeg'?'jpg':file.type.split('/')[1])});
             this.adminReportSignatures={...this.adminReportSignatures,[slot]:uri};
             this.adminSettings.signatureFiles={...(this.adminSettings.signatureFiles||{}),[slot]:{id:saved.id,url:saved.url||''}};
-            const res=await window.SKNBackend.invoke('saveAdvancedSystemSettings',[{adminSettings:this.adminSettings}],periodId);
+            const res=await window.SKNBackend.invoke('saveAdvancedSystemSettings',[{adminSettings:this.adminSettings,systemDates:this.systemDates,holidays:this.holidays,quota_per_teacher:this.adminSettings.studentQuota}],periodId);
             if(!res.success)throw Error(res.message||'บันทึกลายเซ็นไม่สำเร็จ');
             // Remove superseded admin signature ONLY after settings were committed.
             try{await window.SKNBackend.invoke('cleanupOldMedia',['ADMIN-REPORT'],periodId);}
             catch(cleanErr){console.warn('Admin signature cleanup pending:',cleanErr.message||cleanErr);}
             Swal.fire({toast:true,position:'top-end',icon:'success',title:'บันทึกภาพลายเซ็นแล้ว',timer:1400,showConfirmButton:false});
           }catch(err){Swal.fire('ไม่สามารถบันทึก',err.message||String(err),'error');}
+        },
+        async removeAdminSignature(slot) {
+          if(this.user?.role!=='admin' || !this.adminReportSignatures?.[slot])return;
+          const ask=await Swal.fire({title:'ลบรูปลายเซ็นนี้?',text:'ลายเซ็นใน Drive จะถูกย้ายลงถังขยะหลังบันทึกการตั้งค่าสำเร็จ',
+            icon:'warning',showCancelButton:true,confirmButtonText:'ลบลายเซ็น',cancelButtonText:'ยกเลิก'});
+          if(!ask.isConfirmed)return;
+          const oldSettings=JSON.parse(JSON.stringify(this.adminSettings));
+          const oldImage=this.adminReportSignatures[slot];
+          try {
+            const nextSettings=JSON.parse(JSON.stringify(this.adminSettings));
+            delete (nextSettings.signatureFiles||{})[slot];
+            const out=await window.SKNBackend.invoke('saveAdvancedSystemSettings',[{adminSettings:nextSettings,systemDates:this.systemDates,holidays:this.holidays,quota_per_teacher:nextSettings.studentQuota}],this.activePeriodId);
+            if(!out?.success)throw Error(out?.message||'ลบลายเซ็นไม่สำเร็จ');
+            this.adminSettings=nextSettings;
+            const updated={...this.adminReportSignatures};delete updated[slot];this.adminReportSignatures=updated;
+            try{await window.SKNBackend.invoke('cleanupOldMedia',['ADMIN-REPORT'],this.activePeriodId);}
+            catch(err){console.warn('Admin signature cleanup queued:',err);}
+            Swal.fire({toast:true,position:'top-end',icon:'success',title:'ลบลายเซ็นเรียบร้อย',showConfirmButton:false,timer:1500});
+          }catch(error){this.adminSettings=oldSettings;this.adminReportSignatures={...this.adminReportSignatures,[slot]:oldImage};
+            Swal.fire('ลบลายเซ็นไม่สำเร็จ',String(error?.message||error),'error');}
+        },
+        async removeSignature(slot) {
+          if(this.archiveReadonly || !this.reportData.signatures?.[slot] || this.reportData.signatures[slot]==='__DELETE__')return;
+          const ask=await Swal.fire({title:'เตรียมลบลายเซ็น?',text:'จะลบจริงหลังจากกดบันทึกรายงานสำเร็จ สามารถยกเลิกได้ก่อนบันทึก',
+            icon:'question',showCancelButton:true,confirmButtonText:'ทำเครื่องหมายลบ',cancelButtonText:'ยกเลิก'});
+          if(!ask.isConfirmed)return;
+          this.pendingSignatureUndo={...this.pendingSignatureUndo,[slot]:this.reportData.signatures[slot]};
+          this.reportData.signatures={...this.reportData.signatures,[slot]:'__DELETE__'};
+        },
+        restoreSignature(slot) {
+          if(this.archiveReadonly)return;
+          const old=this.pendingSignatureUndo?.[slot]||'';
+          this.reportData.signatures={...this.reportData.signatures,[slot]:old};
+          const next={...this.pendingSignatureUndo};delete next[slot];this.pendingSignatureUndo=next;
         },
         chooseSignature(slot) {
           if(this.archiveReadonly)return;
@@ -4550,6 +4638,47 @@ downloadCSVTemplate() {
             this.reportMediaErrors=[...new Set([...(this.reportMediaErrors||[]),slot+': '+String(err.message||err)])];
           }
         },
+        async loadReportImagesProgressively(force=false) {
+          const periodId=this.activePeriodId, clubId=this.currentClubId;
+          const refs=Object.entries(this.reportMediaRefs||{}).filter(([slot,ref])=>ref?.id && (force || !String(this.reportOriginalSources?.[slot]||'').startsWith('data:image/')));
+          if(!refs.length){this.reportImagesPending=0;return;}
+          // Prevent stale callbacks after navigating to another club/term.
+          const batchKey=periodId+'/'+clubId+'/'+Date.now();this._mediaLoadKey=batchKey;
+          this.reportImagesPending=refs.length;
+          const cache=window.SKN_MEDIA_CACHE||(window.SKN_MEDIA_CACHE=new Map());
+          const apply=(slot,src)=>{
+            if(!src||this._mediaLoadKey!==batchKey || this.activePeriodId!==periodId || this.currentClubId!==clubId)return;
+            const original=this.reportOriginalSources?.[slot]||'';
+            const current=slot==='logo'?this.reportData.logo:(/^photo_[1-4]$/.test(slot)?this.reportData.photos?.[Number(slot.slice(-1))]:this.reportData.signatures?.[slot]);
+            // Never overwrite a new local photo/signature selected during the background load.
+            if(current==='__DELETE__' || (current && current!==original))return;
+            if(slot==='logo')this.reportData.logo=src;
+            else if(/^photo_[1-4]$/.test(slot)){
+              const i=Number(slot.slice(-1));this.reportData.photos={...this.reportData.photos,[i]:src};
+            } else this.reportData.signatures={...this.reportData.signatures,[slot]:src};
+            this.reportOriginalSources={...this.reportOriginalSources,[slot]:src};
+          };
+          const work=async([slot,ref])=>{
+            try{
+              const cacheKey=ref.id;
+              if(cache.has(cacheKey)){apply(slot,cache.get(cacheKey));return;}
+              const response=await window.SKNFile.invoke('getFiles',{periodId,clubId,files:[{slot,id:ref.id}]});
+              const src=response?.files?.[slot];
+              if(!src?.startsWith('data:image/'))throw Error(response?.errors?.[slot]||'Drive ไม่ส่งข้อมูลรูปภาพกลับมา');
+              apply(slot,src);
+              // Small bounded cache to speed up reopening a recent report.
+              if(src.length<3_000_000){cache.set(cacheKey,src);while(cache.size>6)cache.delete(cache.keys().next().value);}
+            }catch(err){if(this._mediaLoadKey===batchKey){const detail=slot+': '+String(err?.message||err);
+              this.reportMediaErrors=[...new Set([...(this.reportMediaErrors||[]),detail])];}}
+            finally{if(this._mediaLoadKey===batchKey)this.reportImagesPending=Math.max(0,this.reportImagesPending-1);}
+          };
+          // Two concurrent iframe requests avoid crowding GAS & the main thread.
+          const tasks=[...refs];
+          const runner=async()=>{while(tasks.length){const entry=tasks.shift();if(entry)await work(entry);}};
+          const pending=Promise.all([runner(),runner()]);
+          this._reportImageLoadPromise=pending;
+          await pending;
+        },
         async reloadReportImages() {
           if(!this.currentClubId||this.loading)return;
           this.loading=true;
@@ -4565,6 +4694,7 @@ downloadCSVTemplate() {
             for(const [k,v] of Object.entries(d.signatures||{}))if(v&&!sigs[k])sigs[k]=v;
             this.reportData.signatures=sigs;
             this.reportMediaErrors=d.mediaErrors||[];
+            await this.loadReportImagesProgressively(true);
             this.reportMediaRefs=d.mediaRefs||{};
             this.reportOriginalSources={logo:this.reportData.logo};
             for(let i=1;i<=4;i++)this.reportOriginalSources['photo_'+i]=this.reportData.photos?.[i]||'';
@@ -4608,6 +4738,9 @@ downloadCSVTemplate() {
         async generateReportPdfDataUrl() {
           if(this.view!=='report')throw Error('กรุณาเปิดหน้ารายงานชุมนุมก่อน');
           if(typeof window.html2pdf!=='function')throw Error('โหลดตัวสร้าง PDF ไม่สำเร็จ กรุณาตรวจอินเทอร์เน็ต');
+          // Do not generate a report before its Drive images have resolved.
+          if(this._reportImageLoadPromise)await this._reportImageLoadPromise;
+          if(this.reportMediaErrors?.length)throw Error('มีรูปภาพจาก Drive โหลดไม่สำเร็จ กรุณาตรวจรูปก่อน หรือเลือกแนบ PDF เอง');
           if(document.fonts?.ready)await document.fonts.ready;
           // Clone the actual report, including user-edited text, images and signatures.
           const pages=[...document.querySelectorAll('.a4-container')];
@@ -4682,19 +4815,57 @@ downloadCSVTemplate() {
             });
           }finally{target.remove();}
         },
+        // V4.2: PDF always stays in memory. We never save generated PDFs to Drive,
+        // so there is no previous PDF in Drive to replace or delete.
+        async validatePdfAttachment(dataUrl) {
+          const raw=String(dataUrl||'');
+          if(!/^data:application\/pdf;base64,[A-Za-z0-9+/=]+$/.test(raw))throw Error('รูปแบบไฟล์แนบไม่ใช่ PDF');
+          const encoded=raw.split(',')[1];
+          const bytes=atob(encoded);
+          if(bytes.length<12000 || bytes.length>8*1024*1024)throw Error('PDF ต้องมีขนาดระหว่าง 12 KB–8 MB');
+          if(!bytes.startsWith('%PDF-'))throw Error('ส่วนหัว PDF ไม่ถูกต้อง');
+          if(!bytes.slice(-2048).includes('%%EOF'))throw Error('PDF ไม่สมบูรณ์: ไม่พบจุดสิ้นสุดไฟล์');
+          return true;
+        },
+        async chooseManualReportPdf() {
+          const picked=await Swal.fire({title:'เลือก PDF ที่ตรวจสอบแล้ว',
+            html:'<p class="small text-muted text-start">รองรับไฟล์ PDF ขนาด 12 KB–8 MB โปรดเปิดไฟล์ตรวจความถูกต้องก่อนส่ง</p>',
+            input:'file',inputAttributes:{accept:'application/pdf,.pdf'},
+            showCancelButton:true,confirmButtonText:'ใช้ไฟล์ PDF นี้',cancelButtonText:'ยกเลิก',
+            preConfirm:async file=>{
+              try{
+                if(!file||(!/\.pdf$/i.test(file.name)&&file.type!=='application/pdf'))throw Error('กรุณาเลือกไฟล์ PDF');
+                if(file.size<12000||file.size>8*1024*1024)throw Error('ขนาด PDF ต้องอยู่ระหว่าง 12 KB–8 MB');
+                const url=await new Promise((resolve,reject)=>{
+                  const reader=new FileReader();reader.onload=()=>resolve(reader.result);
+                  reader.onerror=()=>reject(Error('ไม่สามารถอ่าน PDF'));
+                  reader.readAsDataURL(file);
+                });
+                await this.validatePdfAttachment(url);
+                return url;
+              }catch(error){Swal.showValidationMessage(error.message||String(error));return false;}
+            }});
+          return picked.isConfirmed?picked.value:null;
+        },
+        async previewGeneratedReportPdf(dataUrl) {
+          // A positive confirmation here is an explicit human check against blank pages.
+          const encoded=dataUrl.split(',')[1];
+          const binary=atob(encoded);const bytes=new Uint8Array(binary.length);
+          for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
+          const objectUrl=URL.createObjectURL(new Blob([bytes],{type:'application/pdf'}));
+          try {
+            const confirmation=await Swal.fire({title:'ตรวจสอบ PDF ก่อนส่งอีเมล',
+              html:'<p class="small text-muted mb-2">กรุณาเลื่อนตรวจหน้าเอกสารและรูปภาพให้ครบ หากว่างหรือแสดงผิด ให้กดยกเลิกแล้วเลือกแนบเอง</p>'+
+               '<iframe src="'+objectUrl+'#toolbar=1" title="ตัวอย่าง PDF" style="width:100%;height:58vh;border:1px solid #cbd5e1;border-radius:8px"></iframe>',
+              width:'min(1000px,96vw)',showCancelButton:true,
+              confirmButtonText:'ตรวจสอบแล้ว ส่งไฟล์นี้',cancelButtonText:'ยกเลิก',
+              allowOutsideClick:false});
+            return confirmation.isConfirmed;
+          }finally{URL.revokeObjectURL(objectUrl);}
+        },
         async promptSendEmail() {
           if(this.archiveReadonly||this.loading)return;
-          if(Object.values(this.reportData.photos||{}).includes('__DELETE__'))
-            return Swal.fire('มีภาพรอการลบ','กรุณากดบันทึกรายงานหรือยกเลิกการลบรูปก่อนส่งอีเมล','warning');
-          let forceManualPdf=false;
-          if(this.reportMediaErrors?.length){
-            const missing=await Swal.fire({title:'บางรูปจาก Drive ยังโหลดไม่ครบ',
-              text:'เพื่อป้องกันการส่งเอกสารภาพหาย กรุณาแนบ PDF ที่ตรวจสอบแล้วด้วยตนเอง หรือยกเลิกเพื่อแก้รูปก่อน',
-              icon:'warning',showCancelButton:true,confirmButtonText:'แนบ PDF ของฉัน',cancelButtonText:'ยกเลิก'});
-            if(!missing.isConfirmed)return;
-            forceManualPdf=true;
-          }
-          // Read the currently saved recipient, not an unsaved/stale input value.
+          // Read email from saved settings. No user-supplied recipient can change the GAS destination.
           let email='';
           try{
             const {data,error}=await window.SKN_DB.from('period_config').select('value')
@@ -4703,51 +4874,57 @@ downloadCSVTemplate() {
             email=String(JSON.parse(data?.value||'{}').reportEmail||'').trim();
           }catch(err){return Swal.fire('โหลดอีเมลไม่สำเร็จ',err.message||String(err),'error');}
           if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
-            return Swal.fire('ยังไม่ได้ตั้งค่าอีเมล','Admin ต้องกำหนดอีเมลรับรายงานในหน้าตั้งค่าระบบขั้นสูงและบันทึกก่อน','warning');
-          const confirm=await Swal.fire({title:'ยืนยันส่งรายงานชุมนุม',
-            html:'<div class="text-start">ระบบจะสร้าง PDF จากหน้ารายงานปัจจุบันและแนบให้โดยอัตโนมัติ'+
-              '<p class="mt-2 mb-0"><strong>อีเมลปลายทาง: </strong><span id="skn-send-target"></span></p></div>',
-            didOpen:()=>{document.getElementById('skn-send-target').textContent=email;},
-            icon:'question',showCancelButton:true,confirmButtonText:'สร้าง PDF และส่งอีเมล',cancelButtonText:'ยกเลิก'});
-          if(!confirm.isConfirmed)return;
-          this.loading=true;
-          Swal.fire({title:'กำลังสร้าง PDF และส่งอีเมล...',html:'โปรดอย่าปิดหน้านี้ระหว่างส่ง',
-            allowOutsideClick:false,didOpen:()=>Swal.showLoading()});
-          try{
-            // Flush any pending report image uploads before snapshotting the report.
-            await this.queueReportSave();
-            let pdfFile;
+            return Swal.fire('ยังไม่ได้ตั้งค่าอีเมล','Admin ต้องกำหนดอีเมลรับรายงานในหน้าตั้งค่าระบบขั้นสูง','warning');
+          const mode=await Swal.fire({title:'เลือกรูปแบบส่งรายงาน PDF',
+            input:'radio',inputOptions:{auto:'สร้าง PDF อัตโนมัติจากรายงานบนเว็บ พร้อมเปิดตัวอย่างตรวจสอบ',manual:'แนบไฟล์ PDF ที่เตรียมไว้เอง'},
+            inputValue:this.reportMediaErrors?.length?'manual':'auto',
+            inputValidator:value=>!value?'กรุณาเลือกรูปแบบการส่ง':undefined,
+            html:'<p class="small text-muted">ปลายทางกำหนดโดย Admin: <strong id="skn-mail-target"></strong></p>',
+            didOpen:()=>{document.getElementById('skn-mail-target').textContent=email;},
+            showCancelButton:true,confirmButtonText:'ถัดไป',cancelButtonText:'ยกเลิก'});
+          if(!mode.isConfirmed)return;
+          let pdfFile='';let autoCreated=false;
+          if(mode.value==='manual'){
+            pdfFile=await this.chooseManualReportPdf();
+            if(!pdfFile)return;
+          }else{
+            if(Object.values(this.reportData.photos||{}).includes('__DELETE__') ||
+               Object.values(this.reportData.signatures||{}).includes('__DELETE__'))
+              return Swal.fire('มีรูปที่รอลบ','กรุณาบันทึกรายงานหรือยกเลิกการลบรูปก่อนสร้าง PDF','warning');
+            this.loading=true;
+            Swal.fire({title:'กำลังเตรียมรายงานและสร้าง PDF',text:'กำลังตรวจรูปภาพและประมวลผลทุกหน้า',
+              allowOutsideClick:false,showConfirmButton:false,didOpen:()=>Swal.showLoading()});
             try{
-              if(forceManualPdf)throw Error('เลือกแนบ PDF ที่ตรวจสอบเนื้อหาแล้ว');
+              clearTimeout(this._reportSaveTimer);
+              await this.queueReportSave();
               pdfFile=await this.generateReportPdfDataUrl();
+              autoCreated=true;
+              await this.validatePdfAttachment(pdfFile);
+            }catch(error){
+              Swal.close();this.loading=false;
+              const retry=await Swal.fire({title:'สร้าง PDF อัตโนมัติไม่สำเร็จ',text:String(error?.message||error),
+                icon:'warning',showCancelButton:true,confirmButtonText:'แนบ PDF เอง',cancelButtonText:'ยกเลิก'});
+              if(!retry.isConfirmed)return;
+              pdfFile=await this.chooseManualReportPdf();if(!pdfFile)return;
+            }finally{this.loading=false;Swal.close();}
+            if(autoCreated&&pdfFile){
+              const reviewed=await this.previewGeneratedReportPdf(pdfFile);
+              if(!reviewed)return;
             }
-            catch(autoError){
-              Swal.close();
-              const manual=await Swal.fire({title:'สร้าง PDF อัตโนมัติไม่สำเร็จ',
-                text:String(autoError.message||autoError)+' — สามารถเลือก PDF ที่จัดทำไว้เองเพื่อแนบอีเมลได้',
-                input:'file',inputAttributes:{accept:'application/pdf,.pdf'},
-                showCancelButton:true,confirmButtonText:'แนบ PDF และส่ง',cancelButtonText:'ยกเลิก',
-                preConfirm:file=>{
-                  if(!file||!(/\.pdf$/i.test(file.name)||file.type==='application/pdf')||file.size<12000||file.size>8*1024*1024){
-                    Swal.showValidationMessage('โปรดเลือกไฟล์ PDF ที่มีเนื้อหา ขนาด 12 KB–8 MB');return false;
-                  }
-                  return new Promise((resolve,reject)=>{
-                    const fr=new FileReader();fr.onload=()=>resolve(fr.result);fr.onerror=reject;fr.readAsDataURL(file);
-                  });
-                }});
-              if(!manual.isConfirmed||!manual.value)return;
-              pdfFile=manual.value;
-              Swal.fire({title:'กำลังส่งไฟล์ PDF ที่แนบ...',allowOutsideClick:false,didOpen:()=>Swal.showLoading()});
-            }
+          }
+          try{
+            await this.validatePdfAttachment(pdfFile);
+            this.loading=true;
+            Swal.fire({title:'กำลังแนบ PDF และส่งอีเมล...',text:'ส่งเฉพาะเมื่อไฟล์สมบูรณ์และผ่านการตรวจสอบแล้ว',
+              allowOutsideClick:false,showConfirmButton:false,didOpen:()=>Swal.showLoading()});
             const payload={clubId:this.currentClubId,clubName:this.currentClubName,
               teacher:this.reportData.teacher,semester:this.adminSettings.semester,
               academicYear:this.adminSettings.academicYear,totalStudents:this.attStudents.length,
               passCount:this.countPass(),failCount:this.countFail(),pdfFile};
-            // Backend + GAS independently read the saved recipient from period_config.
             const response=await window.SKNBridge.invoke('sendClubReportEmail',[email,payload]);
             if(!response?.success)throw Error(response?.message||'ส่งอีเมลไม่สำเร็จ');
-            Swal.fire('ส่งสำเร็จ','ส่งรายงาน PDF พร้อมไฟล์แนบไปที่ '+email+' เรียบร้อยแล้ว','success');
-          }catch(err){Swal.fire('ส่งรายงานไม่สำเร็จ',err.message||String(err),'error');}
+            Swal.fire('ส่งสำเร็จ','ส่ง PDF แนบอีเมลไปยัง '+email+' เรียบร้อยแล้ว (ไม่ได้เก็บ PDF ลง Drive)','success');
+          }catch(error){Swal.fire('ส่งรายงานไม่สำเร็จ',error.message||String(error),'error');}
           finally{this.loading=false;}
         },
 
