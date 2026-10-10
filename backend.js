@@ -123,10 +123,60 @@ async function snapshot(periodId) {
         data.tables[name] = records;
     }
     const counts = validateBackupSnapshot(data);
-    data.backup_manifest = { version: 'V4.7', counts, containsMediaReferences: true,
+    data.backup_manifest = { version: 'V4.8', counts, containsMediaReferences: true,
         includesBinaryImages: false,
         note: 'ข้อมูลครบ 8 ตาราง รวมรูปใน media (File ID/URL) แต่ไฟล์ภาพต้นฉบับอยู่ใน Drive และรหัสผ่านไม่รวมอยู่ใน JSON' };
     return data;
+}
+// V4.8: encrypt only the credentials, not the full backup. This leaves all 8 tables
+// backwards-compatible and inspectable while preventing passwords from appearing in Drive JSON.
+// Passphrase stays in browser memory. No service role keys or secrets are persisted.
+const SKN_VAULT_ITERATIONS = 310000;
+function sknVaultBase64(data) {
+    let result = '';
+    for (let i = 0; i < data.length; i += 16384)
+        result += String.fromCharCode(...data.subarray(i, i + 16384));
+    return btoa(result);
+}
+function sknVaultFromBase64(s) {
+    const binary = atob(s);
+    const result = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++)
+        result[i] = binary.charCodeAt(i);
+    return result;
+}
+async function sknVaultKey(passphrase, salt, iterations) {
+    const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(passphrase), 'PBKDF2', false, ['deriveKey']);
+    return crypto.subtle.deriveKey({ name: 'PBKDF2', salt: salt, iterations, hash: 'SHA-256' }, key, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+}
+async function sknEncryptCredentials(credentials, passphrase) {
+    assert(passphrase.length >= 14 && passphrase.length <= 256, 'รหัสลับเข้ารหัส Backup ต้องยาวอย่างน้อย 14 ตัวอักษร');
+    assert(Array.isArray(credentials?.teachers) && Array.isArray(credentials?.students), 'ไม่พบข้อมูลรหัสผ่านจาก Supabase');
+    const salt = crypto.getRandomValues(new Uint8Array(16)), iv = crypto.getRandomValues(new Uint8Array(12));
+    const key = await sknVaultKey(passphrase, salt, SKN_VAULT_ITERATIONS);
+    const clear = new TextEncoder().encode(JSON.stringify(credentials));
+    const ciphertext = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, key, clear));
+    return { version: 1, algorithm: 'AES-256-GCM', kdf: 'PBKDF2-HMAC-SHA256', iterations: SKN_VAULT_ITERATIONS,
+        salt: sknVaultBase64(salt), iv: sknVaultBase64(iv), ciphertext: sknVaultBase64(ciphertext),
+        counts: { teachers: credentials.teachers.length, students: credentials.students.length } };
+}
+async function sknDecryptCredentials(vault, passphrase) {
+    assert(vault?.version === 1 && vault.algorithm === 'AES-256-GCM' && vault.kdf === 'PBKDF2-HMAC-SHA256', 'รูปแบบไฟล์เข้ารหัสรหัสผ่านไม่รองรับ');
+    assert(Number.isInteger(vault.iterations) && vault.iterations >= 200000 && vault.iterations <= 1000000, 'ค่า KDF ในไฟล์สำรองไม่ถูกต้อง');
+    assert(passphrase, 'กรุณาป้อนรหัสลับที่ใช้เข้ารหัส Backup');
+    try {
+        const salt = sknVaultFromBase64(vault.salt), iv = sknVaultFromBase64(vault.iv);
+        assert(salt.length === 16 && iv.length === 12, 'ข้อมูล salt/iv ไม่ถูกต้อง');
+        const key = await sknVaultKey(passphrase, salt, vault.iterations);
+        const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv }, key, sknVaultFromBase64(vault.ciphertext));
+        const credentials = JSON.parse(new TextDecoder().decode(plain));
+        assert(Array.isArray(credentials?.teachers) && Array.isArray(credentials?.students), 'ข้อมูลรหัสผ่านไม่สมบูรณ์');
+        assert(credentials.teachers.length === vault.counts.teachers && credentials.students.length === vault.counts.students, 'จำนวนบัญชีใน Vault ไม่ตรงกับไฟล์ Backup');
+        return credentials;
+    }
+    catch (e) {
+        throw Error('ถอดรหัส Backup ไม่สำเร็จ: รหัสลับไม่ถูกต้องหรือไฟล์เสียหาย');
+    }
 }
 async function verifyBackupFile(content, stored) {
     assert(stored?.success === true && stored.id, 'Google Drive ไม่ยืนยันว่าเขียนไฟล์สำรองสำเร็จ');
@@ -852,15 +902,44 @@ async function sknInvoke(method, args, periodId) {
                     file_id: uploaded.id, name: uploaded.name
                 }));
             }
-            output = await result(db.rpc('skn_restore_snapshot_v45', {
-                p_snapshot: snap, p_year: year, p_sem: semester,
-                p_make_current: makeCurrent
-            }));
+            const credentials = snap.credential_vault ?
+                await sknDecryptCredentials(snap.credential_vault, String(args[5] || '')) : null;
+            // The vault is never included in the RPC payload; only decrypted credentials,
+            // transmitted over authenticated HTTPS, are used to create MISSING accounts.
+            if (credentials) {
+                const cleanSnapshot = { ...snap };
+                delete cleanSnapshot.credential_vault;
+                output = await result(db.rpc('skn_restore_snapshot_with_credentials_v48', {
+                    p_snapshot: cleanSnapshot, p_year: year, p_sem: semester,
+                    p_make_current: makeCurrent, p_credentials: credentials
+                }));
+            }
+            else {
+                output = await result(db.rpc('skn_restore_snapshot_v45', {
+                    p_snapshot: snap, p_year: year, p_sem: semester, p_make_current: makeCurrent
+                }));
+            }
             break;
         }
         case 'createFullBackupNow': {
             mustAdmin(u);
+            const passphrase = String(args[0] || '');
+            assert(passphrase.length >= 14, 'ต้องกำหนดรหัสลับเข้ารหัสไฟล์ Backup อย่างน้อย 14 ตัวอักษร');
             const data = await snapshot(p.id);
+            assert(data.tables.teachers.every((t) => !Object.prototype.hasOwnProperty.call(t, 'password')) &&
+                data.tables.students.every((t) => !Object.prototype.hasOwnProperty.call(t, 'password')), 'ข้อมูลจาก Public View ไม่ปลอดภัย: พบคอลัมน์ password ในไฟล์ JSON ก่อนเข้ารหัส');
+            const credentials = await result(db.rpc('skn_backup_credentials_v48', { p_period: p.id }));
+            // Confirm the password payload has a matching student population and required teacher entries.
+            assert(credentials?.students?.length === data.tables.students.length, 'จำนวนรหัสผ่านนักเรียนไม่ครบ ระบบยกเลิก Backup');
+            const teacherIds = new Set(data.tables.period_teachers.map((x) => x.teacher_id));
+            assert(credentials.teachers.every((t) => teacherIds.has(t.id)) &&
+                credentials.teachers.length === teacherIds.size, 'จำนวนรหัสผ่านครูไม่ครบ ระบบยกเลิก Backup');
+            assert(credentials.students.every((s) => typeof s.password === 'string' && s.password.length > 0) &&
+                credentials.teachers.every((t) => typeof t.password === 'string' && t.password.length > 0), 'มีบัญชีที่ยังไม่ได้ตั้งรหัสผ่าน ระบบไม่สร้างไฟล์สำรองที่ไม่ครบ');
+            data.credential_vault = await sknEncryptCredentials(credentials, passphrase);
+            data.backup_manifest.version = 'V4.8';
+            data.backup_manifest.credentials = 'AES-256-GCM encrypted; passphrase NEVER stored';
+            data.backup_manifest.note = 'ไฟล์ JSON มีรหัสผ่านครูและนักเรียนที่เข้ารหัสไว้ใน credential_vault; ไฟล์ภาพต้นฉบับเก็บใน Drive แยกต่างหาก';
             const content = JSON.stringify(data);
             assert(new TextEncoder().encode(content).length <= 7_500_000, 'ไฟล์ JSON เกิน 7.5 MB โปรดใช้สำรองข้อมูลผ่าน Supabase Database Backup แทน');
             const name = `SKN_Full_Backup_${p.academic_year}_${p.semester}_${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
@@ -872,7 +951,7 @@ async function sknInvoke(method, args, periodId) {
             output = { success: true, fileId: saved.id, url: saved.url, name: saved.name,
                 periodCode: p.period_code || `${p.academic_year}-${p.semester}`,
                 counts: data.backup_manifest.counts, sha256: saved.sha256,
-                imagesIncluded: false };
+                imagesIncluded: false, credentialsEncrypted: true, teacherPasswords: data.credential_vault.counts.teachers, studentPasswords: data.credential_vault.counts.students };
             break;
         }
         case 'startNewSemester': {

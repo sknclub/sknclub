@@ -2529,12 +2529,19 @@
                 · นักเรียน {{restorePreview.students}} คน · ชุมนุม {{restorePreview.clubs}} · การสมัคร {{restorePreview.registrations}}
                 · เช็กชื่อ {{restorePreview.attendance}} · รายงาน {{restorePreview.reports}}</div>
             </div>
+            <div v-if="restoreHasPasswordVault" class="alert alert-warning small mt-3">
+              <div class="fw-bold mb-2"><i class="fas fa-lock me-2"></i>ไฟล์นี้มีรหัสผ่านครูและนักเรียนที่เข้ารหัส</div>
+              <label class="form-label">รหัสลับที่ใช้ตอนสำรองข้อมูล (อย่างน้อย 14 ตัวอักษร)</label>
+              <input type="password" v-model="restoreVaultPassword" class="form-control" autocomplete="off"
+                :disabled="restoreBusy" placeholder="กรอกรหัสลับเพื่อถอดรหัสและกู้คืนบัญชี" />
+              <div class="form-text">ระบบจะไม่ส่งรหัสลับไป Supabase หรือ Google Drive และจะไม่เขียนทับรหัสผ่านบัญชีที่มีอยู่แล้ว</div>
+            </div>
             <div class="row g-3">
               <div class="col-4"><label class="form-label fw-bold">ปีการศึกษาปลายทาง</label><input type="number" class="form-control" min="2500" max="2800" v-model.number="restoreYear" :disabled="restoreBusy" /></div>
               <div class="col-4"><label class="form-label fw-bold">ภาคเรียนปลายทาง</label><select class="form-select" v-model.number="restoreSemester" :disabled="restoreBusy"><option :value="1">1</option><option :value="2">2</option><option :value="3">3</option></select></div>
               <div class="col-4 d-flex align-items-end"><label class="form-check mb-2"><input type="checkbox" class="form-check-input" v-model="restoreMakeCurrent" :disabled="restoreBusy" /><span class="form-check-label">ตั้งเป็นปัจจุบัน</span></label></div>
             </div>
-            <div class="alert alert-info small mt-3 mb-0">กู้คืนเป็นเทอมใหม่เท่านั้น <b>ไม่ทับข้อมูลเดิม</b> บัญชีครูและรหัสผ่านนักเรียนต้องมีอยู่ในฐานข้อมูลก่อน (ไฟล์สำรองไม่มีรหัสผ่าน) ไฟล์ JSON ไม่รวมไบต์รูปภาพจาก Drive</div>
+            <div class="alert alert-info small mt-3 mb-0">กู้คืนเป็นเทอมใหม่เท่านั้น <b>ไม่ทับข้อมูลเดิม</b> ไฟล์ V4.8 ที่เข้ารหัสสามารถสร้างบัญชีที่ขาดหายได้เมื่อกรอกรหัสลับ; Backup รุ่นเก่าต้องมีบัญชีเดิมก่อน ไฟล์ JSON ไม่รวมภาพต้นฉบับจาก Drive</div>
             <div v-if="restoreError" class="alert alert-danger small mt-3 mb-0">{{restoreError}}</div>
           </div>
           <div class="modal-footer"><button class="btn btn-light" data-bs-dismiss="modal" :disabled="restoreBusy">ปิด</button>
@@ -2651,6 +2658,7 @@ data() {
 
     backupFiles: [],
     backupBusy: false, backupLastResult: null,
+    restoreHasPasswordVault:false,restoreVaultPassword:'',
     loadingBackup: false,
     managePeriodId: '', deleteScope: 'term', replacementPeriodId: '',
     periodImpact: null, periodImpactError: '', periodImpactLoading: false, periodBusy: false, periodDeleteConfirm: '',
@@ -2959,6 +2967,7 @@ filteredClubs() {
           if(this.user?.role!=='admin')return;
           this.restorePreview=null;this.restoreFileName='';this.restoreError='';
           this.selectedBackupFileId='';this._restoreSnapshot=null;
+          this.restoreHasPasswordVault=false;this.restoreVaultPassword='';
           bootstrap.Modal.getOrCreateInstance(document.getElementById('restoreBackupModal')).show();
           try{const res=await window.SKNBridge.invoke('getBackupFilesList',[]);this.backupFiles=res?.data||[];}
           catch(err){this.restoreError='โหลดประวัติ Backup ไม่ได้: '+(err.message||String(err));}
@@ -2970,6 +2979,8 @@ filteredClubs() {
           const names=['period_teachers','students','clubs','registrations','attendance','club_reports','period_config'];
           if(names.some(k=>!Array.isArray(parsed.tables[k])))throw Error('ไฟล์สำรองขาดตารางข้อมูลที่จำเป็น');
           this._restoreSnapshot=parsed;
+          this.restoreHasPasswordVault=!!parsed.credential_vault;
+          this.restoreVaultPassword='';
           this.restorePreview={year:Number(parsed.period.academic_year),semester:Number(parsed.period.semester),
             students:parsed.tables.students.length,clubs:parsed.tables.clubs.length,
             registrations:parsed.tables.registrations.length,attendance:parsed.tables.attendance.length,
@@ -2999,19 +3010,21 @@ filteredClubs() {
           if(this.user?.role!=='admin'||this.restoreBusy||!this._restoreSnapshot)return;
           if(!Number.isInteger(Number(this.restoreYear))||this.restoreYear<2500||this.restoreYear>2800||![1,2,3].includes(Number(this.restoreSemester)))return Swal.fire('ปี/เทอมไม่ถูกต้อง','','warning');
           if(this.periods.some(x=>x.academicYear===Number(this.restoreYear)&&x.semester===Number(this.restoreSemester)))return Swal.fire('มีเทอมนี้แล้ว','ระบบไม่กู้ทับเทอมที่มีอยู่ กรุณาเลือกปี/เทอมอื่นหรือลบชุดที่ผิดหลังสำรอง','warning');
+          if(this.restoreHasPasswordVault&&!this.restoreVaultPassword)
+            return this.restoreError='กรุณากรอกรหัสลับของไฟล์ Backup ก่อนกู้คืน';
           const yes=await Swal.fire({title:'ยืนยันกู้คืนข้อมูล?',text:`สร้างภาคเรียน ${this.restoreSemester}/${this.restoreYear} จาก ${this.restoreFileName} โดยไม่ทับข้อมูลเทอมเดิม`,icon:'question',showCancelButton:true,confirmButtonText:'เริ่มกู้คืน',cancelButtonText:'ยกเลิก'});
           if(!yes.isConfirmed)return;
           this.restoreBusy=true;
           Swal.fire({title:'กำลังกู้ข้อมูลแบบธุรกรรมเดียว...',html:'กำลังตรวจข้อมูลครู นักเรียน การลงทะเบียน รายงาน และความสัมพันธ์ใน Supabase',allowOutsideClick:false,allowEscapeKey:false,didOpen:()=>Swal.showLoading()});
           try{
-            const res=await window.SKNBridge.invoke('restoreBackupSnapshot',[this._restoreSnapshot,Number(this.restoreYear),Number(this.restoreSemester),this.restoreMakeCurrent,this.restoreOrigin]);
+            const res=await window.SKNBridge.invoke('restoreBackupSnapshot',[this._restoreSnapshot,Number(this.restoreYear),Number(this.restoreSemester),this.restoreMakeCurrent,this.restoreOrigin,this.restoreVaultPassword]);
             if(!res?.success)throw Error('กู้คืนไม่สำเร็จ');
             bootstrap.Modal.getOrCreateInstance(document.getElementById('restoreBackupModal')).hide();
             if(this.restoreMakeCurrent){window.SKNBridge.periodId=res.periodId;this.activePeriodId=res.periodId;}
             this.view='dashboard';await this.refreshData(true);
             Swal.fire('กู้ข้อมูลเรียบร้อย','สร้างภาคเรียนใหม่จากไฟล์ JSON สำเร็จแล้ว ตรวจสอบรายชื่อนักเรียนและรูปภาพที่เชื่อม Drive อีกครั้ง','success');
           }catch(err){Swal.fire('กู้คืนไม่สำเร็จ',err.message||String(err),'error');}
-          finally{this.restoreBusy=false;}
+          finally{this.restoreBusy=false;this.restoreVaultPassword='';}
         },
 
 
@@ -4865,23 +4878,39 @@ downloadCSVTemplate() {
         // ฟังก์ชันเปิดดูประวัติแบคอัป
         async createFullBackupNow(){
           if(this.user?.role!=='admin'||this.backupBusy)return;
+          // Ask for a separate encryption passphrase. Never store it in Drive, Supabase,
+          // localStorage, the URL, or a file. All account passwords are encrypted locally.
+          const secret=await Swal.fire({
+            title:'สำรองข้อมูลพร้อมรหัสผ่าน (เข้ารหัส)',
+            html:'<div class="text-start small text-muted mb-2">ไฟล์สำรองรวม 8 ตารางและรหัสผ่านครู/นักเรียนที่เข้ารหัส AES-256-GCM ' +
+              'โปรดเก็บรหัสลับนี้ไว้นอกระบบ หากลืมจะกู้รหัสผ่านจาก Backup ไม่ได้</div>'+
+              '<input id="sknBackupPass1" type="password" autocomplete="new-password" class="swal2-input" placeholder="รหัสลับอย่างน้อย 14 ตัวอักษร" style="width:85%;margin:0.5rem 0;">'+
+              '<input id="sknBackupPass2" type="password" autocomplete="new-password" class="swal2-input" placeholder="ยืนยันรหัสลับอีกครั้ง" style="width:85%;margin:0.5rem 0;">',
+            showCancelButton:true,confirmButtonText:'เข้ารหัสและสำรองข้อมูล',cancelButtonText:'ยกเลิก',
+            preConfirm:()=>{
+              const first=document.getElementById('sknBackupPass1')?.value||'';
+              const second=document.getElementById('sknBackupPass2')?.value||'';
+              if(first.length<14||first!==second){Swal.showValidationMessage('กรุณาระบุรหัสลับอย่างน้อย 14 ตัวอักษร และยืนยันให้ตรงกัน');return false;}
+              return first;
+            }
+          });
+          if(!secret.isConfirmed||!secret.value)return;
           this.backupBusy=true;
-          Swal.fire({title:'กำลังสำรองข้อมูลทุกตาราง',
-            html:'กำลังอ่านข้อมูลครู นักเรียน ชุมนุม การลงทะเบียน การเช็กชื่อ รายงาน และการตั้งค่าจาก Supabase<br><small>ระบบจะตรวจจำนวนข้อมูลและ SHA-256 หลังเขียนไฟล์ลง Drive</small>',
+          Swal.fire({title:'กำลังสร้างไฟล์สำรองแบบเข้ารหัส',
+            html:'อ่านข้อมูล 8 ตาราง → อ่านรหัสผ่าน Admin-only → เข้ารหัสด้วยรหัสลับ → บันทึก Drive → ตรวจ SHA-256',
             allowOutsideClick:false,allowEscapeKey:false,didOpen:()=>Swal.showLoading()});
           try{
-            const saved=await window.SKNBridge.invoke('createFullBackupNow',[]);
-            if(!saved?.success||!saved?.fileId)throw Error('ระบบไม่ยืนยันไฟล์ Backup');
+            const saved=await window.SKNBridge.invoke('createFullBackupNow',[secret.value]);
+            if(!saved?.success||!saved?.fileId||saved?.credentialsEncrypted!==true)throw Error('ระบบไม่ยืนยันไฟล์ Backup ที่เข้ารหัส');
             this.backupLastResult=saved;
             const labels={teachers:'ครู',period_teachers:'ครูในเทอม',students:'นักเรียน',clubs:'ชุมนุม',
               registrations:'การลงทะเบียน',attendance:'ชุดเช็กชื่อ',club_reports:'รายงาน',period_config:'การตั้งค่า'};
             const summary=Object.entries(saved.counts||{}).map(([k,v])=>`${labels[k]||k}: ${v}`).join(' | ');
-            await Swal.fire({icon:'success',title:'สำรองข้อมูลครบ 8 ตารางแล้ว',
-              text:`เทอม ${saved.periodCode} — ${summary}. ตรวจ SHA-256 ตรงกันแล้ว (ภาพต้นฉบับแยกเก็บใน Drive และไม่มีรหัสผ่านใน JSON)`,
-              footer:'สำรอง File ID รูปภาพใน media แล้ว แต่ยังต้องรักษาโฟลเดอร์รูปต้นฉบับใน Google Drive'});
+            await Swal.fire({icon:'success',title:'สำรองข้อมูลพร้อมรหัสผ่านสำเร็จ',
+              text:`เทอม ${saved.periodCode}: ${summary}. รหัสผ่านครู ${saved.teacherPasswords} บัญชี และนักเรียน ${saved.studentPasswords} บัญชี ถูกเข้ารหัสไว้แล้ว (SHA-256 ตรงกัน)`,
+              footer:'อย่าลืมเก็บรหัสลับสำรอง! รูปภาพต้นฉบับต้องสำรองโฟลเดอร์ Drive แยกต่างหาก'});
           }catch(err){
-            await Swal.fire({icon:'error',title:'ยังไม่ยืนยันว่า Backup สำเร็จ',
-              text:err.message||String(err)});
+            await Swal.fire({icon:'error',title:'สำรองข้อมูลยังไม่สำเร็จ',text:err.message||String(err)});
           }finally{this.backupBusy=false;}
         },
                 openBackupHistoryModal() {
