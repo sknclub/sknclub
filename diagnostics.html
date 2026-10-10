@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SKN CLUBS — ตรวจการเชื่อมต่อ Supabase</title>
+<style>
+body{margin:0;background:#f1f5f9;color:#1e293b;font:16px/1.65 system-ui,'Sarabun',sans-serif}
+main{margin:3rem auto;padding:1.8rem;max-width:760px;background:white;border-radius:16px;box-shadow:0 3px 15px #0001}
+h1{font-size:1.6rem;margin-top:0;color:#1d4ed8}button{background:#2563eb;border:0;color:white;padding:.65rem 1.2rem;border-radius:8px;cursor:pointer}
+pre{background:#f8fafc;white-space:pre-wrap;overflow-wrap:anywhere;padding:1rem;border:1px solid #e2e8f0;border-radius:8px}
+.warning{background:#fffbeb;padding:1rem;border-radius:8px}code{font:0.9em ui-monospace,monospace}
+</style>
+</head>
+<body><main><h1>SKN CLUBS — ตรวจการเชื่อมต่อ Supabase</h1>
+<p>หน้านี้ตรวจค่าใน <code>web/config.js</code> และทดสอบการเข้าถึง Supabase Health Endpoint เท่านั้น <b>ไม่สร้างบัญชีและไม่ขอรหัสผ่าน</b></p>
+<p class="warning">อย่าส่ง Publishable Key ที่คัดลอกทั้งค่า, Access Token, รหัสผ่าน หรือ Secret Key ในภาพหน้าจอ/แชตนี้</p>
+<button id="run" type="button">ตรวจการเชื่อมต่อ</button> <a href="index.html">กลับหน้าเว็บ</a>
+<pre id="result" aria-live="polite">กดปุ่มเพื่อตรวจสอบ</pre>
+</main>
+<script src="config.js"></script>
+<script>
+'use strict';
+const out=document.getElementById('result');
+async function diagnose(){
+ const cfg=window.SKN_CONFIG||{};let url='';let parsed;
+ const lines=[];const tell=s=>{lines.push(s);out.textContent=lines.join('\n')};
+ tell('สถานะการตั้งค่า:');
+ if(!cfg.supabaseUrl||/YOUR_|PROJECT_REF|placeholder/i.test(cfg.supabaseUrl)) {tell('✗ Project URL ยังเป็นค่าเริ่มต้นใน config.js');return;}
+ try{parsed=new URL(cfg.supabaseUrl);if(parsed.protocol!=='https:')throw Error('ต้องเป็น HTTPS');url=parsed.origin;}catch(e){tell('✗ Project URL ไม่ถูกต้อง: '+e.message);return;}
+ tell('• Host: '+parsed.hostname); // No API key/JWT/password in log.
+ if(!cfg.publishableKey||/YOUR_|PUBLISHABLE_KEY|placeholder/i.test(cfg.publishableKey)){tell('✗ Publishable Key ยังเป็นค่าเริ่มต้นใน config.js');return;}
+ if(/^sb_secret_/i.test(cfg.publishableKey)){tell('✗ พบ Secret Key ซึ่งห้ามอยู่ในหน้าเว็บ! เปลี่ยนทันทีและหมุนเวียนคีย์ดังกล่าว');return;}
+ tell('✓ พบคีย์ที่ไม่ใช่ placeholder (ไม่เปิดเผยค่าคีย์)');
+ const ctrl=new AbortController();const timer=setTimeout(()=>ctrl.abort(),9000);
+ try{
+  tell('กำลังติดต่อ '+parsed.hostname+' /auth/v1/health ...');
+  const r=await fetch(url+'/auth/v1/health',{method:'GET',headers:{apikey:cfg.publishableKey,accept:'application/json'},cache:'no-store',signal:ctrl.signal});
+  tell('HTTP '+r.status);
+  if(r.ok)tell('✓ เบราว์เซอร์ติดต่อ Supabase Auth Service ได้ หากล็อกอินยังผิด ให้ตรวจ Anonymous Sign-Ins/CAPTCHA และ Network request /auth/v1/signup');
+  else if(r.status===401||r.status===403)tell('! ตรวจคีย์และโครงการให้ตรงกัน หรือข้อจำกัดของ Auth Service');
+  else if(r.status===404)tell('! ตรวจ URL: ควรเป็น Project URL ของ Supabase ไม่ใช่ Dashboard URL');
+  else if(r.status===429)tell('! คำขอถูกจำกัดชั่วคราว (Rate limit)');
+  else tell('! Supabase ส่ง HTTP '+r.status+' โปรดตรวจสถานะโครงการและ Network');
+ }catch(e){
+  if(e.name==='AbortError')tell('✗ เชื่อมต่อเกิน 9 วินาที: ตรวจเครือข่าย, DNS, VPN, Firewall หรือสถานะโครงการ');
+  else tell('✗ เครือข่ายติดต่อไม่ได้: '+e.message+' — ตรวจ Project URL, DNS, โครงการ Pause, ad blocker และ DevTools → Network');
+ }finally{clearTimeout(timer)}
+}
+document.getElementById('run').addEventListener('click',diagnose);
+</script></body></html>
