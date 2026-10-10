@@ -1789,9 +1789,17 @@
                   <summary style="cursor:pointer">แสดงชื่อรูปและสาเหตุการโหลดไม่สำเร็จ</summary>
                   <ul class="mb-0 mt-2 ps-3"><li v-for="(err,i) in reportMediaErrors" :key="'media_err_'+i">{{ err }}</li></ul>
                   <div class="text-muted mt-1">ตรวจว่าไฟล์อยู่ในโฟลเดอร์ Drive หลักของ GAS และบัญชีที่ Deploy มีสิทธิ์อ่านไฟล์</div>
+                  <div v-if="Object.values(reportMediaRefs||{}).some(v=>v?.id)" class="mt-2 d-flex gap-2 flex-wrap">
+                    <a v-for="([slot,ref]) in Object.entries(reportMediaRefs||{}).filter(([_,v])=>v?.id)"
+                       :key="'drive_req_'+slot" :href="'https://drive.google.com/file/d/'+encodeURIComponent(ref.id)+'/view'"
+                       target="_blank" rel="noopener noreferrer" class="small">
+                      <i class="fas fa-external-link-alt me-1"></i>{{ slot }}: เปิด Drive / ขอสิทธิ์
+                    </a>
+                  </div>
                 </details>
               </div>
               <button class="btn btn-sm btn-outline-dark" @click="reloadReportImages" :disabled="loading"><i class="fas fa-sync-alt me-1"></i>ลองโหลดภาพอีกครั้ง</button>
+              <button class="btn btn-sm btn-outline-primary" @click="checkDriveImageAccess" :disabled="loading"><i class="fas fa-shield-alt me-1"></i>ตรวจสอบสิทธิ์ Workspace</button>
             </div>
             <div class="a4-container cover-page page-break-after shadow-sm d-flex flex-column"
               style="padding: 1.5cm 1.5cm; height: 29.7cm; width: 21cm; box-sizing: border-box; background: white; margin: 0 auto; overflow: hidden;">
@@ -2406,6 +2414,9 @@ data() {
     attData: { dates: [], records: {} },
     reportData: { teacher: '', photos: {}, logo: '', signatures: {} },
     reportMediaErrors: [],
+    reportMediaRefs: {},
+    reportOriginalSources: {},
+    reportPermissionDiagnostics: [],
     pendingPhotoUndo: {},
     driveFolderInfo: {id:'',name:'',url:''},
     signatureSlot: '',
@@ -2787,11 +2798,25 @@ syncAdvancedSettings() {
         queueReportSave(){
           const clubId=this.currentClubId;
           if(!clubId||this.archiveReadonly)return Promise.resolve();
+          // A loaded Drive thumbnail may differ from the original file bytes. Do not
+          // re-upload it on every report save: keep the existing File ID when unchanged.
+          const original=this.reportOriginalSources||{};
+          const same=(slot,value)=>value&&value===original[slot];
+          const photos=Object.fromEntries([1,2,3,4].map(i=>[i,
+            same('photo_'+i,this.reportData.photos?.[i])?'':(this.reportData.photos?.[i]||'')]));
+          const signatures=Object.fromEntries(Object.entries(this.reportData.signatures||{}).map(([k,v])=>
+            [k,same(k,v)?'':v]));
           const payload={teacher:this.reportData.teacher,actData:JSON.parse(JSON.stringify(this.reportActData)),
-            logo:this.reportData.logo,photos:{...this.reportData.photos},
-            signatures:{...this.reportData.signatures}};
+            logo:same('logo',this.reportData.logo)?'':this.reportData.logo,photos,signatures};
+          // Capture submitted sources NOW; edits made during the async save are not yet saved.
+          const sentSources={logo:this.reportData.logo};
+          for(let i=1;i<=4;i++)sentSources['photo_'+i]=this.reportData.photos?.[i]||'';
+          for(const [k,v] of Object.entries(this.reportData.signatures||{}))sentSources[k]=v;
           const invoke=()=>window.SKNBridge.invoke('saveClubReportData',[clubId,payload]);
-          const next=(this._reportSaveQueue||Promise.resolve()).catch(()=>{}).then(invoke);
+          const next=(this._reportSaveQueue||Promise.resolve()).catch(()=>{}).then(invoke).then(res=>{
+            this.reportOriginalSources={...sentSources};
+            return res;
+          });
           this._reportSaveQueue=next;
           return next;
         },
@@ -3784,7 +3809,7 @@ refreshData(isSilent = false) {
         goToAttendance(club) { this.loadClubData(club, 'attendance'); },
         goToReport(club) {
             this.reportData.teacher = club ? club.teacher_name : this.reportData.teacher;
-            if(club){this.reportData.signatures = {};this.reportMediaErrors=[];this.pendingPhotoUndo={};}
+            if(club){this.reportData.signatures = {};this.reportMediaErrors=[];this.reportMediaRefs={};this.reportOriginalSources={};this.reportPermissionDiagnostics=[];this.pendingPhotoUndo={};}
             if(club) this.loadClubData(club, 'report');
             else this.view = 'report';
         },
@@ -3804,6 +3829,7 @@ refreshData(isSilent = false) {
                 caption: 'บรรยากาศการเรียนการสอนและการทำกิจกรรมร่วมกันของนักเรียน'
             };
             this.reportData.photos = {};
+            this.reportOriginalSources={};this.reportMediaRefs={};this.reportPermissionDiagnostics=[];
             this.reportData.logo = '';
             this.reportData.teacher = club.teacher_name;
 
@@ -3858,6 +3884,10 @@ refreshData(isSilent = false) {
                             if (savedData.logo) this.reportData.logo = savedData.logo;
                             if (savedData.photos) this.reportData.photos = savedData.photos;
                             if (savedData.signatures) this.reportData.signatures = savedData.signatures;
+                            this.reportMediaRefs=savedData.mediaRefs||{};
+                            this.reportOriginalSources={logo:this.reportData.logo};
+                            for(let i=1;i<=4;i++)this.reportOriginalSources['photo_'+i]=this.reportData.photos?.[i]||'';
+                            for(const [k,v] of Object.entries(this.reportData.signatures||{}))this.reportOriginalSources[k]=v;
                             this.reportMediaErrors=savedData.mediaErrors||[];
                             if (savedData.mediaErrors?.length) {
                               console.groupCollapsed('SKN Drive: โหลดภาพไม่สำเร็จ '+savedData.mediaErrors.length+' รายการ');
@@ -4544,9 +4574,30 @@ downloadCSVTemplate() {
             for(const [k,v] of Object.entries(d.signatures||{}))if(v&&!sigs[k])sigs[k]=v;
             this.reportData.signatures=sigs;
             this.reportMediaErrors=d.mediaErrors||[];
+            this.reportMediaRefs=d.mediaRefs||{};
+            this.reportOriginalSources={logo:this.reportData.logo};
+            for(let i=1;i<=4;i++)this.reportOriginalSources['photo_'+i]=this.reportData.photos?.[i]||'';
+            for(const [k,v] of Object.entries(this.reportData.signatures||{}))this.reportOriginalSources[k]=v;
             if(this.reportMediaErrors.length)Swal.fire('ยังโหลดภาพไม่ครบ',this.reportMediaErrors.join('\n').slice(0,800),'warning');
             else Swal.fire({toast:true,position:'top-end',icon:'success',title:'โหลดรูปภาพจาก Drive เรียบร้อยแล้ว',timer:1800,showConfirmButton:false});
           }catch(err){Swal.fire('โหลดรูปภาพไม่สำเร็จ',err.message||String(err),'error');}
+          finally{this.loading=false;}
+        },
+        async checkDriveImageAccess(){
+          if(!this.currentClubId||this.loading)return;
+          const refs=Object.entries(this.reportMediaRefs||{}).filter(([k,v])=>v?.id).map(([slot,v])=>({slot,id:v.id}));
+          if(!refs.length){Swal.fire('ไม่มีรูปอ้างอิง','รายงานนี้ยังไม่มี File ID ของภาพใน Supabase','info');return;}
+          this.loading=true;
+          try{
+            const res=await window.SKNFile.invoke('checkFileAccess',{
+              periodId:this.activePeriodId,clubId:this.currentClubId,files:refs
+            });
+            this.reportPermissionDiagnostics=res.items||[];
+            const lines=(res.items||[]).map(v=>v.slot+': '+(v.readable?'อ่านไฟล์ได้':'อ่านไฟล์ไม่ได้')+' | '+v.detail);
+            Swal.fire({title:'ผลตรวจสอบสิทธิ์ Google Drive',html:'<div style="white-space:pre-wrap;text-align:left;font-size:13px">'+
+              lines.join('\n').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))+'</div>',
+              icon:res.items?.every(v=>v.readable)?'success':'warning',width:700});
+          }catch(e){Swal.fire('ตรวจสอบสิทธิ์ไม่สำเร็จ',e.message||String(e),'error');}
           finally{this.loading=false;}
         },
         async loadDriveFolderInfo() {

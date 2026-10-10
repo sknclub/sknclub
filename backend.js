@@ -69,6 +69,8 @@ async function sum(p) {
     return { student: { total: ss.length, registered: rr.length, unregistered: ss.length - rr.length },
         teacher: { total: teachers.length, hasClub: teachers.filter(t => owners.has(t.teacher_id)).length, noClub: teachers.filter(t => !owners.has(t.teacher_id)).length }, clubsCount: cc.length };
 }
+const SKN_IMAGE_SLOTS = ['logo', 'photo_1', 'photo_2', 'photo_3', 'photo_4', 'sigTeacher', 'sigHeadClub', 'sigHeadDev', 'sigDeputy', 'sigDirector'];
+function sknImageSlots(row) { const legacy = row?.media || {}; return Object.fromEntries(SKN_IMAGE_SLOTS.map(k => [k, row?.[k]?.id ? row[k] : (legacy[k]?.id ? legacy[k] : null)])); }
 async function snapshot(periodId) { const data = { format: 'SKN-SUPABASE-V1', created_at: new Date().toISOString(), period: (await getPeriod(periodId)).period, tables: {} }; for (const name of ['teachers', 'period_teachers', 'students', 'clubs', 'registrations', 'attendance', 'club_reports', 'period_config']) {
     const records = name === 'teachers' ? await all(name) : await all(name, periodId);
     data.tables[name] = records;
@@ -94,7 +96,7 @@ async function mediaSave(input, existing, p, c, slot) {
         return existing[slot];
     const r = await gas('saveFile', { periodId: p, clubId: c, slot, fileName: `${slot}-${sha.slice(0, 12)}.${match[1].split('/')[1]}`, mime: match[1], base64: match[2] });
     assert(r?.success === true && r.id, 'Google Drive ไม่ได้ส่ง File ID กลับมา');
-    return { id: r.id, sha, mime: match[1], name: r.name || '', url: r.url || `https://drive.google.com/file/d/${encodeURIComponent(r.id)}/view`, previewUrl: r.previewUrl || '' };
+    return { id: r.id, sha, mime: match[1], name: r.name || '', url: r.url || `https://drive.google.com/file/d/${encodeURIComponent(r.id)}/view`, previewUrl: r.previewUrl || '', lh5Url: /^https:\/\/lh5\.googleusercontent\.com\//i.test(String(r.lh5Url || '')) ? r.lh5Url : '' };
 }
 function csvParse(raw) { const text = raw.replace(/^\ufeff/, ''); const first = text.split(/\r?\n/, 1)[0]; const delim = (first.match(/;/g) || []).length > (first.match(/,/g) || []).length ? ';' : ','; const out = []; let row = [], cell = '', quoted = false; for (let i = 0; i < text.length; i++) {
     const ch = text[i];
@@ -526,8 +528,8 @@ async function sknInvoke(method, args, periodId) {
             const id = String(args[0]), c = await clubById(p.id, id);
             assert(owner(u, c));
             const f = args[1] || {};
-            const prior = await result(db.from('club_reports').select('media').eq('period_id', p.id).eq('club_id', id).maybeSingle());
-            const original = prior?.media || {};
+            const prior = await result(db.from('club_reports').select('media,logo,photo_1,photo_2,photo_3,photo_4,sigTeacher,sigHeadClub,sigHeadDev,sigDeputy,sigDirector').eq('period_id', p.id).eq('club_id', id).maybeSingle());
+            const original = sknImageSlots(prior);
             const media = {};
             media.logo = await mediaSave(f.logo, original, p.id, id, 'logo');
             for (let i = 1; i <= 4; i++)
@@ -541,7 +543,7 @@ async function sknInvoke(method, args, periodId) {
                     item.code = 'IMG-' + p.academic_year + '-' + p.semester + '-' + id + '-' + slot.toUpperCase() + '-' + String(item.sha || 'EXISTING').slice(0, 8).toUpperCase();
             }
             // Commit to Supabase first. The database trigger enqueues displaced image IDs atomically.
-            await result(db.from('club_reports').upsert({ period_id: p.id, club_id: id, teacher: String(f.teacher || ''), act_data: f.actData || {}, media, updated_at: new Date().toISOString() }, { onConflict: 'period_id,club_id' }));
+            await result(db.from('club_reports').upsert({ period_id: p.id, club_id: id, teacher: String(f.teacher || ''), act_data: f.actData || {}, media, ...media, updated_at: new Date().toISOString() }, { onConflict: 'period_id,club_id' }));
             let cleanupPending = 0;
             let cleanupErrors = [];
             try {
@@ -571,9 +573,11 @@ async function sknInvoke(method, args, periodId) {
                 output = { found: false, data: null };
                 break;
             }
+            // Each column stores the separate Drive reference; old media JSON is a compatibility fallback.
+            const references = sknImageSlots(r);
             // Drive viewer URLs are not image sources. Retrieve authenticated data:image URLs via GAS.
             // Request one image per GAS relay: minimizes postMessage payload and isolates errors per file.
-            const refs = Object.entries(r.media || {}).filter(([_, v]) => v?.id).map(([slot, v]) => ({ slot, id: v.id }));
+            const refs = Object.entries(references).filter(([_, v]) => v?.id).map(([slot, v]) => ({ slot, id: v.id }));
             const files = {};
             const imageErrors = [];
             const groups = [];
@@ -596,9 +600,9 @@ async function sknInvoke(method, args, periodId) {
             }
             output = { found: true, data: { teacher: r.teacher, actData: r.act_data,
                     logo: files.logo || '', photos: { 1: files.photo_1 || '', 2: files.photo_2 || '', 3: files.photo_3 || '', 4: files.photo_4 || '' },
-                    mediaRefs: r.media || {}, mediaErrors: imageErrors,
-                    mediaUrls: Object.fromEntries(Object.entries(r.media || {}).map(([k, v]) => [k, v?.url || ''])),
-                    previewUrls: Object.fromEntries(Object.entries(r.media || {}).map(([k, v]) => [k, v?.previewUrl || ''])),
+                    mediaRefs: references, mediaErrors: imageErrors,
+                    mediaUrls: Object.fromEntries(Object.entries(references).map(([k, v]) => [k, v?.url || ''])),
+                    previewUrls: Object.fromEntries(Object.entries(references).map(([k, v]) => [k, v?.previewUrl || ''])),
                     signatures: Object.fromEntries(['sigTeacher', 'sigHeadClub', 'sigHeadDev', 'sigDeputy', 'sigDirector'].map(k => [k, files[k] || ''])) } };
             break;
         }
@@ -680,7 +684,7 @@ async function sknInvoke(method, args, periodId) {
                     media.logo = await mediaSave(x.logo, null, p.id, c.id, 'logo');
                     for (let i = 1; i <= 4; i++)
                         media[`photo_${i}`] = await mediaSave(photos[i], null, p.id, c.id, `photo_${i}`);
-                    await result(db.from('club_reports').upsert({ period_id: p.id, club_id: c.id, teacher: r.teacher || '', act_data: r.actData || {}, media }, { onConflict: 'period_id,club_id' }));
+                    await result(db.from('club_reports').upsert({ period_id: p.id, club_id: c.id, teacher: r.teacher || '', act_data: r.actData || {}, media, ...media }, { onConflict: 'period_id,club_id' }));
                 }
             }
             else if (kind === 'Config') {
