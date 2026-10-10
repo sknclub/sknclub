@@ -103,7 +103,7 @@ async function mediaSave(input, existing, p, c, slot) {
     }
     const match = input.match(/^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=]+)$/);
     assert(match, 'รองรับรูป PNG, JPEG หรือ WebP เท่านั้น');
-    assert(match[2].length < 2_500_000, 'ภาพมีขนาดใหญ่เกินไป');
+    assert(match[2].length <= 8_500_000, 'ภาพมีขนาดใหญ่เกิน 6 MB กรุณาเลือกไฟล์ต้นฉบับที่เล็กลง');
     const sha = sknHex(new Uint8Array(await crypto.subtle.digest('SHA-256', sknEncoder ? sknEncoder.encode(match[2]) : Uint8Array.from(match[2], (c) => c.charCodeAt(0)))));
     if (existing?.[slot]?.sha === sha)
         return existing[slot];
@@ -591,7 +591,7 @@ async function sknInvoke(method, args, periodId) {
             // Use a genuine, direct Google image URL when one exists in a TEXT column.
             // Private images without a usable direct URL are fetched with authorized GAS.
             const directUrls = Object.fromEntries(SKN_IMAGE_SLOTS.map(slot => [slot, sknDirectImageUrl(r[slot])]));
-            const refs = Object.entries(references).filter(([slot, v]) => v?.id && !directUrls[slot]).map(([slot, v]) => ({ slot, id: v.id }));
+            const refs = Object.entries(references).filter(([slot, v]) => v?.id).map(([slot, v]) => ({ slot, id: v.id }));
             const files = {};
             const imageErrors = [];
             const groups = [];
@@ -613,10 +613,10 @@ async function sknInvoke(method, args, periodId) {
                 }));
             }
             output = { found: true, data: { teacher: r.teacher, actData: r.act_data,
-                    logo: directUrls.logo || files.logo || '', photos: { 1: directUrls.photo_1 || files.photo_1 || '', 2: directUrls.photo_2 || files.photo_2 || '', 3: directUrls.photo_3 || files.photo_3 || '', 4: directUrls.photo_4 || files.photo_4 || '' },
+                    logo: files.logo || directUrls.logo || '', photos: { 1: files.photo_1 || directUrls.photo_1 || '', 2: files.photo_2 || directUrls.photo_2 || '', 3: files.photo_3 || directUrls.photo_3 || '', 4: files.photo_4 || directUrls.photo_4 || '' },
                     mediaRefs: references, mediaErrors: imageErrors, mediaUrls: directUrls,
                     previewUrls: Object.fromEntries(Object.entries(references).map(([k, v]) => [k, v?.previewUrl || ''])),
-                    signatures: Object.fromEntries(['sigTeacher', 'sigHeadClub', 'sigHeadDev', 'sigDeputy', 'sigDirector'].map(k => [k, directUrls[k] || files[k] || ''])) } };
+                    signatures: Object.fromEntries(['sigTeacher', 'sigHeadClub', 'sigHeadDev', 'sigDeputy', 'sigDirector'].map(k => [k, files[k] || directUrls[k] || ''])) } };
             break;
         }
         case 'sendClubReportEmail': {
