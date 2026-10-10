@@ -3619,9 +3619,11 @@ downloadNoClubTeachers() {
       }
     });
 
-    // 2. กรองครูที่ ID ไม่อยู่ใน Set ของคนที่มีชุมนุมแล้ว (ยกเว้น Admin)
-    const noClubList = teachers.filter(t => 
-      t.role !== 'admin' && !activeOwnerIds.has(t.id.toString().trim())
+    // 2. ยกเว้นเฉพาะรหัสขึ้นต้น A (Admin หลัก) ไม่ได้ยกเว้นจาก role
+    //    ดังนั้น T01 ที่มีสิทธิ์ admin จะถูกนับเป็นครูตามปกติ
+    const noClubList = teachers.filter(t =>
+      !String(t.id ?? '').trim().toUpperCase().startsWith('A') &&
+      !activeOwnerIds.has(String(t.id).trim())
     );
 
     if (noClubList.length === 0) {

@@ -51,7 +51,16 @@ async function gas(action, payload) { return window.SKNFile.invoke(action, paylo
 const sknEncoder = typeof TextEncoder !== 'undefined' ? new TextEncoder() : null;
 function sknHex(bytes) { return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join(''); }
 function newRegistrationId() { return 'REG-' + Date.now().toString(36).toUpperCase() + '-' + crypto.randomUUID().slice(0, 6).toUpperCase(); }
-async function sum(p) { const [ss, tt, cc, rr, teacherProfiles] = await Promise.all([all('students', p), all('period_teachers', p), all('clubs', p), all('registrations', p), all('teachers')]); const admins = new Set(teacherProfiles.filter(t => t.role === 'admin').map(t => t.id)); const teachers = tt.filter(t => t.teacher_id !== 'T01' && !admins.has(t.teacher_id)); const owners = new Set(cc.flatMap(c => c.owner_ids)); return { student: { total: ss.length, registered: rr.length, unregistered: ss.length - rr.length }, teacher: { total: teachers.length, hasClub: teachers.filter(t => owners.has(t.teacher_id)).length, noClub: teachers.filter(t => !owners.has(t.teacher_id)).length }, clubsCount: cc.length }; }
+// Only account IDs beginning with A are primary admin accounts excluded from teacher statistics.
+// Roles are permission flags, not statistical categories: T01 with role=admin still counts.
+function isPrimaryAdminId(id) { return String(id ?? '').trim().toUpperCase().startsWith('A'); }
+async function sum(p) {
+    const [ss, tt, cc, rr] = await Promise.all([all('students', p), all('period_teachers', p), all('clubs', p), all('registrations', p)]);
+    const teachers = tt.filter(t => !isPrimaryAdminId(t.teacher_id));
+    const owners = new Set(cc.flatMap(c => c.owner_ids));
+    return { student: { total: ss.length, registered: rr.length, unregistered: ss.length - rr.length },
+        teacher: { total: teachers.length, hasClub: teachers.filter(t => owners.has(t.teacher_id)).length, noClub: teachers.filter(t => !owners.has(t.teacher_id)).length }, clubsCount: cc.length };
+}
 async function snapshot(periodId) { const data = { format: 'SKN-SUPABASE-V1', created_at: new Date().toISOString(), period: (await getPeriod(periodId)).period, tables: {} }; for (const name of ['teachers', 'period_teachers', 'students', 'clubs', 'registrations', 'attendance', 'club_reports', 'period_config']) {
     const records = name === 'teachers' ? await all(name) : await all(name, periodId);
     data.tables[name] = records;
@@ -353,7 +362,7 @@ async function sknInvoke(method, args, periodId) {
             assert(type === 'teacher' || type === 'student');
             if (type === 'teacher') {
                 const [tt, mm] = await Promise.all([all('teachers'), all('period_teachers', p.id)]);
-                output = tt.filter(t => mm.some(x => x.teacher_id === t.id)).map(t => ({ id: t.id, name: mm.find(x => x.teacher_id === t.id)?.display_name || t.name, username: t.username, password: '', role: t.role })).sort((a, b) => (a.role === 'admin' ? -1 : 0) - (b.role === 'admin' ? -1 : 0) || a.id.localeCompare(b.id, 'th', { numeric: true }));
+                output = tt.filter(t => mm.some(x => x.teacher_id === t.id)).map(t => ({ id: t.id, name: mm.find(x => x.teacher_id === t.id)?.display_name || t.name, username: t.username, password: '', role: t.role })).sort((a, b) => Number(isPrimaryAdminId(b.id)) - Number(isPrimaryAdminId(a.id)) || a.id.localeCompare(b.id, 'th', { numeric: true }));
             }
             else {
                 const [ss, rr] = await Promise.all([all('students', p.id), all('registrations', p.id)]);
