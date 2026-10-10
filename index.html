@@ -1815,7 +1815,7 @@
                 <div class="mb-3">
 
                   <!-- <img :src="reportData.logo || 'https://via.placeholder.com/120x120.png?text=LOGO'" -->
-                  <img :src="reportData.logo || 'https://lh3.googleusercontent.com/d/1c1KrXHS8EW5ORMBPFQaYg4wCU8XjPhcO=s500'"
+                  <img @error="onReportImageLoadError('logo')" :src="reportData.logo || 'https://lh3.googleusercontent.com/d/1c1KrXHS8EW5ORMBPFQaYg4wCU8XjPhcO=s500'"
                   
 
                  @click="!archiveReadonly && $refs.logoInput.click()"
@@ -1887,14 +1887,14 @@
                   <div class="row text-center mb-4">
                     <div class="col-6">
                       <div class="skn-signature-space" role="button" tabindex="0" title="คลิกเพื่อแนบรูปลายเซ็น" @click="chooseSignature('sigTeacher')" @keydown.enter="chooseSignature('sigTeacher')">
-                        <img v-if="reportData.signatures && reportData.signatures.sigTeacher" :src="reportData.signatures.sigTeacher" alt="ภาพลายเซ็น" class="skn-signature-image">
+                        <img v-if="reportData.signatures && reportData.signatures.sigTeacher" @error="onReportImageLoadError('sigTeacher')" :src="reportData.signatures.sigTeacher" alt="ภาพลายเซ็น" class="skn-signature-image">
                       </div>
                       <span class="small fw-bold">( <span class="editable" :contenteditable="!archiveReadonly">{{ reportData.teacher }}</span> )</span><br>
                       <span style="font-size: 9pt;">ครูที่ปรึกษาชุมนุม</span>
                     </div>
                     <div class="col-6">
                       <div class="skn-signature-space" role="button" tabindex="0" title="คลิกเพื่อแนบรูปลายเซ็น" @click="chooseSignature('sigHeadClub')" @keydown.enter="chooseSignature('sigHeadClub')">
-                        <img v-if="reportData.signatures && reportData.signatures.sigHeadClub" :src="reportData.signatures.sigHeadClub" alt="ภาพลายเซ็น" class="skn-signature-image">
+                        <img v-if="reportData.signatures && reportData.signatures.sigHeadClub" @error="onReportImageLoadError('sigHeadClub')" :src="reportData.signatures.sigHeadClub" alt="ภาพลายเซ็น" class="skn-signature-image">
                       </div>
                       <span class="small fw-bold">( {{ adminSettings.sigHeadClub }} )</span><br>
                       <span style="font-size: 9pt;">หัวหน้างานกิจกรรมชุมนุม</span>
@@ -1904,14 +1904,14 @@
                   <div class="row text-center mb-4">
                     <div class="col-6">
                       <div class="skn-signature-space" role="button" tabindex="0" title="คลิกเพื่อแนบรูปลายเซ็น" @click="chooseSignature('sigHeadDev')" @keydown.enter="chooseSignature('sigHeadDev')">
-                        <img v-if="reportData.signatures && reportData.signatures.sigHeadDev" :src="reportData.signatures.sigHeadDev" alt="ภาพลายเซ็น" class="skn-signature-image">
+                        <img v-if="reportData.signatures && reportData.signatures.sigHeadDev" @error="onReportImageLoadError('sigHeadDev')" :src="reportData.signatures.sigHeadDev" alt="ภาพลายเซ็น" class="skn-signature-image">
                       </div>
                       <span class="small fw-bold">( {{ adminSettings.sigHeadDev }} )</span><br>
                       <span style="font-size: 9pt;">หัวหน้ากิจกรรมพัฒนาผู้เรียน</span>
                     </div>
                     <div class="col-6">
                       <div class="skn-signature-space" role="button" tabindex="0" title="คลิกเพื่อแนบรูปลายเซ็น" @click="chooseSignature('sigDeputy')" @keydown.enter="chooseSignature('sigDeputy')">
-                        <img v-if="reportData.signatures && reportData.signatures.sigDeputy" :src="reportData.signatures.sigDeputy" alt="ภาพลายเซ็น" class="skn-signature-image">
+                        <img v-if="reportData.signatures && reportData.signatures.sigDeputy" @error="onReportImageLoadError('sigDeputy')" :src="reportData.signatures.sigDeputy" alt="ภาพลายเซ็น" class="skn-signature-image">
                       </div>
                       <span class="small fw-bold">( {{ adminSettings.sigDeputy }} )</span><br>
                       <span style="font-size: 9pt;">รองผู้อำนวยการกลุ่มบริหารงานวิชาการ</span>
@@ -1923,7 +1923,7 @@
                       <input type="checkbox"> อนุมัติ &nbsp;&nbsp; <input type="checkbox"> ไม่อนุมัติ
                     </div><br>
                     <div class="skn-signature-space" role="button" tabindex="0" title="คลิกเพื่อแนบรูปลายเซ็น" @click="chooseSignature('sigDirector')" @keydown.enter="chooseSignature('sigDirector')">
-                        <img v-if="reportData.signatures && reportData.signatures.sigDirector" :src="reportData.signatures.sigDirector" alt="ภาพลายเซ็น" class="skn-signature-image">
+                        <img v-if="reportData.signatures && reportData.signatures.sigDirector" @error="onReportImageLoadError('sigDirector')" :src="reportData.signatures.sigDirector" alt="ภาพลายเซ็น" class="skn-signature-image">
                       </div>
                     <div class="fw-bold" style="font-size: 11pt;">( {{ adminSettings.sigDirector }} )</div>
                     <div style="font-size: 9pt;">ผู้อำนวยการ{{ adminSettings.schoolName }}</div>
@@ -2098,7 +2098,7 @@
               </div>
                 <div class="photo-grid">
                   <div class="photo-slot rounded-3" v-for="n in 4" :key="n" @click="$refs['photoInput'+n][0].click()" style="position: relative;">
-                    <img v-if="reportData.photos[n] && reportData.photos[n] !== '__DELETE__'" :src="reportData.photos[n]" style="object-fit: cover;">
+                    <img v-if="reportData.photos[n] && reportData.photos[n] !== '__DELETE__'" @error="onReportImageLoadError('photo_'+n)" :src="reportData.photos[n]" style="object-fit: cover;">
                     <div v-else class="text-center text-muted">
                       <i class="fas fa-camera fa-2x mb-2 opacity-25"></i><br>
                       <span class="small">เพิ่มรูปภาพกิจกรรม ({{n}})</span>
@@ -3884,7 +3884,7 @@ refreshData(isSilent = false) {
                             if (savedData.logo) this.reportData.logo = savedData.logo;
                             if (savedData.photos) this.reportData.photos = savedData.photos;
                             if (savedData.signatures) this.reportData.signatures = savedData.signatures;
-                            this.reportMediaRefs=savedData.mediaRefs||{};
+                            this.reportMediaRefs=savedData.mediaRefs||{};this._failedMediaSlots={};
                             this.reportOriginalSources={logo:this.reportData.logo};
                             for(let i=1;i<=4;i++)this.reportOriginalSources['photo_'+i]=this.reportData.photos?.[i]||'';
                             for(const [k,v] of Object.entries(this.reportData.signatures||{}))this.reportOriginalSources[k]=v;
@@ -4558,6 +4558,31 @@ downloadCSVTemplate() {
           if(old){this.reportData.photos={...this.reportData.photos,[index]:old};}
           else this.reportData.photos={...this.reportData.photos,[index]:''};
           const next={...this.pendingPhotoUndo};delete next[index];this.pendingPhotoUndo=next;
+        },
+        // If a genuine googleusercontent link is private/expired, try the signed
+        // Drive read path. Never re-upload its resulting preview on the next save.
+        async onReportImageLoadError(slot) {
+          if(!this.currentClubId||!this.activePeriodId)return;
+          const ref=this.reportMediaRefs?.[slot];
+          if(!ref?.id)return;
+          this._failedMediaSlots=this._failedMediaSlots||{};
+          if(this._failedMediaSlots[slot])return;
+          this._failedMediaSlots[slot]=true;
+          try {
+            const response=await window.SKNFile.invoke('getFiles',{
+              periodId:this.activePeriodId,clubId:this.currentClubId,
+              files:[{slot,id:ref.id}]
+            });
+            const src=response?.files?.[slot];
+            if(!src||!src.startsWith('data:image/'))throw Error(response?.errors?.[slot]||'Drive ไม่สามารถส่งภาพได้');
+            if(slot==='logo')this.reportData.logo=src;
+            else if(slot.startsWith('photo_'))this.reportData.photos={...this.reportData.photos,[Number(slot.slice(-1))]:src};
+            else this.reportData.signatures={...this.reportData.signatures,[slot]:src};
+            // Important: image is read-only preview, not a newly selected upload.
+            this.reportOriginalSources={...this.reportOriginalSources,[slot]:src};
+          }catch(err){
+            this.reportMediaErrors=[...new Set([...(this.reportMediaErrors||[]),slot+': '+String(err.message||err)])];
+          }
         },
         async reloadReportImages() {
           if(!this.currentClubId||this.loading)return;

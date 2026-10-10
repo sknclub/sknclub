@@ -70,7 +70,20 @@ async function sum(p) {
         teacher: { total: teachers.length, hasClub: teachers.filter(t => owners.has(t.teacher_id)).length, noClub: teachers.filter(t => !owners.has(t.teacher_id)).length }, clubsCount: cc.length };
 }
 const SKN_IMAGE_SLOTS = ['logo', 'photo_1', 'photo_2', 'photo_3', 'photo_4', 'sigTeacher', 'sigHeadClub', 'sigHeadDev', 'sigDeputy', 'sigDirector'];
-function sknImageSlots(row) { const legacy = row?.media || {}; return Object.fromEntries(SKN_IMAGE_SLOTS.map(k => [k, row?.[k]?.id ? row[k] : (legacy[k]?.id ? legacy[k] : null)])); }
+// From V4.0 image URL columns are TEXT. Drive file IDs remain in media JSON for
+// private authorization and safe deletion (URLs cannot authorize a Drive file).
+function sknImageSlots(row) { const legacy = row?.media || {}; return Object.fromEntries(SKN_IMAGE_SLOTS.map(k => [k, legacy[k]?.id ? legacy[k] : null])); }
+// Only a real URL returned by Google is acceptable; NEVER invent an lh5 endpoint.
+function sknDirectImageUrl(value) {
+    const url = String(value || '').trim();
+    try {
+        const u = new URL(url);
+        return u.protocol === 'https:' && /^lh[0-9]+\.googleusercontent\.com$/i.test(u.hostname) && u.pathname !== '/' ? url : '';
+    }
+    catch {
+        return '';
+    }
+}
 async function snapshot(periodId) { const data = { format: 'SKN-SUPABASE-V1', created_at: new Date().toISOString(), period: (await getPeriod(periodId)).period, tables: {} }; for (const name of ['teachers', 'period_teachers', 'students', 'clubs', 'registrations', 'attendance', 'club_reports', 'period_config']) {
     const records = name === 'teachers' ? await all(name) : await all(name, periodId);
     data.tables[name] = records;
@@ -543,7 +556,7 @@ async function sknInvoke(method, args, periodId) {
                     item.code = 'IMG-' + p.academic_year + '-' + p.semester + '-' + id + '-' + slot.toUpperCase() + '-' + String(item.sha || 'EXISTING').slice(0, 8).toUpperCase();
             }
             // Commit to Supabase first. The database trigger enqueues displaced image IDs atomically.
-            await result(db.from('club_reports').upsert({ period_id: p.id, club_id: id, teacher: String(f.teacher || ''), act_data: f.actData || {}, media, ...media, updated_at: new Date().toISOString() }, { onConflict: 'period_id,club_id' }));
+            await result(db.from('club_reports').upsert({ period_id: p.id, club_id: id, teacher: String(f.teacher || ''), act_data: f.actData || {}, media, ...Object.fromEntries(SKN_IMAGE_SLOTS.map(slot => [slot, sknDirectImageUrl(media[slot]?.lh5Url)])), updated_at: new Date().toISOString() }, { onConflict: 'period_id,club_id' }));
             let cleanupPending = 0;
             let cleanupErrors = [];
             try {
@@ -575,9 +588,10 @@ async function sknInvoke(method, args, periodId) {
             }
             // Each column stores the separate Drive reference; old media JSON is a compatibility fallback.
             const references = sknImageSlots(r);
-            // Drive viewer URLs are not image sources. Retrieve authenticated data:image URLs via GAS.
-            // Request one image per GAS relay: minimizes postMessage payload and isolates errors per file.
-            const refs = Object.entries(references).filter(([_, v]) => v?.id).map(([slot, v]) => ({ slot, id: v.id }));
+            // Use a genuine, direct Google image URL when one exists in a TEXT column.
+            // Private images without a usable direct URL are fetched with authorized GAS.
+            const directUrls = Object.fromEntries(SKN_IMAGE_SLOTS.map(slot => [slot, sknDirectImageUrl(r[slot])]));
+            const refs = Object.entries(references).filter(([slot, v]) => v?.id && !directUrls[slot]).map(([slot, v]) => ({ slot, id: v.id }));
             const files = {};
             const imageErrors = [];
             const groups = [];
@@ -599,11 +613,10 @@ async function sknInvoke(method, args, periodId) {
                 }));
             }
             output = { found: true, data: { teacher: r.teacher, actData: r.act_data,
-                    logo: files.logo || '', photos: { 1: files.photo_1 || '', 2: files.photo_2 || '', 3: files.photo_3 || '', 4: files.photo_4 || '' },
-                    mediaRefs: references, mediaErrors: imageErrors,
-                    mediaUrls: Object.fromEntries(Object.entries(references).map(([k, v]) => [k, v?.url || ''])),
+                    logo: directUrls.logo || files.logo || '', photos: { 1: directUrls.photo_1 || files.photo_1 || '', 2: directUrls.photo_2 || files.photo_2 || '', 3: directUrls.photo_3 || files.photo_3 || '', 4: directUrls.photo_4 || files.photo_4 || '' },
+                    mediaRefs: references, mediaErrors: imageErrors, mediaUrls: directUrls,
                     previewUrls: Object.fromEntries(Object.entries(references).map(([k, v]) => [k, v?.previewUrl || ''])),
-                    signatures: Object.fromEntries(['sigTeacher', 'sigHeadClub', 'sigHeadDev', 'sigDeputy', 'sigDirector'].map(k => [k, files[k] || ''])) } };
+                    signatures: Object.fromEntries(['sigTeacher', 'sigHeadClub', 'sigHeadDev', 'sigDeputy', 'sigDirector'].map(k => [k, directUrls[k] || files[k] || ''])) } };
             break;
         }
         case 'sendClubReportEmail': {
