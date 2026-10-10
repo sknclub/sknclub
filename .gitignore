@@ -1,9 +1,0 @@
-.env
-.env.*
-!.env.example
-*.backup.json
-skn-legacy.json
-skn-legacy*.json
-SKN_Backup_*.json
-node_modules/
-.DS_Store
