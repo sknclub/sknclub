@@ -3,6 +3,7 @@
 <html>
 
 <head>
+  <link rel="icon" type="image/x-icon" href="favicon.ico">
   <base target="_top">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -1782,7 +1783,14 @@
             </div>
 
             <div v-if="reportMediaErrors.length" class="alert alert-warning container-xl no-print d-flex flex-wrap justify-content-between align-items-center gap-2">
-              <span><i class="fas fa-image me-2"></i>มีรูปภาพจาก Drive โหลดไม่ครบ {{ reportMediaErrors.length }} รายการ ข้อมูลอ้างอิงเดิมยังอยู่ใน Supabase</span>
+              <div class="flex-grow-1">
+                <div class="fw-bold"><i class="fas fa-image me-2"></i>มีรูปภาพจาก Drive โหลดไม่ครบ {{ reportMediaErrors.length }} รายการ (ไฟล์เดิมยังอยู่ใน Supabase)</div>
+                <details class="mt-2 small" style="max-width:850px;overflow-wrap:anywhere">
+                  <summary style="cursor:pointer">แสดงชื่อรูปและสาเหตุการโหลดไม่สำเร็จ</summary>
+                  <ul class="mb-0 mt-2 ps-3"><li v-for="(err,i) in reportMediaErrors" :key="'media_err_'+i">{{ err }}</li></ul>
+                  <div class="text-muted mt-1">ตรวจว่าไฟล์อยู่ในโฟลเดอร์ Drive หลักของ GAS และบัญชีที่ Deploy มีสิทธิ์อ่านไฟล์</div>
+                </details>
+              </div>
               <button class="btn btn-sm btn-outline-dark" @click="reloadReportImages" :disabled="loading"><i class="fas fa-sync-alt me-1"></i>ลองโหลดภาพอีกครั้ง</button>
             </div>
             <div class="a4-container cover-page page-break-after shadow-sm d-flex flex-column"
@@ -2365,7 +2373,7 @@
     <script src="config.js"></script>
     <script src="bridge.js"></script>
     <script src="backend.js"></script>
-    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" integrity="sha512-GsLlZN/3F2ErC5ifS5QtgpiJtWd43JWSuIgh7mbzZ8zBps+dvLusV+eNQATqgA/HdeKFVgA5v3S/cIrLF7QnIg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
@@ -3852,10 +3860,12 @@ refreshData(isSilent = false) {
                             if (savedData.signatures) this.reportData.signatures = savedData.signatures;
                             this.reportMediaErrors=savedData.mediaErrors||[];
                             if (savedData.mediaErrors?.length) {
-                              console.warn('SKN Drive image retrieval errors:',savedData.mediaErrors);
+                              console.groupCollapsed('SKN Drive: โหลดภาพไม่สำเร็จ '+savedData.mediaErrors.length+' รายการ');
+                              savedData.mediaErrors.forEach((error,i)=>console.warn('ภาพที่ '+(i+1)+':',String(error)));
+                              console.groupEnd();
                               setTimeout(()=>Swal.fire({toast:true,position:'top-end',icon:'warning',
                                 title:'รายงานเปิดได้ แต่ภาพบางไฟล์ยังโหลดจาก Drive ไม่สำเร็จ',
-                                text:'ข้อมูลภาพเดิมยังอยู่ใน Supabase กรุณาตรวจสิทธิ์ GAS/Drive',
+                                text:'คลิก “แสดงชื่อรูปและสาเหตุ” ใต้แถบแจ้งเตือน เพื่อดูข้อผิดพลาดที่แท้จริง',
                                 showConfirmButton:false,timer:6500}),450);
                             }
                         }

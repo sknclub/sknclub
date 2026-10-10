@@ -572,13 +572,13 @@ async function sknInvoke(method, args, periodId) {
                 break;
             }
             // Drive viewer URLs are not image sources. Retrieve authenticated data:image URLs via GAS.
-            // Batch requests avoid oversized iframe/postMessage responses, so one bad file does not hide every image.
+            // Request one image per GAS relay: minimizes postMessage payload and isolates errors per file.
             const refs = Object.entries(r.media || {}).filter(([_, v]) => v?.id).map(([slot, v]) => ({ slot, id: v.id }));
             const files = {};
             const imageErrors = [];
             const groups = [];
-            for (let i = 0; i < refs.length; i += 2)
-                groups.push(refs.slice(i, i + 2));
+            for (let i = 0; i < refs.length; i++)
+                groups.push(refs.slice(i, i + 1));
             // Up to 3 small GAS requests in parallel; one failed image cannot blank the others.
             for (let i = 0; i < groups.length; i += 3) {
                 await Promise.all(groups.slice(i, i + 3).map(async (batch) => {
