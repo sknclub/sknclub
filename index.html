@@ -1249,19 +1249,19 @@
             </div>
             <div class="col-6">
               <label class="small fw-bold">ภาคเรียนที่</label>
-              <input type="text" v-model="adminSettings.semester" class="form-control form-fast" disabled title="ใช้เครื่องมือเริ่มภาคเรียนใหม่">
+              <input type="number" min="1" max="3" step="1" v-model="adminSettings.semester" class="form-control form-fast" :disabled="!periods.find(p=>p.id===activePeriodId)?.isCurrent" title="Admin ปรับภาคเรียนปัจจุบันได้ โดยไม่ลบข้อมูล">
             </div>
             <div class="col-6">
               <label class="small fw-bold">ปีการศึกษา</label>
-              <input type="text" v-model="adminSettings.academicYear" class="form-control form-fast" disabled title="ใช้เครื่องมือเริ่มภาคเรียนใหม่">
+              <input type="number" min="2500" max="2800" step="1" v-model="adminSettings.academicYear" class="form-control form-fast" :disabled="!periods.find(p=>p.id===activePeriodId)?.isCurrent" title="Admin เปลี่ยนปีการศึกษาปัจจุบันได้ โดยไม่ลบข้อมูล">
             </div>
             <div class="col-6">
               <label class="small fw-bold">โควต้านักเรียนต่อครู 1 คน</label>
               <input type="number" v-model="adminSettings.studentQuota" class="form-control form-fast">
             </div>
             <div class="col-6">
-              <label class="small fw-bold text-muted">อีเมลรับแจ้งเตือน (ถ้ามี)</label>
-              <input type="email" v-model="adminSettings.reportEmail" class="form-control form-fast">
+              <label class="small fw-bold text-muted">อีเมลผู้รับรายงานชุมนุมอัตโนมัติ</label>
+              <input type="email" v-model.trim="adminSettings.reportEmail" class="form-control form-fast" placeholder="report@school.ac.th"><div class="form-text">ปุ่มส่งอีเมลในหน้ารายงานจะส่ง PDF ไปยังที่อยู่นี้โดยอัตโนมัติ ไม่เกี่ยวข้องกับการล็อกอิน</div>
             </div>
             <div class="col-12">
               <label class="small fw-bold text-muted">Google Drive Folder ID เดิม (ระบบใหม่ตั้งค่าโฟลเดอร์ผ่าน GAS Script Properties)</label>
@@ -1764,7 +1764,7 @@
                          <i class="fas fa-print me-2"></i>พิมพ์เอกสาร
                    </button>
 
-                  <button @click="promptSavePdfDrive" class="btn btn-outline-primary btn-fast shadow-sm px-4" :disabled="archiveReadonly"><i class="fas fa-cloud-upload-alt me-2"></i>เก็บ PDF ใน Drive</button>
+                  
                   <button @click="promptSendEmail" class="btn btn-info btn-fast shadow-sm px-4 text-white" :disabled="archiveReadonly">
                   <i class="fas fa-envelope me-2"></i>ส่งอีเมล
                 </button>
@@ -2073,7 +2073,7 @@
               </div>
                 <div class="photo-grid">
                   <div class="photo-slot rounded-3" v-for="n in 4" :key="n" @click="$refs['photoInput'+n][0].click()" style="position: relative;">
-                    <img v-if="reportData.photos[n]" :src="reportData.photos[n]" style="object-fit: cover;">
+                    <img v-if="reportData.photos[n] && reportData.photos[n] !== '__DELETE__'" :src="reportData.photos[n]" style="object-fit: cover;">
                     <div v-else class="text-center text-muted">
                       <i class="fas fa-camera fa-2x mb-2 opacity-25"></i><br>
                       <span class="small">เพิ่มรูปภาพกิจกรรม ({{n}})</span>
@@ -2081,7 +2081,7 @@
                     <input type="file" :ref="'photoInput'+n" class="d-none" @change="uploadPhoto($event, n)" accept="image/*">
                     
                     <!-- ปุ่มกากบาท ลบรูปภาพ (ซ่อนตอนปริ้นด้วยคลาส no-print) -->
-                    <button v-if="reportData.photos[n]" 
+                    <button v-if="reportData.photos[n] && reportData.photos[n] !== '__DELETE__'" 
                             @click.stop="removePhoto(n)" 
                             class="btn btn-danger btn-sm rounded-circle position-absolute top-0 end-0 m-2 shadow-sm no-print" 
                             style="width: 26px; height: 26px; padding: 0; display: flex; align-items: center; justify-content: center; z-index: 10;"
@@ -2354,6 +2354,7 @@
     <script src="bridge.js"></script>
     <script src="backend.js"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" integrity="sha512-GsLlZN/3F2ErC5ifS5QtgpiJtWd43JWSuIgh7mbzZ8zBps+dvLusV+eNQATqgA/HdeKFVgA5v3S/cIrLF7QnIg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
@@ -2384,6 +2385,7 @@ data() {
     attStudents: [], 
     attData: { dates: [], records: {} },
     reportData: { teacher: '', photos: {}, logo: '', signatures: {} },
+    reportMediaErrors: [],
     signatureSlot: '',
     adminSignatureSlot: '',
     adminReportSignatures: {},
@@ -2717,22 +2719,28 @@ syncAdvancedSettings() {
         },
 
         // 3. บันทึกข้อมูลตั้งค่า Admin
-        saveAdminSettingsData() {
-          this.loading = true;
-          const settingsPayload = {
-            adminSettings: this.adminSettings,
-            systemDates: this.systemDates,
-            holidays: this.holidays,
-            // อัปเดต config เดิมที่มีผลต่อโควตาครู
-            quota_per_teacher: this.adminSettings.studentQuota
-          };
-
-          google.script.run.withSuccessHandler(res => {
-            this.loading = false;
-            if(res.success) Swal.fire({toast: true, position: 'top-end', icon: 'success', title: 'บันทึกการตั้งค่าระบบเรียบร้อย', showConfirmButton: false, timer: 2000});
-            else Swal.fire('Error', res.message, 'error');
-            this.refreshData(true); // อัปเดตเงียบๆ
-          }).saveAdvancedSystemSettings(settingsPayload);
+        async saveAdminSettingsData() {
+          if(this.loading||this.user?.role!=='admin')return;
+          const settings={...this.adminSettings,semester:String(this.adminSettings.semester).trim(),
+            academicYear:String(this.adminSettings.academicYear).trim(),reportEmail:String(this.adminSettings.reportEmail||'').trim()};
+          if(!/^[0-9]{4}$/.test(settings.academicYear)||Number(settings.academicYear)<2500||Number(settings.academicYear)>2800)
+            return Swal.fire('ตรวจสอบปีการศึกษา','ปีการศึกษาต้องเป็น พ.ศ. 2500–2800','warning');
+          if(!['1','2','3'].includes(settings.semester))
+            return Swal.fire('ตรวจสอบภาคเรียน','ภาคเรียนต้องเป็น 1, 2 หรือ 3','warning');
+          if(settings.reportEmail&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(settings.reportEmail))
+            return Swal.fire('ตรวจสอบอีเมล','กรุณาระบุอีเมลผู้รับรายงานที่ถูกต้อง','warning');
+          this.loading=true;
+          try{
+            const payload={adminSettings:settings,systemDates:this.systemDates,
+              holidays:this.holidays,quota_per_teacher:settings.studentQuota};
+            const result=await window.SKNBridge.invoke('saveAdvancedSystemSettings',[payload]);
+            if(!result?.success)throw Error(result?.message||'บันทึกไม่สำเร็จ');
+            this.adminSettings=settings;
+            await this.refreshData(true);
+            Swal.fire({toast:true,position:'top-end',icon:'success',title:'บันทึกการตั้งค่าและปีการศึกษาเรียบร้อย',
+              showConfirmButton:false,timer:2300});
+          }catch(err){Swal.fire('บันทึกไม่สำเร็จ',err.message||String(err),'error');}
+          finally{this.loading=false;}
         },
 
         // ---------------------------------------------------------
@@ -3751,7 +3759,7 @@ refreshData(isSilent = false) {
         goToAttendance(club) { this.loadClubData(club, 'attendance'); },
         goToReport(club) {
             this.reportData.teacher = club ? club.teacher_name : this.reportData.teacher;
-            if(club) this.reportData.signatures = {};
+            if(club){this.reportData.signatures = {};this.reportMediaErrors=[];}
             if(club) this.loadClubData(club, 'report');
             else this.view = 'report';
         },
@@ -3825,6 +3833,14 @@ refreshData(isSilent = false) {
                             if (savedData.logo) this.reportData.logo = savedData.logo;
                             if (savedData.photos) this.reportData.photos = savedData.photos;
                             if (savedData.signatures) this.reportData.signatures = savedData.signatures;
+                            this.reportMediaErrors=savedData.mediaErrors||[];
+                            if (savedData.mediaErrors?.length) {
+                              console.warn('SKN Drive image retrieval errors:',savedData.mediaErrors);
+                              setTimeout(()=>Swal.fire({toast:true,position:'top-end',icon:'warning',
+                                title:'รายงานเปิดได้ แต่ภาพบางไฟล์ยังโหลดจาก Drive ไม่สำเร็จ',
+                                text:'ข้อมูลภาพเดิมยังอยู่ใน Supabase กรุณาตรวจสิทธิ์ GAS/Drive',
+                                showConfirmButton:false,timer:6500}),450);
+                            }
                         }
                         this.view = viewName; 
                     }).getSavedClubReport(club.id);
@@ -4479,7 +4495,7 @@ downloadCSVTemplate() {
              if (result.isConfirmed) {
                // ล้างค่ารูปภาพทิ้ง
                if(this.archiveReadonly)return;
-    this.reportData.photos[index] = ""; 
+    this.reportData.photos[index] = '__DELETE__'; 
                
                // แอบเซฟลงระบบอัตโนมัติ เพื่อลบภาพออกจากฐานข้อมูลชีตทันที
                this.saveCurrentReportSilently(); 
@@ -4492,102 +4508,102 @@ downloadCSVTemplate() {
 
 
 // ---------------------------------------------------------
-        // ฟังก์ชันเปิดหน้าต่างกรอกอีเมล (บังคับเลือกไฟล์ PDF เท่านั้น)
+        // สร้าง PDF อัตโนมัติจากรายงานเพื่อแนบอีเมล ไม่ต้องเลือกไฟล์หรือเก็บ PDF ลง Drive
         // ---------------------------------------------------------
-        promptSavePdfDrive() {
-          if(this.archiveReadonly)return;
-          Swal.fire({title:'เก็บรายงาน PDF ใน Google Drive',html:'<input type="file" id="skn-pdf-upload" class="form-control" accept="application/pdf,.pdf"><p class="small text-muted mt-2">ดาวน์โหลด PDF ก่อน แล้วเลือกไฟล์เพื่อเก็บลง Drive</p>',showCancelButton:true,confirmButtonText:'อัปโหลด',preConfirm:()=>{const f=document.getElementById('skn-pdf-upload').files[0];if(!f){Swal.showValidationMessage('กรุณาเลือก PDF');return false;}if(f.size>9*1024*1024){Swal.showValidationMessage('ขนาดไฟล์ต้องไม่เกิน 9 MB');return false;}return f;}}).then(async r=>{
-            if(!r.isConfirmed)return;
-            try {
-              const encoded=await new Promise((resolve,reject)=>{const fr=new FileReader();fr.onload=()=>resolve(fr.result);fr.onerror=()=>reject(Error('อ่าน PDF ไม่สำเร็จ'));fr.readAsDataURL(r.value);});
-              Swal.fire({title:'กำลังส่ง PDF ไป Drive...',allowOutsideClick:false,didOpen:()=>Swal.showLoading()});
-              google.script.run.withSuccessHandler(res=>{if(res.success)Swal.fire({icon:'success',title:'บันทึกสำเร็จ',text:'ไฟล์ PDF ถูกจัดเก็บลง Drive แล้ว'});else Swal.fire('ผิดพลาด',res.message,'error');}).withFailureHandler(err=>Swal.fire('ผิดพลาด',String(err),'error')).savePdfToDrive(this.currentClubId,encoded);
-            }catch(err){Swal.fire('ผิดพลาด',String(err),'error');}
-          });
-        },
-        promptSendEmail() {
-          Swal.fire({
-            title: 'ส่งรายงานผ่านอีเมล',
-            html: `
-              <div class="text-start mb-3">
-                <label class="small fw-bold text-secondary mb-1">1. อีเมลผู้รับปลายทาง</label>
-                <input type="email" id="swal-input-email" class="form-control mb-3" placeholder="example@email.com" value="${this.adminSettings.reportEmail || ''}">
-                
-                <label class="small fw-bold text-secondary mb-1">2. แนบไฟล์เอกสาร PDF รายงาน <span class="text-danger">* (จำเป็นต้องแนบ)</span></label>
-                <input type="file" id="swal-input-file" class="form-control" accept=".pdf">
-                <div class="form-text text-muted" style="font-size: 11px;">* กรุณาดาวน์โหลด PDF เก็บไว้ในเครื่องก่อน แล้วจึงเลือกมาแนบที่นี่ครับ</div>
-              </div>
-            `,
-            showCancelButton: true,
-            confirmButtonColor: '#0dcaf0',
-            cancelButtonColor: '#6c757d',
-            confirmButtonText: '<i class="fas fa-paper-plane me-1"></i> ส่งรายงาน',
-            cancelButtonText: 'ยกเลิก',
-            // ตรวจสอบความถูกต้องก่อนกดส่งจริง
-            preConfirm: () => {
-              const email = document.getElementById('swal-input-email').value;
-              const fileInput = document.getElementById('swal-input-file').files[0];
-              
-              if (!email) {
-                Swal.showValidationMessage('กรุณาระบุอีเมลผู้รับปลายทาง!');
-                return false;
+        async generateReportPdfDataUrl() {
+          if(this.view!=='report')throw Error('กรุณาเปิดหน้ารายงานชุมนุมก่อน');
+          if(typeof window.html2pdf!=='function')throw Error('โหลดตัวสร้าง PDF ไม่สำเร็จ กรุณาตรวจอินเทอร์เน็ต');
+          if(document.fonts?.ready)await document.fonts.ready;
+          // Clone the actual report, including user-edited text, images and signatures.
+          const pages=[...document.querySelectorAll('.a4-container')];
+          if(pages.length<1)throw Error('ไม่พบเนื้อหารายงานสำหรับสร้าง PDF');
+          const target=document.createElement('div');
+          target.className='skn-pdf-document';
+          target.style.cssText='background:#fff;width:210mm;box-sizing:border-box;color:#000';
+          pages.forEach((page,i)=>{
+            const clone=page.cloneNode(true);
+            clone.querySelectorAll('input,textarea,select').forEach((node,j)=>{
+              const original=page.querySelectorAll('input,textarea,select')[j];
+              if(!original)return;
+              if(original.type==='file'){node.remove();return;}
+              if(original.type==='checkbox'){
+                const mark=document.createElement('span');mark.textContent=original.checked?'☑':'☐';
+                node.replaceWith(mark);return;
               }
-              // เงื่อนไขบังคับ: ถ้าไม่มีไฟล์ จะเด้งเตือนและห้ามผ่านเด็ดขาด
-              if (!fileInput) {
-                Swal.showValidationMessage('⚠️ กรุณาแนบไฟล์ PDF รายงานก่อนส่งอีเมล!');
-                return false;
+              if(node.tagName==='SELECT'){
+                const label=document.createElement('span');label.textContent=original.selectedOptions?.[0]?.textContent||'';
+                node.replaceWith(label);return;
               }
-              return { email: email, file: fileInput };
-            }
-          }).then((result) => {
-            if (result.isConfirmed) {
-              const data = result.value;
-              this.convertFileAndSend(data.email, data.file);
-            }
+              const label=document.createElement('span');label.textContent=original.value||'';
+              label.style.cssText='display:inline-block;white-space:pre-wrap;min-height:1em;min-width:2em;border-bottom:1px solid #ddd';
+              node.replaceWith(label);
+            });
+            clone.querySelectorAll('.photo-input,.no-print,button').forEach(el=>el.remove());
+            clone.classList.remove('shadow-sm');
+            clone.style.boxShadow='none';clone.style.margin='0';
+            clone.style.width='210mm';clone.style.maxWidth='210mm';
+            clone.style.boxSizing='border-box';
+            if(i<pages.length-1)clone.style.breakAfter='page';
+            target.appendChild(clone);
           });
+          document.body.appendChild(target);
+          target.style.position='absolute';target.style.left='0';target.style.top='0';
+          target.style.zIndex='-10';
+          try{
+            const pdf=await window.html2pdf().set({margin:0,
+              image:{type:'jpeg',quality:0.78},
+              html2canvas:{scale:1.25,useCORS:true,backgroundColor:'#ffffff',logging:false},
+              jsPDF:{unit:'mm',format:'a4',orientation:'portrait',compress:true},
+              pagebreak:{mode:['css','legacy'],after:'.page-break-after',before:'.page-break-before'}
+            }).from(target).outputPdf('blob');
+            if(!(pdf instanceof Blob)||pdf.type!=='application/pdf'&&pdf.size===0)
+              throw Error('สร้าง PDF ไม่สำเร็จ');
+            if(pdf.size>8*1024*1024)throw Error('PDF ใหญ่เกิน 8 MB กรุณาลดขนาดรูปภาพในรายงาน');
+            return await new Promise((resolve,reject)=>{
+              const fr=new FileReader();fr.onload=()=>resolve(fr.result);
+              fr.onerror=()=>reject(Error('แปลง PDF สำหรับแนบอีเมลไม่สำเร็จ'));
+              fr.readAsDataURL(pdf);
+            });
+          }finally{target.remove();}
         },
-
-        // ---------------------------------------------------------
-        // 2. ฟังก์ชันแปลงไฟล์ที่เลือกให้เป็น Base64 แล้วส่งให้ Server
-        // ---------------------------------------------------------
-        convertFileAndSend(email, file) {
-          Swal.fire({ title: 'กำลังอัปโหลดไฟล์และส่งอีเมล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-          
-          const reader = new FileReader();
-          reader.onload = (e) => {
-            const base64String = e.target.result; // ได้ข้อมูลไฟล์แบบ Base64
-
-            const payload = {
-              clubName: this.currentClubName,
-              teacher: this.reportData.teacher,
-              semester: this.adminSettings.semester,
-              academicYear: this.adminSettings.academicYear,
-              totalStudents: this.attStudents.length,
-              passCount: this.countPass(),
-              failCount: this.countFail(),
-              actData: this.reportActData,
-              pdfFile: base64String,
-              clubId: this.currentClubId,
-              fileName: file.name
-            };
-
-            google.script.run
-              .withSuccessHandler(res => {
-                if(res.success) {
-                  Swal.fire('สำเร็จ', `ส่งรายงานพร้อมไฟล์แนบ <b>${file.name}</b> ไปที่ <b>${email}</b> เรียบร้อยแล้ว`, 'success');
-                } else {
-                  Swal.fire('ข้อผิดพลาด', res.message, 'error');
-                }
-              })
-              .withFailureHandler(err => {
-                Swal.fire('การเชื่อมต่อขัดข้อง', 'Error: ' + err, 'error');
-              })
-              .sendClubReportEmail(email, payload);
-          };
-          reader.readAsDataURL(file);
+        async promptSendEmail() {
+          if(this.archiveReadonly||this.loading)return;
+          if(this.reportMediaErrors?.length)
+            return Swal.fire('ภาพในรายงานยังไม่ครบ','โปรดแก้ปัญหาโหลดรูปจาก Drive ก่อนส่ง PDF เพื่อป้องกันรายงานที่ภาพหาย','warning');
+          // Read the currently saved recipient, not an unsaved/stale input value.
+          let email='';
+          try{
+            const {data,error}=await window.SKN_DB.from('period_config').select('value')
+              .eq('period_id',this.activePeriodId).eq('key','adminSettings').maybeSingle();
+            if(error)throw Error(error.message);
+            email=String(JSON.parse(data?.value||'{}').reportEmail||'').trim();
+          }catch(err){return Swal.fire('โหลดอีเมลไม่สำเร็จ',err.message||String(err),'error');}
+          if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+            return Swal.fire('ยังไม่ได้ตั้งค่าอีเมล','Admin ต้องกำหนดอีเมลรับรายงานในหน้าตั้งค่าระบบขั้นสูงและบันทึกก่อน','warning');
+          const confirm=await Swal.fire({title:'ยืนยันส่งรายงานชุมนุม',
+            html:'<div class="text-start">ระบบจะสร้าง PDF จากหน้ารายงานปัจจุบันและแนบให้โดยอัตโนมัติ'+
+              '<p class="mt-2 mb-0"><strong>อีเมลปลายทาง: </strong><span id="skn-send-target"></span></p></div>',
+            didOpen:()=>{document.getElementById('skn-send-target').textContent=email;},
+            icon:'question',showCancelButton:true,confirmButtonText:'สร้าง PDF และส่งอีเมล',cancelButtonText:'ยกเลิก'});
+          if(!confirm.isConfirmed)return;
+          this.loading=true;
+          Swal.fire({title:'กำลังสร้าง PDF และส่งอีเมล...',html:'โปรดอย่าปิดหน้านี้ระหว่างส่ง',
+            allowOutsideClick:false,didOpen:()=>Swal.showLoading()});
+          try{
+            // Flush any pending report image uploads before snapshotting the report.
+            await this.queueReportSave();
+            const pdfFile=await this.generateReportPdfDataUrl();
+            const payload={clubId:this.currentClubId,clubName:this.currentClubName,
+              teacher:this.reportData.teacher,semester:this.adminSettings.semester,
+              academicYear:this.adminSettings.academicYear,totalStudents:this.attStudents.length,
+              passCount:this.countPass(),failCount:this.countFail(),pdfFile};
+            // Backend + GAS independently read the saved recipient from period_config.
+            const response=await window.SKNBridge.invoke('sendClubReportEmail',[email,payload]);
+            if(!response?.success)throw Error(response?.message||'ส่งอีเมลไม่สำเร็จ');
+            Swal.fire('ส่งสำเร็จ','ส่งรายงาน PDF พร้อมไฟล์แนบไปที่ '+email+' เรียบร้อยแล้ว','success');
+          }catch(err){Swal.fire('ส่งรายงานไม่สำเร็จ',err.message||String(err),'error');}
+          finally{this.loading=false;}
         },
-
-
 
         async logout() { await window.SKNBridge.logout(); this.periods=[]; this.activePeriodId=""; this.archiveReadonly=false; this.isLoggedIn = false; this.user = null; this.form = {user:'', pass:''}; this.view = 'dashboard'; }
       }

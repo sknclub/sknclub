@@ -66,8 +66,10 @@ async function snapshot(periodId) { const data = { format: 'SKN-SUPABASE-V1', cr
     data.tables[name] = records;
 } return data; }
 async function mediaSave(input, existing, p, c, slot) {
-    if (!input || input === '__DELETE__')
+    if (input === '__DELETE__')
         return null;
+    if (!input)
+        return existing?.[slot] || null;
     if (typeof input !== 'string')
         throw Error('รูปภาพต้องเป็นข้อความ');
     if (!input.startsWith('data:image/')) { // Legacy stored remote images may be displayed but not stored as uncontrolled external URLs.
@@ -489,11 +491,22 @@ async function sknInvoke(method, args, periodId) {
             assert(typeof values === 'object' && Object.keys(values).length <= 40, 'การตั้งค่าผิดรูปแบบ');
             const protectedKeys = ['adminSettings', 'systemDates', 'holidays'];
             const rows = Object.entries(values).filter(([key]) => method === 'saveAdvancedSystemSettings' || !protectedKeys.includes(key)).map(([key, val]) => ({ period_id: p.id, key, value: typeof val === 'object' ? JSON.stringify(val) : String(val) }));
-            if (method === 'saveAdvancedSystemSettings' && values.adminSettings) {
-                const a = { ...values.adminSettings, semester: String(p.semester), academicYear: String(p.academic_year) };
-                const idx = rows.findIndex(x => x.key === 'adminSettings');
-                if (idx >= 0)
-                    rows[idx].value = JSON.stringify(a);
+            if (method === 'saveAdvancedSystemSettings') {
+                const settings = values.adminSettings || {};
+                const year = Number(settings.academicYear || p.academic_year), sem = Number(settings.semester || p.semester);
+                assert(Number.isSafeInteger(year) && year >= 2500 && year <= 2800, 'ปีการศึกษาไม่ถูกต้อง');
+                assert(Number.isSafeInteger(sem) && sem >= 1 && sem <= 3, 'ภาคเรียนต้องเป็น 1, 2 หรือ 3');
+                const email = String(settings.reportEmail || '').trim();
+                assert(!email || (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && email.length <= 254), 'อีเมลรับรายงานไม่ถูกต้อง');
+                if (year !== Number(p.academic_year) || sem !== Number(p.semester))
+                    assert(p.is_current, 'เปลี่ยนปี/ภาคเรียนได้เฉพาะภาคเรียนปัจจุบัน');
+                await result(db.rpc('skn_save_admin_settings_v36', {
+                    p_period: p.id, p_year: year, p_sem: sem, p_settings: { ...settings, reportEmail: email },
+                    p_dates: values.systemDates || [], p_holidays: values.holidays || [],
+                    p_quota: Number(settings.studentQuota || 20)
+                }));
+                output = { success: true, message: 'บันทึกการตั้งค่าระบบและปีการศึกษาเรียบร้อย' };
+                break;
             }
             if (rows.length)
                 await result(db.from('period_config').upsert(rows, { onConflict: 'period_id,key' }));
@@ -525,17 +538,29 @@ async function sknInvoke(method, args, periodId) {
                 output = { found: false, data: null };
                 break;
             }
-            const ids = Object.entries(r.media || {}).filter(([_, v]) => v?.id).map(([k, v]) => ({ slot: k, id: v.id }));
-            let imgs = { files: {} };
-            if (ids.length) {
+            // Drive viewer URLs are not image sources. Retrieve authenticated data:image URLs via GAS.
+            // Batch requests avoid oversized iframe/postMessage responses, so one bad file does not hide every image.
+            const refs = Object.entries(r.media || {}).filter(([_, v]) => v?.id).map(([slot, v]) => ({ slot, id: v.id }));
+            const files = {};
+            const imageErrors = [];
+            for (let i = 0; i < refs.length; i += 2) {
+                const batch = refs.slice(i, i + 2);
                 try {
-                    imgs = await gas('getFiles', { periodId: p.id, clubId: id, files: ids });
+                    const response = await gas('getFiles', { periodId: p.id, clubId: id, files: batch });
+                    Object.assign(files, response?.files || {});
+                    for (const slot of Object.keys(response?.errors || {}))
+                        imageErrors.push(slot + ': ' + response.errors[slot]);
                 }
                 catch (e) {
-                    console.warn('GAS image fetch failed; report text is still available', e);
+                    for (const ref of batch)
+                        imageErrors.push(ref.slot + ': ' + String(e?.message || e));
                 }
             }
-            output = { found: true, data: { teacher: r.teacher, actData: r.act_data, logo: imgs.files?.logo || '', photos: { 1: imgs.files?.photo_1 || '', 2: imgs.files?.photo_2 || '', 3: imgs.files?.photo_3 || '', 4: imgs.files?.photo_4 || '' }, mediaUrls: Object.fromEntries(Object.entries(r.media || {}).map(([k, v]) => [k, v?.url || ''])), signatures: Object.fromEntries(['sigTeacher', 'sigHeadClub', 'sigHeadDev', 'sigDeputy', 'sigDirector'].map(k => [k, imgs.files?.[k] || ''])) } };
+            output = { found: true, data: { teacher: r.teacher, actData: r.act_data,
+                    logo: files.logo || '', photos: { 1: files.photo_1 || '', 2: files.photo_2 || '', 3: files.photo_3 || '', 4: files.photo_4 || '' },
+                    mediaRefs: r.media || {}, mediaErrors: imageErrors,
+                    mediaUrls: Object.fromEntries(Object.entries(r.media || {}).map(([k, v]) => [k, v?.url || ''])),
+                    signatures: Object.fromEntries(['sigTeacher', 'sigHeadClub', 'sigHeadDev', 'sigDeputy', 'sigDirector'].map(k => [k, files[k] || ''])) } };
             break;
         }
         case 'sendClubReportEmail': {
@@ -543,9 +568,10 @@ async function sknInvoke(method, args, periodId) {
             const f = args[1] || {};
             const club = await clubById(p.id, String(f.clubId || args[2] || ''));
             assert(owner(u, club));
-            const email = String(args[0] || '');
-            assert(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email), 'อีเมลไม่ถูกต้อง');
-            assert(typeof f.pdfFile === 'string' && f.pdfFile.startsWith('data:application/pdf;base64,') && f.pdfFile.length < 12_000_000, 'กรุณาแนบ PDF ขนาดไม่เกิน 9 MB');
+            const settings = JSON.parse((await cfg(p.id)).adminSettings || '{}');
+            const email = String(settings.reportEmail || '').trim();
+            assert(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email), 'กรุณาตั้งค่าอีเมลรับรายงานในหน้าตั้งค่าระบบขั้นสูงก่อน');
+            assert(typeof f.pdfFile === 'string' && f.pdfFile.startsWith('data:application/pdf;base64,') && f.pdfFile.length < 12_000_000, 'ระบบสร้าง PDF ไม่สำเร็จ หรือไฟล์เกิน 9 MB');
             const a = await gas('sendReportEmail', { periodId: p.id, clubId: club.id, email, data: { ...f, clubName: club.name, semester: p.semester, academicYear: p.academic_year }, period: `${p.semester}-${p.academic_year}` });
             output = { success: true, url: a.url || '' };
             break;
@@ -626,18 +652,6 @@ async function sknInvoke(method, args, periodId) {
             else
                 throw Error('Invalid legacy table');
             output = { success: true, count: items.length, kind };
-            break;
-        }
-        case 'savePdfToDrive': {
-            mustWrite(u, p);
-            const club = await clubById(p.id, String(args[0] || ''));
-            assert(owner(u, club));
-            const file = String(args[1] || '');
-            const match = file.match(/^data:application\/pdf;base64,([A-Za-z0-9+/=]+)$/);
-            assert(match && match[1].length < 12_000_000, 'โปรดเลือก PDF ขนาดไม่เกิน 9 MB');
-            const safe = club.name.replace(/[\\/\r\n]/g, '_').slice(0, 80);
-            const r = await gas('saveFile', { periodId: p.id, clubId: club.id, slot: 'pdf', fileName: `${club.id}_${safe}_${Date.now()}.pdf`, mime: 'application/pdf', base64: match[1] });
-            output = { success: true, message: 'บันทึก PDF ลง Google Drive แล้ว', url: r.url };
             break;
         }
         case 'startNewSemester': {
