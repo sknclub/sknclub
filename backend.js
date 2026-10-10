@@ -4,8 +4,14 @@
 const db = window.SKN_DB;
 function assert(cond, msg = 'ไม่มีสิทธิ์ดำเนินการ') { if (!cond)
     throw Error(msg); }
-async function result(q) { const r = await q; if (r.error)
-    throw Error(r.error.message); return r.data; }
+async function result(q) {
+    const r = await q;
+    if (r.error) {
+        const e = Object.assign(new Error(String(r.error.message || 'Supabase request failed')), { code: String(r.error.code || ''), hint: String(r.error.hint || ''), details: String(r.error.details || ''), status: r.status || 0 });
+        throw e;
+    }
+    return r.data;
+}
 async function all(table, period) { const output = []; for (let start = 0;; start += 1000) {
     let q = db.from(table === 'teachers' ? 'teachers_public' : table === 'students' ? 'students_public' : table).select('*').range(start, start + 999);
     if (period)
@@ -691,7 +697,20 @@ async function sknInvoke(method, args, periodId) {
         }
         case 'getPeriodImpact': {
             mustAdmin(u);
-            output = await result(db.rpc('skn_period_impact', { p_period: String(args[0] || '') }));
+            try {
+                output = await result(db.rpc('skn_period_impact', { p_period: String(args[0] || '') }));
+            }
+            catch (err) {
+                const code = String(err?.code || '');
+                const msg = String(err?.message || err);
+                if (code === 'PGRST202' || code === '42883' || /Could not find the function.*skn_period_impact|function public.skn_period_impact.*does not exist/i.test(msg)) {
+                    throw Object.assign(new Error('ไม่พบฟังก์ชัน skn_period_impact ใน Supabase: กรุณารัน SQL Migration 013 ของ V4.5 ให้สำเร็จ และรีโหลด PostgREST schema cache'), { code, hint: "ใน SQL Editor รัน: NOTIFY pgrst, 'reload schema';" });
+                }
+                if (code === '42501' || /permission denied|เฉพาะผู้ดูแลระบบ/i.test(msg)) {
+                    throw Object.assign(new Error('ฐานข้อมูลไม่อนุญาตให้ตรวจรายการ กรุณาตรวจบัญชี Admin และสิทธิ์ EXECUTE ของ skn_period_impact'), { code, hint: 'เข้าสู่ระบบด้วยบัญชี admin ที่ถูกต้อง และตรวจการ GRANT EXECUTE ตาม SQL Migration 013' });
+                }
+                throw err;
+            }
             break;
         }
         case 'setCurrentPeriod': {
@@ -766,8 +785,7 @@ async function sknInvoke(method, args, periodId) {
             const year = Number(args[1]);
             const semester = Number(args[2]);
             const makeCurrent = args[3] === true;
-            assert(snap?.format === 'SKN-SUPABASE-V1' && snap.tables && snap.period,
-                'รองรับเฉพาะไฟล์สำรอง SKN-SUPABASE-V1');
+            assert(snap?.format === 'SKN-SUPABASE-V1' && snap.tables && snap.period, 'รองรับเฉพาะไฟล์สำรอง SKN-SUPABASE-V1');
             assert(JSON.stringify(snap).length <= 5000000, 'ไฟล์ JSON เกิน 5 MB สำหรับหน้าเว็บ');
             if (String(args[4] || 'local') === 'local') {
                 // Archive uploaded JSON in Drive before invoking the restore transaction.

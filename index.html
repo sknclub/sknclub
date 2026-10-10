@@ -2454,6 +2454,14 @@
                 </select></div>
             </div>
             <div v-if="periodImpactLoading" class="small text-primary mt-3"><span class="spinner-border spinner-border-sm me-2"></span>กำลังตรวจข้อมูลที่เชื่อมโยง...</div>
+            <div v-if="periodImpactError" class="alert alert-danger small mt-3 mb-0" role="alert" aria-live="polite">
+              <strong><i class="fas fa-exclamation-circle me-2"></i>ตรวจสอบข้อมูลไม่สำเร็จ</strong>
+              <div class="mt-2 text-break" style="white-space:pre-wrap">{{ periodImpactError }}</div>
+              <button type="button" class="btn btn-outline-danger btn-sm mt-2" :disabled="periodImpactLoading" @click="loadManagedPeriodImpact">
+                <i class="fas fa-sync-alt me-1"></i>ตรวจสอบอีกครั้ง
+              </button>
+              <div class="text-muted mt-2">ระบบยังไม่ลบข้อมูลใด ๆ จนกว่าจะตรวจรายการและยืนยันสำเร็จ</div>
+            </div>
             <div v-if="periodImpact" class="bg-light rounded-3 p-3 mt-3 border">
               <div class="fw-bold mb-2">รายการที่จะได้รับผลกระทบ: {{periodDeleteLabel}}</div>
               <div class="d-flex flex-wrap gap-3 small">
@@ -2637,7 +2645,7 @@ data() {
     backupFiles: [],
     loadingBackup: false,
     managePeriodId: '', deleteScope: 'term', replacementPeriodId: '',
-    periodImpact: null, periodImpactLoading: false, periodBusy: false, periodDeleteConfirm: '',
+    periodImpact: null, periodImpactError: '', periodImpactLoading: false, periodBusy: false, periodDeleteConfirm: '',
     selectedBackupFileId: '', restoreBusy: false, restorePreview: null,
     restoreFileName: '', restoreOrigin: 'local', restoreError: '',
     restoreYear: 2569, restoreSemester: 1, restoreMakeCurrent: true,
@@ -2854,30 +2862,54 @@ filteredClubs() {
         async openPeriodManagementModal(){
           if(this.user?.role!=='admin')return;
           this.managePeriodId=this.activePeriodId||this.periods[0]?.id||'';
-          this.deleteScope='term';this.periodDeleteConfirm='';this.replacementPeriodId='';this.periodImpact=null;
+          this.deleteScope='term';this.periodDeleteConfirm='';this.replacementPeriodId='';
+          this.periodImpact=null;this.periodImpactError='';
           bootstrap.Modal.getOrCreateInstance(document.getElementById('periodManagementModal')).show();
           await this.loadManagedPeriodImpact();
         },
         async loadManagedPeriodImpact(){
+          // V4.5.1: Show the actual Supabase error INSIDE Bootstrap modal.
+          // Do not open a SweetAlert overlay on top of a focused modal control:
+          // SweetAlert sets aria-hidden on #app and produces an accessibility warning.
           const selected=this.periods.find(x=>x.id===this.managePeriodId);
           const scope=this.deleteScope;
-          this.periodDeleteConfirm='';this.periodImpact=null;
-          if(!selected)return;
+          const run=(this._periodImpactRequest||0)+1;
+          this._periodImpactRequest=run;
+          this.periodDeleteConfirm='';this.periodImpact=null;this.periodImpactError='';
+          if(!selected){this.periodImpactLoading=false;return;}
           this.periodImpactLoading=true;
           try{
-            const items=this.deleteScope==='year'?this.periods.filter(p=>p.academicYear===selected.academicYear):[selected];
+            const items=scope==='year'?this.periods.filter(p=>Number(p.academicYear)===Number(selected.academicYear)):[selected];
+            if(!items.length)throw Error('ไม่พบภาคเรียนที่ต้องการตรวจ กรุณารีเฟรชข้อมูล');
             const res=await Promise.all(items.map(item=>window.SKNBridge.invoke('getPeriodImpact',[item.id])));
-            if(this.managePeriodId!==selected.id||this.deleteScope!==scope)return;
+            if(this._periodImpactRequest!==run||this.managePeriodId!==selected.id||this.deleteScope!==scope)return;
             const merged={termCount:items.length,teachers:0,students:0,clubs:0,registrations:0,attendance:0,reports:0,config:0,backupFiles:0};
-            for(const r of res)for(const key of Object.keys(merged))if(key!=='termCount')merged[key]+=Number(r[key]||0);
+            for(const r of res){
+              if(!r||typeof r!=='object')throw Error('Supabase ไม่ส่งข้อมูลสรุปกลับมา โปรดตรวจว่า Migration 013 ติดตั้งครบ');
+              for(const key of Object.keys(merged))if(key!=='termCount')merged[key]+=Number(r[key]||0);
+            }
             this.periodImpact=merged;
-          }catch(err){Swal.fire('ตรวจสอบข้อมูลไม่สำเร็จ',err.message||String(err),'error');}
-          finally{this.periodImpactLoading=false;}
+          }catch(err){
+            if(this._periodImpactRequest!==run)return;
+            const code=String(err?.code||'').trim();
+            const detail=String(err?.message||err||'ไม่ทราบสาเหตุ');
+            const hint=String(err?.hint||'');
+            this.periodImpactError=[detail,code&&'รหัสข้อผิดพลาด: '+code,hint&&'คำแนะนำจากฐานข้อมูล: '+hint].filter(Boolean).join('\n');
+            console.error('SKN getPeriodImpact failed', {periodId:selected.id,scope,code,detail,hint});
+          }finally{
+            if(this._periodImpactRequest===run)this.periodImpactLoading=false;
+          }
+        },
+        async periodManagementConfirm(options){
+          // Move focus away from the underlying Bootstrap dialog before SweetAlert
+          // temporarily hides #app from assistive technologies.
+          if(document.activeElement instanceof HTMLElement)document.activeElement.blur();
+          return Swal.fire(options);
         },
         async applyCurrentPeriod(){
           if(this.user?.role!=='admin'||!this.managePeriodId||this.periodBusy)return;
           const selected=this.periods.find(p=>p.id===this.managePeriodId);
-          const confirm=await Swal.fire({title:'กำหนดเทอมปัจจุบัน?',text:`เปลี่ยนเป็น ${selected?.semester}/${selected?.academicYear} โดยไม่ลบข้อมูล`,icon:'question',showCancelButton:true,confirmButtonText:'ยืนยัน',cancelButtonText:'ยกเลิก'});
+          const confirm=await this.periodManagementConfirm({title:'กำหนดเทอมปัจจุบัน?',text:`เปลี่ยนเป็น ${selected?.semester}/${selected?.academicYear} โดยไม่ลบข้อมูล`,icon:'question',showCancelButton:true,confirmButtonText:'ยืนยัน',cancelButtonText:'ยกเลิก'});
           if(!confirm.isConfirmed)return;
           this.periodBusy=true;
           try{
@@ -2897,9 +2929,10 @@ filteredClubs() {
           const members=this.deleteScope==='year'?this.periods.filter(p=>p.academicYear===selected.academicYear):[selected];
           if(members.length>=this.periods.length)return Swal.fire('ไม่สามารถลบได้','ต้องเหลือภาคเรียนอย่างน้อย 1 เทอม','warning');
           if(members.some(p=>p.isCurrent)&&!this.replacementPeriodId)return Swal.fire('เลือกเทอมทดแทน','กรุณาระบุเทอมใหม่ที่จะเป็นปัจจุบัน','warning');
-          const ok=await Swal.fire({title:'ยืนยันการลบข้อมูลจริง',html:`<b>${this.periodDeleteLabel}</b><p>ระบบจะสำรอง JSON ลง Drive ก่อน แล้วจึงลบข้อมูลที่เชื่อมโยงจาก Supabase</p>`,icon:'warning',showCancelButton:true,confirmButtonText:'ยืนยัน สำรองและลบ',cancelButtonText:'ยกเลิก',confirmButtonColor:'#dc2626'});
+          const ok=await this.periodManagementConfirm({title:'ยืนยันการลบข้อมูลจริง',html:`<b>${this.periodDeleteLabel}</b><p>ระบบจะสำรอง JSON ลง Drive ก่อน แล้วจึงลบข้อมูลที่เชื่อมโยงจาก Supabase</p>`,icon:'warning',showCancelButton:true,confirmButtonText:'ยืนยัน สำรองและลบ',cancelButtonText:'ยกเลิก',confirmButtonColor:'#dc2626'});
           if(!ok.isConfirmed)return;
           this.periodBusy=true;
+          if(document.activeElement instanceof HTMLElement)document.activeElement.blur();
           Swal.fire({title:'กำลังสำรองข้อมูลและตรวจสอบ...',html:'กรุณาอย่าปิดหน้าต่าง ระบบจะยกเลิกการลบหากสำรองไม่สำเร็จ',allowOutsideClick:false,allowEscapeKey:false,didOpen:()=>Swal.showLoading()});
           try{
             const res=this.deleteScope==='year'
