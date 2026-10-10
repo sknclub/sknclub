@@ -541,7 +541,7 @@ async function sknInvoke(method, args, periodId) {
             const id = String(args[0]), c = await clubById(p.id, id);
             assert(owner(u, c));
             const f = args[1] || {};
-            const prior = await result(db.from('club_reports').select('media,logo,photo_1,photo_2,photo_3,photo_4,sigTeacher,sigHeadClub,sigHeadDev,sigDeputy,sigDirector').eq('period_id', p.id).eq('club_id', id).maybeSingle());
+            const prior = await result(db.from('club_reports').select('media').eq('period_id', p.id).eq('club_id', id).maybeSingle());
             const original = sknImageSlots(prior);
             const media = {};
             media.logo = await mediaSave(f.logo, original, p.id, id, 'logo');
@@ -556,7 +556,7 @@ async function sknInvoke(method, args, periodId) {
                     item.code = 'IMG-' + p.academic_year + '-' + p.semester + '-' + id + '-' + slot.toUpperCase() + '-' + String(item.sha || 'EXISTING').slice(0, 8).toUpperCase();
             }
             // Commit to Supabase first. The database trigger enqueues displaced image IDs atomically.
-            await result(db.from('club_reports').upsert({ period_id: p.id, club_id: id, teacher: String(f.teacher || ''), act_data: f.actData || {}, media, ...Object.fromEntries(SKN_IMAGE_SLOTS.map(slot => [slot, sknDirectImageUrl(media[slot]?.lh5Url)])), updated_at: new Date().toISOString() }, { onConflict: 'period_id,club_id' }));
+            await result(db.from('club_reports').upsert({ period_id: p.id, club_id: id, teacher: String(f.teacher || ''), act_data: f.actData || {}, media, updated_at: new Date().toISOString() }, { onConflict: 'period_id,club_id' }));
             let cleanupPending = 0;
             let cleanupErrors = [];
             try {
@@ -589,7 +589,7 @@ async function sknInvoke(method, args, periodId) {
             // V4.2: never block opening the report on large Drive images. The frontend
             // progressively loads the private originals after rendering text and grades.
             const references = sknImageSlots(r);
-            const directUrls = Object.fromEntries(SKN_IMAGE_SLOTS.map(slot => [slot, sknDirectImageUrl(r[slot])]));
+            const directUrls = Object.fromEntries(SKN_IMAGE_SLOTS.map(slot => [slot, sknDirectImageUrl((r.media || {})[slot]?.lh5Url)]));
             output = { found: true, data: { teacher: r.teacher, actData: r.act_data,
                     logo: directUrls.logo || '',
                     photos: { 1: directUrls.photo_1 || '', 2: directUrls.photo_2 || '', 3: directUrls.photo_3 || '', 4: directUrls.photo_4 || '' },
@@ -608,7 +608,7 @@ async function sknInvoke(method, args, periodId) {
             assert(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email), 'กรุณาตั้งค่าอีเมลรับรายงานในหน้าตั้งค่าระบบขั้นสูงก่อน');
             assert(typeof f.pdfFile === 'string' && f.pdfFile.startsWith('data:application/pdf;base64,') && f.pdfFile.length < 12_000_000, 'ระบบสร้าง PDF ไม่สำเร็จ หรือไฟล์เกิน 9 MB');
             const a = await gas('sendReportEmail', { periodId: p.id, clubId: club.id, email, data: { ...f, clubName: club.name, semester: p.semester, academicYear: p.academic_year }, period: `${p.semester}-${p.academic_year}` });
-            output = { success: true, url: a.url || '' };
+            output = { success: a.success === true, sentTo: a.sentTo || email, pdfBytes: a.pdfBytes || 0 };
             break;
         }
         case 'importLegacyChunk': {
@@ -676,7 +676,7 @@ async function sknInvoke(method, args, periodId) {
                     media.logo = await mediaSave(x.logo, null, p.id, c.id, 'logo');
                     for (let i = 1; i <= 4; i++)
                         media[`photo_${i}`] = await mediaSave(photos[i], null, p.id, c.id, `photo_${i}`);
-                    await result(db.from('club_reports').upsert({ period_id: p.id, club_id: c.id, teacher: r.teacher || '', act_data: r.actData || {}, media, ...media }, { onConflict: 'period_id,club_id' }));
+                    await result(db.from('club_reports').upsert({ period_id: p.id, club_id: c.id, teacher: r.teacher || '', act_data: r.actData || {}, media }, { onConflict: 'period_id,club_id' }));
                 }
             }
             else if (kind === 'Config') {
