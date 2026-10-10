@@ -51,7 +51,7 @@
     input.value=JSON.stringify({jwt:session.access_token,action,payload,nonce,origin:location.origin});
     form.appendChild(input);document.body.appendChild(frame);document.body.appendChild(form);
     return new Promise((resolve,reject)=>{
-      const timeoutMs=action==='sendReportEmail'?120000:(['saveBackup','readBackup','saveImportedBackup'].includes(action)?180000:60000); // MailApp may take longer than file reads.
+      const timeoutMs=action==='sendReportEmailGenerated'?240000:(action==='sendReportEmail'?120000:(['saveBackup','readBackup','saveImportedBackup'].includes(action)?180000:60000)); // Docs PDF creation can take longer than file reads.
       const timer=setTimeout(()=>{pending.delete(nonce);frame.remove();form.remove();reject(Error('GAS ไม่ตอบกลับ: ตรวจสอบสิทธิ์ Deploy / Google Drive / MailApp'))},timeoutMs);
       pending.set(nonce,{resolve,reject,timer,frame,form});form.submit();
     });

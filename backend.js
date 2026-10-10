@@ -90,10 +90,50 @@ function sknDirectImageUrl(value) {
         return '';
     }
 }
-async function snapshot(periodId) { const data = { format: 'SKN-SUPABASE-V1', created_at: new Date().toISOString(), period: (await getPeriod(periodId)).period, tables: {} }; for (const name of ['teachers', 'period_teachers', 'students', 'clubs', 'registrations', 'attendance', 'club_reports', 'period_config']) {
-    const records = name === 'teachers' ? await all(name) : await all(name, periodId);
-    data.tables[name] = records;
-} return data; }
+const SKN_BACKUP_TABLES = ['teachers', 'period_teachers', 'students', 'clubs', 'registrations', 'attendance', 'club_reports', 'period_config'];
+function validateBackupSnapshot(data) {
+    assert(data?.format === 'SKN-SUPABASE-V1' && data.period?.id, 'ไฟล์สำรองไม่มีข้อมูลภาคเรียน');
+    const ids = {};
+    for (const name of SKN_BACKUP_TABLES) {
+        const rows = data.tables?.[name];
+        assert(Array.isArray(rows), 'Backup ขาดตาราง ' + name);
+        if (name !== 'teachers')
+            for (const row of rows)
+                assert(row.period_id === data.period.id, 'Backup ตาราง ' + name + ' มีข้อมูลข้ามภาคเรียน');
+        ids[name] = rows.length;
+    }
+    const students = new Set(data.tables.students.map((s) => s.id));
+    const clubs = new Set(data.tables.clubs.map((c) => c.id));
+    const teachers = new Set(data.tables.teachers.map((t) => t.id));
+    for (const t of data.tables.period_teachers)
+        assert(teachers.has(t.teacher_id), 'Backup มีรหัสครูไม่ตรง: ' + t.teacher_id);
+    for (const r of data.tables.registrations)
+        assert(students.has(r.student_id) && clubs.has(r.club_id), 'Backup การลงทะเบียนไม่สัมพันธ์กับนักเรียนหรือชุมนุม');
+    for (const a of data.tables.attendance)
+        assert(clubs.has(a.club_id) && Array.isArray(a.grid?.dates) && a.grid.dates.length === 20, 'Backup การเช็กชื่อผิดรูปแบบหรือขาดข้อมูล 20 ครั้ง');
+    for (const r of data.tables.club_reports)
+        assert(clubs.has(r.club_id) && r.media && typeof r.media === 'object', 'Backup รายงานหรือ Media ไม่ถูกต้อง');
+    return ids;
+}
+async function snapshot(periodId) {
+    const data = { format: 'SKN-SUPABASE-V1', created_at: new Date().toISOString(),
+        period: (await getPeriod(periodId)).period, tables: {} };
+    for (const name of SKN_BACKUP_TABLES) {
+        const records = name === 'teachers' ? await all(name) : await all(name, periodId);
+        data.tables[name] = records;
+    }
+    const counts = validateBackupSnapshot(data);
+    data.backup_manifest = { version: 'V4.7', counts, containsMediaReferences: true,
+        includesBinaryImages: false,
+        note: 'ข้อมูลครบ 8 ตาราง รวมรูปใน media (File ID/URL) แต่ไฟล์ภาพต้นฉบับอยู่ใน Drive และรหัสผ่านไม่รวมอยู่ใน JSON' };
+    return data;
+}
+async function verifyBackupFile(content, stored) {
+    assert(stored?.success === true && stored.id, 'Google Drive ไม่ยืนยันว่าเขียนไฟล์สำรองสำเร็จ');
+    const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(content));
+    const expected = Array.from(new Uint8Array(hash), n => n.toString(16).padStart(2, '0')).join('');
+    assert(stored.sha256 === expected, 'Checksum ของไฟล์ Backup ที่ GAS เขียนไม่ตรงกับต้นฉบับ');
+}
 async function mediaSave(input, existing, p, c, slot) {
     if (input === '__DELETE__')
         return null;
@@ -604,6 +644,19 @@ async function sknInvoke(method, args, periodId) {
                     previewUrls: {}, deferredMedia: true } };
             break;
         }
+        case 'sendClubReportAutoPdf': {
+            mustWrite(u, p);
+            const f = args[0] || {}, club = await clubById(p.id, String(f.clubId || ''));
+            assert(owner(u, club), 'ไม่มีสิทธิ์ส่งรายงานของชุมนุมนี้');
+            const jobId = String(f.mailJobId || '');
+            assert(/^[A-Za-z0-9-]{10,90}$/.test(jobId), 'Mail Job ID ไม่ถูกต้อง');
+            const send = await gas('sendReportEmailGenerated', {
+                periodId: p.id, clubId: club.id, data: { mailJobId: jobId }
+            });
+            output = { success: send?.success === true, sentTo: send?.sentTo || '',
+                pdfBytes: send?.pdfBytes || 0, method: 'Google Docs', mailJobId: jobId };
+            break;
+        }
         case 'sendClubReportEmail': {
             mustWrite(u, p);
             const f = args[1] || {};
@@ -733,7 +786,7 @@ async function sknInvoke(method, args, periodId) {
                 fileName: `SKN_Backup_Before_Delete_${expectedCode}.json`,
                 content: JSON.stringify(snap)
             });
-            assert(backup?.success && backup?.id, 'สำรองข้อมูลลง Google Drive ไม่สำเร็จ ยกเลิกการลบ');
+            await verifyBackupFile(JSON.stringify(snap), backup);
             await result(db.from('backup_logs').insert({
                 period_id: targetId, period_code: expectedCode,
                 file_id: backup.id, name: backup.name
@@ -760,7 +813,7 @@ async function sknInvoke(method, args, periodId) {
                     fileName: `SKN_Before_Delete_${term.period_code}.json`,
                     content: JSON.stringify(snap)
                 });
-                assert(saved?.success && saved.id, `สำรองภาคเรียน ${term.period_code} ไม่สำเร็จ ยกเลิกการลบ`);
+                await verifyBackupFile(JSON.stringify(snap), saved);
                 await result(db.from('backup_logs').insert({
                     period_id: term.id, period_code: term.period_code,
                     file_id: saved.id, name: saved.name
@@ -786,7 +839,7 @@ async function sknInvoke(method, args, periodId) {
             const semester = Number(args[2]);
             const makeCurrent = args[3] === true;
             assert(snap?.format === 'SKN-SUPABASE-V1' && snap.tables && snap.period, 'รองรับเฉพาะไฟล์สำรอง SKN-SUPABASE-V1');
-            assert(JSON.stringify(snap).length <= 5000000, 'ไฟล์ JSON เกิน 5 MB สำหรับหน้าเว็บ');
+            assert(new TextEncoder().encode(JSON.stringify(snap)).length <= 7_500_000, 'ไฟล์ JSON เกิน 7.5 MB สำหรับหน้าเว็บ');
             if (String(args[4] || 'local') === 'local') {
                 // Archive uploaded JSON in Drive before invoking the restore transaction.
                 const uploaded = await gas('saveImportedBackup', {
@@ -805,13 +858,32 @@ async function sknInvoke(method, args, periodId) {
             }));
             break;
         }
+        case 'createFullBackupNow': {
+            mustAdmin(u);
+            const data = await snapshot(p.id);
+            const content = JSON.stringify(data);
+            assert(new TextEncoder().encode(content).length <= 7_500_000, 'ไฟล์ JSON เกิน 7.5 MB โปรดใช้สำรองข้อมูลผ่าน Supabase Database Backup แทน');
+            const name = `SKN_Full_Backup_${p.academic_year}_${p.semester}_${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+            const saved = await gas('saveBackup', { periodId: p.id, clubId: 'ADMIN-REPORT', fileName: name, content });
+            await verifyBackupFile(content, saved);
+            await result(db.from('backup_logs').insert({ period_id: p.id,
+                period_code: p.period_code || `${p.academic_year}-${p.semester}`,
+                file_id: saved.id, name: saved.name }));
+            output = { success: true, fileId: saved.id, url: saved.url, name: saved.name,
+                periodCode: p.period_code || `${p.academic_year}-${p.semester}`,
+                counts: data.backup_manifest.counts, sha256: saved.sha256,
+                imagesIncluded: false };
+            break;
+        }
         case 'startNewSemester': {
             mustAdmin(u);
             assert(p.is_current, 'กรุณาเลือกภาคเรียนปัจจุบันก่อนขึ้นเทอมใหม่');
             const o = args[0] || {};
             // Mandatory backup: never proceed if Drive backup fails. Historical data is never erased.
             const data = await snapshot(p.id);
-            const backup = await gas('saveBackup', { periodId: p.id, fileName: `SKN_Backup_Term${p.semester}_${p.academic_year}_${new Date().toISOString().replace(/[:.]/g, '-')}.json`, content: JSON.stringify(data) });
+            const backupContent = JSON.stringify(data);
+            const backup = await gas('saveBackup', { periodId: p.id, fileName: `SKN_Backup_Term${p.semester}_${p.academic_year}_${new Date().toISOString().replace(/[:.]/g, '-')}.json`, content: backupContent });
+            await verifyBackupFile(backupContent, backup);
             await result(db.from('backup_logs').insert({ period_id: p.id, period_code: p.period_code || `${p.academic_year}-${p.semester}`, file_id: backup.id, name: backup.name }));
             const opts = { p_source: p.id, p_year: Number(o.newYear), p_sem: Number(o.newSemester), p_teachers: o.copyTeachers === true, p_students: o.copyStudents === true, p_clubs: o.copyClubs === true, p_regs: o.copyRegistrations === true, p_att: o.copyAttendance === true, p_reports: o.copyReports === true };
             const newId = await result(db.rpc('skn_create_period', opts));
