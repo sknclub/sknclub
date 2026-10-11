@@ -1288,6 +1288,7 @@
     .skn-sig-restore{font-size:10px;max-width:100%;}
     @media print {.skn-remove-signature,.skn-sig-restore{display:none!important;}}
     .skn-report-image-loading{font-size:12px;color:#475569;}
+    .skn-library-preview{height:94px;padding:10px;}
 
   @media print {.skn-signature-space {cursor:default;}}
     /* V3.4 - spacious attendance grid (20 sessions and fixed name columns) */
@@ -1307,6 +1308,7 @@
   <div id="app" v-cloak>
     <input class="d-none" type="file" ref="signatureInput" accept="image/png,image/jpeg,image/webp" @change="onSignatureFile">
     <input class="d-none" type="file" ref="adminSignatureInput" accept="image/png,image/jpeg,image/webp" @change="onAdminSignatureFile">
+    <input class="d-none" type="file" ref="signatureLibraryInput" accept="image/png,image/jpeg,image/webp" @change="onSignatureLibraryFile">
 
     <div v-if="!isLoggedIn" class="d-flex align-items-center justify-content-center min-vh-100 p-3 no-print"
       style="background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);">
@@ -1615,7 +1617,7 @@
             <button class="btn btn-white border btn-fast shadow-sm" @click="goToManageUsers">
               <i class="fas fa-users-cog me-1 text-warning"></i> จัดการผู้ใช้
             </button>
-            <button class="btn btn-white border btn-fast shadow-sm" @click="view = 'admin_settings'; loadDriveFolderInfo()">
+            <button class="btn btn-white border btn-fast shadow-sm" @click="view = 'admin_settings'; loadDriveFolderInfo(); loadSignatureLibrary()">
                <i class="fas fa-cogs me-1 text-danger"></i> ตั้งค่าระบบขั้นสูง
             </button>
           </template>
@@ -2033,6 +2035,45 @@
               <input type="text" v-model="adminSettings.sigHeadClub" class="form-control form-fast">
             </div>
           </div>
+        </div>
+      </div>
+
+      <!-- V5.8: centrally-managed signatures, independent of semester and report media. -->
+      <div class="col-12">
+        <div class="card-clean p-4 bg-white border-0 shadow-sm">
+          <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+            <h6 class="fw-bold m-0 text-primary"><i class="fas fa-signature me-2"></i>คลังลายเซ็นส่วนกลางสำหรับ Admin</h6>
+            <button type="button" class="btn btn-sm btn-outline-primary" @click="loadSignatureLibrary" :disabled="signatureLibraryWorking">
+              <i class="fas fa-sync-alt me-1"></i>โหลดข้อมูลคลัง
+            </button>
+          </div>
+          <p class="small text-muted mb-3">บันทึกลายเซ็นผู้บริหารไว้ใช้ข้ามภาคเรียนได้ ต้องได้รับอนุญาตจากเจ้าของลายเซ็นก่อนเปิดใช้ และ Admin ต้องเลือกรายงานที่จะใช้ลายเซ็นแต่ละครั้ง ไม่มีการลงนามทุกฉบับอัตโนมัติ</p>
+          <div class="row g-3">
+            <div v-for="item in signatureLibrarySlots" :key="item.slot" class="col-md-6 col-xl-3">
+              <div class="border rounded-3 p-3 h-100 d-flex flex-column gap-2">
+                <div class="fw-bold">{{item.title}}</div>
+                <label class="small text-muted" :for="'skn-lib-name-'+item.slot">ชื่อเจ้าของลายเซ็น</label>
+                <input :id="'skn-lib-name-'+item.slot" type="text" v-model.trim="signatureLibraryDraftNames[item.slot]" class="form-control form-control-sm" maxlength="160" :disabled="signatureLibraryWorking" placeholder="ชื่อและนามสกุล">
+                <div class="skn-library-preview border rounded bg-light d-flex align-items-center justify-content-center">
+                  <img v-if="signatureLibraryImages[item.slot]" :src="signatureLibraryImages[item.slot]" :alt="'ลายเซ็น '+item.title" style="max-height:70px;max-width:100%;object-fit:contain">
+                  <span v-else class="text-muted small">ยังไม่มีภาพลายเซ็น</span>
+                </div>
+                <div v-if="signatureLibraryRecords[item.slot]" class="small">
+                  <span :class="signatureLibraryRecords[item.slot].is_enabled?'text-success':'text-secondary'" class="fw-bold">
+                    {{signatureLibraryRecords[item.slot].is_enabled?'อนุญาตให้ใช้งาน':'ยังไม่อนุญาต'}}
+                  </span>
+                  <span class="d-block text-muted" v-if="signatureLibraryRecords[item.slot].approved_at">อนุญาตเมื่อ {{new Date(signatureLibraryRecords[item.slot].approved_at).toLocaleDateString('th-TH')}}</span>
+                </div>
+                <div class="d-flex flex-wrap gap-1 mt-auto">
+                  <button type="button" class="btn btn-sm btn-outline-primary" @click="chooseSignatureLibraryFile(item.slot)" :disabled="signatureLibraryWorking">อัปโหลด/เปลี่ยน</button>
+                  <button v-if="signatureLibraryRecords[item.slot] && !signatureLibraryRecords[item.slot].is_enabled" type="button" class="btn btn-sm btn-success" @click="setSignatureLibraryApproval(item.slot,true)" :disabled="signatureLibraryWorking">อนุญาตใช้</button>
+                  <button v-if="signatureLibraryRecords[item.slot]?.is_enabled" type="button" class="btn btn-sm btn-warning" @click="setSignatureLibraryApproval(item.slot,false)" :disabled="signatureLibraryWorking">ปิดใช้งาน</button>
+                  <button v-if="signatureLibraryRecords[item.slot] && !signatureLibraryRecords[item.slot].is_enabled" type="button" class="btn btn-sm btn-outline-danger" @click="archiveSignatureLibrary(item.slot)" :disabled="signatureLibraryWorking">นำออก</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="form-text mt-3">ไฟล์ต้นฉบับจัดเก็บใน Drive ส่วนกลาง ไม่เปิดให้ครูอ่านไฟล์คลังโดยตรง เมื่อ Admin ยืนยันใช้ในรายงาน ระบบจะบันทึกสำเนาลายเซ็นของรายงานนั้นเองและบันทึกประวัติการใช้</div>
         </div>
       </div>
 
@@ -2511,6 +2552,11 @@
                   <span v-if="loading" class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
                   {{ loading ? 'กำลังบันทึก...' : 'บันทึกรายงานลงระบบ' }}
                 </button>
+                  <button v-if="user?.role==='admin'" @click="applySignatureLibraryToReport"
+                          class="btn btn-outline-primary btn-fast shadow-sm px-3"
+                          :disabled="loading || signatureLibraryWorking || !currentClubId" title="เลือกใช้ลายเซ็นส่วนกลางที่อนุญาตแล้วเฉพาะรายงานนี้">
+                    <i class="fas fa-signature me-1"></i>ใช้ลายเซ็นจากคลัง
+                  </button>
                   <button @click="downloadWordReport" class="btn btn-primary btn-fast shadow-sm px-4">
                       <i class="fas fa-file-word me-2"></i>ดาวน์โหลด Word
                   </button>
@@ -2672,7 +2718,7 @@
                         <div class="skn-signature-line"></div>
                         <button v-if="reportData.signatures?.['sigHeadClub'] === '__DELETE__'" class="btn btn-link text-warning skn-sig-restore no-print" type="button" @click="restoreSignature('sigHeadClub')">ยกเลิกการลบลายเซ็น</button>
                       </div>
-                      <span class="small fw-bold skn-signatory-name">( {{ adminSettings.sigHeadClub }} )</span><br>
+                      <span class="small fw-bold skn-signatory-name">( {{ signer('sigHeadClub') }} )</span><br>
                       <span style="font-size: 9pt;">หัวหน้างานกิจกรรมชุมนุม</span>
                     </div>
                   </div>
@@ -2687,7 +2733,7 @@
                         <div class="skn-signature-line"></div>
                         <button v-if="reportData.signatures?.['sigHeadDev'] === '__DELETE__'" class="btn btn-link text-warning skn-sig-restore no-print" type="button" @click="restoreSignature('sigHeadDev')">ยกเลิกการลบลายเซ็น</button>
                       </div>
-                      <span class="small fw-bold skn-signatory-name">( {{ adminSettings.sigHeadDev }} )</span><br>
+                      <span class="small fw-bold skn-signatory-name">( {{ signer('sigHeadDev') }} )</span><br>
                       <span style="font-size: 9pt;">หัวหน้ากิจกรรมพัฒนาผู้เรียน</span>
                     </div>
                     <div class="col-6">
@@ -2699,7 +2745,7 @@
                         <div class="skn-signature-line"></div>
                         <button v-if="reportData.signatures?.['sigDeputy'] === '__DELETE__'" class="btn btn-link text-warning skn-sig-restore no-print" type="button" @click="restoreSignature('sigDeputy')">ยกเลิกการลบลายเซ็น</button>
                       </div>
-                      <span class="small fw-bold skn-signatory-name">( {{ adminSettings.sigDeputy }} )</span><br>
+                      <span class="small fw-bold skn-signatory-name">( {{ signer('sigDeputy') }} )</span><br>
                       <span style="font-size: 9pt;">รองผู้อำนวยการกลุ่มบริหารงานวิชาการ</span>
                     </div>
                   </div>
@@ -2716,7 +2762,7 @@
                       <div class="skn-signature-line"></div>
                       <button v-if="reportData.signatures?.['sigDirector'] === '__DELETE__'" class="btn btn-link text-warning skn-sig-restore no-print" type="button" @click="restoreSignature('sigDirector')">ยกเลิกการลบลายเซ็น</button>
                     </div>
-                    <div class="fw-bold skn-signatory-name">( {{ adminSettings.sigDirector }} )</div>
+                    <div class="fw-bold skn-signatory-name">( {{ signer('sigDirector') }} )</div>
                     <div style="font-size: 9pt;">ผู้อำนวยการ{{ adminSettings.schoolName }}</div>
                   </div>
                 </div>
@@ -3349,6 +3395,17 @@ data() {
     signatureSlot: '',
     adminSignatureSlot: '',
     adminReportSignatures: {},
+    signatureLibrarySlots: [
+      {slot:'sigHeadClub',title:'หัวหน้างานกิจกรรมชุมนุม'},
+      {slot:'sigHeadDev',title:'หัวหน้ากิจกรรมพัฒนาผู้เรียน'},
+      {slot:'sigDeputy',title:'รองผู้อำนวยการ'},
+      {slot:'sigDirector',title:'ผู้อำนวยการ'}
+    ],
+    signatureLibraryRecords: {},
+    signatureLibraryImages: {},
+    signatureLibraryDraftNames: {},
+    signatureLibraryUploadSlot: '',
+    signatureLibraryWorking: false,
     manageRole: 'student', 
     usersList: [], 
     searchClubQuery: '',
@@ -3384,6 +3441,7 @@ data() {
       committees: ['','','','',''],
       activities: Array(20).fill(''),
       remark: 'ไม่มี',
+      signedNames: {}, // names travel with each signed report, not only the current Admin settings
       caption: 'บรรยากาศการเรียนการสอนและการทำกิจกรรมร่วมกันของนักเรียน'
     },
 
@@ -5376,6 +5434,155 @@ downloadCSVTemplate() {
           } catch(err) {
             Swal.fire('เลือกรูปไม่ได้',err.message||String(err),'error');
           } finally {event.target.value='';}
+        },
+
+        signer(slot){
+          return this.reportActData?.signedNames?.[slot] || this.adminSettings?.[slot] || '';
+        },
+        // V5.8: Admin-only cross-term signature vault. A vault upload is NEVER
+        // equivalent to approving any report, and teachers cannot read the vault.
+        async loadSignatureLibrary() {
+          if(this.user?.role!=='admin'||!this.activePeriodId)return;
+          this.signatureLibraryWorking=true;
+          try {
+            const rows=await window.SKNBridge.invoke('getSignatureLibrary',[]);
+            const records=Object.fromEntries((rows||[]).map(r=>[r.slot,r]));
+            this.signatureLibraryRecords=records;
+            const drafts={...this.signatureLibraryDraftNames};
+            for(const entry of this.signatureLibrarySlots){
+              drafts[entry.slot]=records[entry.slot]?.signer_name || drafts[entry.slot] || this.adminSettings[entry.slot] || '';
+            }
+            this.signatureLibraryDraftNames=drafts;
+            const images={};
+            for(const entry of this.signatureLibrarySlots){
+              const file=records[entry.slot];
+              if(!file?.file_id)continue;
+              try{
+                const response=await window.SKNFile.invoke('getSignatureLibraryFile',{
+                  periodId:this.activePeriodId,clubId:'ADMIN-REPORT',slot:entry.slot,fileId:file.file_id
+                });
+                if(response?.src?.startsWith('data:image/'))images[entry.slot]=response.src;
+              }catch(e){console.warn('SKN signature library preview:',entry.slot,String(e.message||e));}
+            }
+            this.signatureLibraryImages=images;
+          }catch(err){Swal.fire('เปิดคลังลายเซ็นไม่สำเร็จ',String(err?.message||err),'error');}
+          finally{this.signatureLibraryWorking=false;}
+        },
+        chooseSignatureLibraryFile(slot){
+          if(this.user?.role!=='admin'||this.signatureLibraryWorking)return;
+          this.signatureLibraryUploadSlot=slot;
+          this.$refs.signatureLibraryInput.value='';
+          this.$refs.signatureLibraryInput.click();
+        },
+        async onSignatureLibraryFile(event){
+          const file=event.target.files?.[0];
+          const slot=this.signatureLibraryUploadSlot;
+          event.target.value='';
+          if(!file||this.user?.role!=='admin'||this.signatureLibraryWorking)return;
+          const signerName=String(this.signatureLibraryDraftNames[slot]||'').trim();
+          if(signerName.length<2)return Swal.fire('ระบุชื่อเจ้าของลายเซ็น','กรุณากรอกชื่อ–นามสกุลก่อนอัปโหลด','warning');
+          this.signatureLibraryWorking=true;
+          try{
+            const src=await this.readOriginalImage(file,3);
+            const saved=await window.SKNFile.invoke('saveSignatureLibraryFile',{
+              periodId:this.activePeriodId,clubId:'ADMIN-REPORT',slot,mime:file.type,
+              base64:src.split(',')[1]
+            });
+            if(!saved?.id)throw Error('Google Drive ไม่ยืนยัน File ID');
+            const row=await window.SKNBridge.invoke('upsertSignatureLibrary',[{
+              slot,signerName,fileId:saved.id,fileUrl:saved.url||''
+            }]);
+            this.signatureLibraryRecords={...this.signatureLibraryRecords,[slot]:row};
+            this.signatureLibraryImages={...this.signatureLibraryImages,[slot]:src};
+            Swal.fire('บันทึกลงคลังแล้ว','ภาพใหม่ยังไม่เปิดใช้ ต้องตรวจสอบสิทธิ์เจ้าของลายเซ็นและกด “อนุญาตใช้” ก่อน','success');
+          }catch(err){Swal.fire('บันทึกคลังลายเซ็นไม่สำเร็จ',String(err?.message||err),'error');}
+          finally{this.signatureLibraryWorking=false;}
+        },
+        async setSignatureLibraryApproval(slot,enabled){
+          if(this.user?.role!=='admin'||this.signatureLibraryWorking)return;
+          let note='';
+          if(enabled){
+            const answer=await Swal.fire({title:'ยืนยันการอนุญาตใช้ลายเซ็น',
+              text:'โปรดตรวจสอบว่าได้รับความยินยอมจากเจ้าของลายเซ็นแล้ว การเปิดใช้คลังไม่ใช่การอนุมัติรายงานทุกฉบับ',
+              input:'text',inputLabel:'หลักฐาน/หนังสืออนุญาต/ชื่อผู้ให้อนุญาต',
+              inputPlaceholder:'เช่น ได้รับอนุญาตตามบันทึกข้อความ...',showCancelButton:true,
+              confirmButtonText:'บันทึกการอนุญาต',cancelButtonText:'ยกเลิก',
+              inputValidator:value=>String(value||'').trim().length<5?'กรุณาระบุหลักฐานการอนุญาต':undefined});
+            if(!answer.isConfirmed)return;
+            note=String(answer.value||'').trim();
+          }else{
+            const answer=await Swal.fire({title:'ปิดใช้ลายเซ็นนี้?',text:'จะไม่สามารถนำไปลงรายงานใหม่ แต่รายงานที่ลงนามไว้แล้วไม่ถูกแก้ไข',
+              icon:'warning',showCancelButton:true,confirmButtonText:'ปิดใช้งาน',cancelButtonText:'ยกเลิก'});
+            if(!answer.isConfirmed)return;
+          }
+          this.signatureLibraryWorking=true;
+          try{
+            const row=await window.SKNBridge.invoke('setSignatureLibraryApproval',[slot,enabled,note]);
+            this.signatureLibraryRecords={...this.signatureLibraryRecords,[slot]:row};
+            Swal.fire({toast:true,position:'top-end',icon:'success',title:enabled?'อนุญาตให้ใช้ลายเซ็นแล้ว':'ปิดใช้ลายเซ็นแล้ว',timer:2000,showConfirmButton:false});
+          }catch(err){Swal.fire('เปลี่ยนสถานะไม่ได้',String(err?.message||err),'error');}
+          finally{this.signatureLibraryWorking=false;}
+        },
+        async archiveSignatureLibrary(slot){
+          if(this.user?.role!=='admin'||this.signatureLibraryWorking)return;
+          const confirm=await Swal.fire({title:'นำลายเซ็นออกจากคลัง?',
+            text:'จะเก็บไฟล์ต้นฉบับไว้ใน Drive เพื่อใช้ตรวจสอบย้อนหลัง แต่จะไม่สามารถนำลงรายงานใหม่',
+            icon:'warning',showCancelButton:true,confirmButtonText:'นำออกจากคลัง',cancelButtonText:'ยกเลิก'});
+          if(!confirm.isConfirmed)return;
+          this.signatureLibraryWorking=true;
+          try{
+            await window.SKNBridge.invoke('archiveSignatureLibrary',[slot]);
+            const records={...this.signatureLibraryRecords};delete records[slot];this.signatureLibraryRecords=records;
+            const images={...this.signatureLibraryImages};delete images[slot];this.signatureLibraryImages=images;
+            Swal.fire({toast:true,position:'top-end',icon:'success',title:'นำออกจากคลังแล้ว',timer:1800,showConfirmButton:false});
+          }catch(err){Swal.fire('นำออกไม่ได้',String(err?.message||err),'error');}
+          finally{this.signatureLibraryWorking=false;}
+        },
+        async applySignatureLibraryToReport(){
+          if(this.user?.role!=='admin'||this.signatureLibraryWorking||!this.currentClubId)return;
+          const clubId=this.currentClubId,periodId=this.activePeriodId;
+          this.signatureLibraryWorking=true;
+          let prepared=[];
+          try{
+            const rows=await window.SKNBridge.invoke('getSignatureLibrary',[]);
+            const enabled=(rows||[]).filter(row=>row.is_enabled===true && row.file_id &&
+              ['sigHeadClub','sigHeadDev','sigDeputy','sigDirector'].includes(row.slot));
+            if(!enabled.length){Swal.fire('ยังไม่มีลายเซ็นพร้อมใช้งาน','ให้ Admin อัปโหลดและอนุญาตใช้ในคลังลายเซ็นก่อน','info');return;}
+            const answer=await Swal.fire({title:'ใช้ลายเซ็นส่วนกลางกับรายงานนี้?',
+              html:'จะนำลายเซ็นที่ได้รับอนุญาต '+enabled.length+' ตำแหน่ง ลงรายงาน <b>'+String(this.currentClubName||'').replace(/</g,'&lt;')+'</b> และบันทึกสำเนาใน Drive พร้อมประวัติการใช้ <br><strong>การดำเนินการนี้ไม่ใช่การอนุมัติรายงานโดยอัตโนมัติจากเจ้าของลายเซ็น</strong>',
+              icon:'question',showCancelButton:true,confirmButtonText:'ยืนยันใช้กับรายงานนี้',cancelButtonText:'ยกเลิก'});
+            if(!answer.isConfirmed)return;
+            for(const row of enabled){
+              const result=await window.SKNFile.invoke('getSignatureLibraryFile',{
+                periodId,clubId:'ADMIN-REPORT',slot:row.slot,fileId:row.file_id
+              });
+              if(!result?.src?.startsWith('data:image/'))throw Error('โหลดภาพจากคลังไม่ได้: '+row.slot);
+              prepared.push({slot:row.slot,sourceId:row.file_id,src:result.src});
+            }
+            if(this.currentClubId!==clubId||this.activePeriodId!==periodId)throw Error('ข้อมูลรายงานเปลี่ยน กรุณาลองใหม่');
+            const originals={...this.reportData.signatures};
+            const originalNames={...(this.reportActData.signedNames||{})};
+            const newNames={...originalNames};
+            for(const row of enabled)newNames[row.slot]=row.signer_name;
+            this.reportActData.signedNames=newNames;
+            this.reportData.signatures={...originals,...Object.fromEntries(prepared.map(x=>[x.slot,x.src]))};
+            try{
+              clearTimeout(this._reportSaveTimer);
+              await this.queueReportSave();
+            }catch(saveErr){
+              this.reportData.signatures=originals;
+              this.reportActData.signedNames=originalNames;
+              throw saveErr;
+            }
+            const sources=Object.fromEntries(prepared.map(x=>[x.slot,x.sourceId]));
+            try{await window.SKNBridge.invoke('recordSignatureLibraryUse',[clubId,sources]);}
+            catch(auditErr){
+              console.error('Signature audit pending:',auditErr);
+              throw Error('บันทึกรายงานแล้ว แต่บันทึกประวัติการใช้ลายเซ็นไม่สำเร็จ: '+String(auditErr.message||auditErr));
+            }
+            Swal.fire('ใช้ลายเซ็นเรียบร้อย','ระบบบันทึกสำเนาลายเซ็นในรายงานนี้และประวัติการใช้แล้ว','success');
+          }catch(err){Swal.fire('ใช้ลายเซ็นจากคลังไม่สำเร็จ',String(err?.message||err),'error');}
+          finally{this.signatureLibraryWorking=false;}
         },
 
         chooseAdminSignature(slot) {
