@@ -652,54 +652,44 @@
       margin-bottom: 9px !important;
       text-align: center !important;
     }
-    #skn-pdf-capture-root .skn-pdf-cover .skn-cover-summary-stats.row {
+    /* V5.7.3: PDF email export — two equal columns, bold black labels and sharp text. */
+    #skn-pdf-capture-root .skn-pdf-cover .skn-cover-summary-panel {
+      background: #fff !important;
+    }
+    #skn-pdf-capture-root .skn-pdf-cover .skn-cover-summary-stats.skn-summary-grid {
       display: grid !important;
-      grid-template-columns: repeat(2,minmax(250px, 1fr)) !important;
-      align-items: start !important;
-      justify-items: center !important;
-      column-gap: 14px !important;
-      row-gap: 8px !important;
-      width: 92% !important;
-      max-width: 92% !important;
-      margin: 0 auto !important;
-    }
-    #skn-pdf-capture-root .skn-pdf-cover .skn-cover-summary-stats.row > div {
-      font-size: 14pt !important;
-      font-weight: 600 !important;
+      grid-template-columns: repeat(2,minmax(0,1fr)) !important;
+      column-gap: 16px !important;
       width: 100% !important;
-      max-width: none !important;
-      flex: none !important;
-      padding: 0 !important;
-      text-align: left !important;
-      line-height: 1.42 !important;
+      max-width: 590px !important;
+      margin: 0 auto !important;
+      padding: 0 5px !important;
+      align-items: start !important;
+      justify-items: stretch !important;
     }
-    #skn-pdf-capture-root .skn-pdf-cover .skn-cover-summary-stats.row > div b {
+    #skn-pdf-capture-root .skn-pdf-cover .skn-cover-summary-stats.skn-summary-grid .skn-cover-summary-line,
+    #skn-pdf-capture-root .skn-pdf-cover .skn-cover-summary-stats.skn-summary-grid .skn-cover-summary-line * {
+      color: #111 !important;
       font-size: 15pt !important;
       font-weight: 700 !important;
+      line-height: 1.5 !important;
+      text-shadow: none !important;
     }
-    #skn-pdf-capture-root .skn-pdf-cover .skn-cover-summary-col {
-      width: 100% !important;
-      max-width: 265px !important;
-      margin: 0 auto !important;
+    #skn-pdf-capture-root .skn-pdf-cover .skn-cover-summary-stats.skn-summary-grid .skn-cover-summary-value b {
+      font-size: 16pt !important;
+      font-weight: 700 !important;
     }
-    #skn-pdf-capture-root .skn-pdf-cover .skn-cover-summary-line {
-      display: grid !important;
-      grid-template-columns: minmax(0,1fr) 36px 28px !important;
+    #skn-pdf-capture-root .skn-pdf-cover .skn-cover-summary-stats.skn-summary-grid .skn-cover-summary-line {
+      display: flex !important;
       align-items: baseline !important;
-      column-gap: 10px !important;
-      margin: 5px 0 !important;
+      justify-content: flex-start !important;
+      gap: 4px !important;
       white-space: nowrap !important;
     }
-    #skn-pdf-capture-root .skn-pdf-cover .skn-cover-summary-label {
-      text-align: left !important;
-    }
-    #skn-pdf-capture-root .skn-pdf-cover .skn-cover-summary-value,
-    #skn-pdf-capture-root .skn-pdf-cover .skn-cover-summary-note {
-      text-align: center !important;
-      min-width: 36px !important;
-    }
-    #skn-pdf-capture-root .skn-pdf-cover .skn-cover-summary-unit {
-      text-align: left !important;
+    #skn-pdf-capture-root .skn-pdf-cover .skn-cover-summary-stats.skn-summary-grid .skn-cover-summary-col {
+      max-width: 100% !important;
+      width: max-content !important;
+      margin: 0 auto !important;
     }
     #skn-pdf-capture-root .skn-pdf-cover .signature-grid,
     #skn-pdf-capture-root .skn-pdf-cover .signature-grid * {
@@ -888,33 +878,74 @@
       gap: 2px;
     }
 
-    .skn-cover-summary-col {
+    /* V5.7.3: use one stable two-column grid across screen and browser print.
+       Avoid Bootstrap .row/.col-6, whose print rules can stack four items. */
+    .skn-cover-summary-stats.skn-summary-grid {
+      display: grid !important;
+      grid-template-columns: repeat(2,minmax(0,1fr)) !important;
+      column-gap: 16px;
       width: 100%;
-      max-width: 265px;
+      max-width: 590px;
       margin: 0 auto;
+      padding: 0 6px;
+      align-items: start;
+      justify-items: stretch;
+      box-sizing: border-box;
     }
-
-    .skn-cover-summary-line {
-      display: grid;
-      grid-template-columns: minmax(0,1fr) 36px 28px;
+    .skn-cover-summary-stats.skn-summary-grid .skn-cover-summary-col {
+      width: max-content;
+      min-width: 0;
+      max-width: 100%;
+      margin: 0 auto;
+      text-align: left;
+    }
+    .skn-cover-summary-stats.skn-summary-grid .skn-cover-summary-line {
+      display: flex !important;
       align-items: baseline;
-      column-gap: 10px;
-      margin: 5px 0;
+      justify-content: flex-start;
+      gap: 4px;
+      margin: 3px 0;
       white-space: nowrap;
+      line-height: 1.5;
+      font-size: 13pt;
+      color: #151515;
+      font-weight: 600;
     }
-
-    .skn-cover-summary-label {
+    .skn-cover-summary-stats.skn-summary-grid .skn-cover-summary-label {
       text-align: left;
     }
-
-    .skn-cover-summary-value,
-    .skn-cover-summary-note {
-      text-align: center;
-      min-width: 36px;
-    }
-
-    .skn-cover-summary-unit {
+    .skn-cover-summary-stats.skn-summary-grid .skn-cover-summary-value,
+    .skn-cover-summary-stats.skn-summary-grid .skn-cover-summary-note {
       text-align: left;
+      min-width: 0;
+      flex: 0 0 auto;
+    }
+    .skn-cover-summary-stats.skn-summary-grid .skn-cover-summary-unit {
+      text-align: left;
+    }
+    .skn-cover-summary-stats.skn-summary-grid .skn-cover-summary-value b {
+      font-weight: 700;
+    }
+    @media print {
+      .skn-cover-summary-panel .skn-cover-summary-stats.skn-summary-grid {
+        display: grid !important;
+        grid-template-columns: repeat(2,minmax(0,1fr)) !important;
+        width: 100% !important;
+        max-width: 590px !important;
+        break-inside: avoid !important;
+        page-break-inside: avoid !important;
+      }
+      .skn-cover-summary-panel .skn-cover-summary-col {
+        width: max-content !important;
+        max-width: 100% !important;
+        margin: 0 auto !important;
+      }
+      .skn-cover-summary-panel .skn-cover-summary-line {
+        display: flex !important;
+        align-items: baseline !important;
+        gap: 4px !important;
+        white-space: nowrap !important;
+      }
     }
 
     .skn-report-heading-safe {
@@ -2484,22 +2515,17 @@
 
             <div v-if="reportMediaErrors.length" class="alert alert-warning container-xl no-print d-flex flex-wrap justify-content-between align-items-center gap-2">
               <div class="flex-grow-1">
-                <div class="fw-bold"><i class="fas fa-image me-2"></i>มีรูปภาพจาก Drive โหลดไม่ครบ {{ reportMediaErrors.length }} รายการ (ไฟล์เดิมยังอยู่ใน Supabase)</div>
-                <details class="mt-2 small" style="max-width:850px;overflow-wrap:anywhere">
-                  <summary style="cursor:pointer">แสดงชื่อรูปและสาเหตุการโหลดไม่สำเร็จ</summary>
-                  <ul class="mb-0 mt-2 ps-3"><li v-for="(err,i) in reportMediaErrors" :key="'media_err_'+i">{{ err }}</li></ul>
-                  <div class="text-muted mt-1">ตรวจว่าไฟล์อยู่ในโฟลเดอร์ Drive หลักของ GAS และบัญชีที่ Deploy มีสิทธิ์อ่านไฟล์</div>
-                  <div v-if="Object.values(reportMediaRefs||{}).some(v=>v?.id)" class="mt-2 d-flex gap-2 flex-wrap">
-                    <a v-for="([slot,ref]) in Object.entries(reportMediaRefs||{}).filter(([_,v])=>v?.id)"
-                       :key="'drive_req_'+slot" :href="'https://drive.google.com/file/d/'+encodeURIComponent(ref.id)+'/view'"
-                       target="_blank" rel="noopener noreferrer" class="small">
-                      <i class="fas fa-external-link-alt me-1"></i>{{ slot }}: เปิด Drive / ขอสิทธิ์
-                    </a>
-                  </div>
-                </details>
+                <div class="fw-bold"><i class="fas fa-image me-2"></i>รูปภาพจาก Drive โหลดไม่ครบ {{ reportMediaErrors.length }} รายการ</div>
+                <div class="mt-1 small d-flex flex-wrap gap-2" v-if="reportDriveFileLinks().length || driveFolderInfo?.url">
+                  <a v-for="(link,index) in reportDriveFileLinks()" :key="'drive_file_'+link.id" :href="link.url"
+                     target="_blank" rel="noopener noreferrer">
+                    <i class="fas fa-external-link-alt me-1"></i>ตรวจสอบไฟล์ใน Drive{{reportDriveFileLinks().length>1?' '+(index+1):''}}
+                  </a>
+                  <a v-if="!reportDriveFileLinks().length && driveFolderInfo?.url" :href="driveFolderInfo.url"
+                     target="_blank" rel="noopener noreferrer"><i class="fas fa-folder-open me-1"></i>ตรวจสอบไฟล์ในโฟลเดอร์ Drive</a>
+                </div>
               </div>
               <button class="btn btn-sm btn-outline-dark" @click="reloadReportImages" :disabled="loading"><i class="fas fa-sync-alt me-1"></i>ลองโหลดภาพอีกครั้ง</button>
-              <button class="btn btn-sm btn-outline-primary" @click="checkDriveImageAccess" :disabled="loading"><i class="fas fa-shield-alt me-1"></i>ตรวจสอบสิทธิ์ Workspace</button>
             </div>
             <div class="a4-container cover-page page-break-after shadow-sm d-flex flex-column"
               style="padding: 1.5cm 1.5cm; height: 29.7cm; width: 21cm; box-sizing: border-box; background: white; margin: 0 auto; overflow: hidden;">
@@ -2567,35 +2593,31 @@
                   <h6 class="fw-bold text-center mb-3 text-decoration-underline skn-cover-summary-heading" style="font-size: 13pt;">
                     สรุปผลการประเมินกิจกรรม</h6>
 
-                  <div class="row g-2 justify-content-center skn-cover-summary-stats mx-auto" style="font-size: 12pt; width: 86%; max-width: 720px;">
-
-                    <div class="col-6 d-flex justify-content-center">
-                      <div class="skn-cover-summary-col text-start">
-                        <div class="skn-cover-summary-line">
-                          <span class="skn-cover-summary-label">นักเรียนทั้งหมด:</span>
-                          <span class="skn-cover-summary-value"><b>{{ attStudents.length }}</b></span>
-                          <span class="skn-cover-summary-unit">คน</span>
-                        </div>
-                        <div class="skn-cover-summary-line">
-                          <span class="skn-cover-summary-label">ไม่ผ่านการประเมิน:</span>
-                          <span class="skn-cover-summary-value"><b class="text-danger">{{ countFail() }}</b></span>
-                          <span class="skn-cover-summary-unit">คน</span>
-                        </div>
+                  <!-- V5.7.3: independent grid, not Bootstrap .row/.col-6.
+                       This must remain 2 columns in screen, print, and emailed PDF. -->
+                  <div class="skn-cover-summary-stats skn-summary-grid">
+                    <div class="skn-cover-summary-col">
+                      <div class="skn-cover-summary-line">
+                        <span class="skn-cover-summary-label">นักเรียนทั้งหมด:</span>
+                        <span class="skn-cover-summary-value"><b>{{ attStudents.length }}</b></span>
+                        <span class="skn-cover-summary-unit">คน</span>
+                      </div>
+                      <div class="skn-cover-summary-line">
+                        <span class="skn-cover-summary-label">ไม่ผ่านการประเมิน:</span>
+                        <span class="skn-cover-summary-value"><b class="text-danger">{{ countFail() }}</b></span>
+                        <span class="skn-cover-summary-unit">คน</span>
                       </div>
                     </div>
-
-                    <div class="col-6 d-flex justify-content-center">
-                      <div class="skn-cover-summary-col text-start">
-                        <div class="skn-cover-summary-line">
-                          <span class="skn-cover-summary-label">ผ่านการประเมิน:</span>
-                          <span class="skn-cover-summary-value"><b class="text-success">{{ countPass() }}</b></span>
-                          <span class="skn-cover-summary-unit">คน</span>
-                        </div>
-                        <div class="skn-cover-summary-line">
-                          <span class="skn-cover-summary-label">หมายเหตุ:</span>
-                          <span class="skn-cover-summary-note editable" :contenteditable="!archiveReadonly">ไม่มี</span>
-                          <span class="skn-cover-summary-unit"></span>
-                        </div>
+                    <div class="skn-cover-summary-col">
+                      <div class="skn-cover-summary-line">
+                        <span class="skn-cover-summary-label">ผ่านการประเมิน:</span>
+                        <span class="skn-cover-summary-value"><b class="text-success">{{ countPass() }}</b></span>
+                        <span class="skn-cover-summary-unit">คน</span>
+                      </div>
+                      <div class="skn-cover-summary-line">
+                        <span class="skn-cover-summary-label">หมายเหตุ:</span>
+                        <span class="skn-cover-summary-value skn-cover-summary-note editable" :contenteditable="!archiveReadonly">ไม่มี</span>
+                        <span class="skn-cover-summary-unit"></span>
                       </div>
                     </div>
                   </div>
@@ -4977,10 +4999,7 @@ refreshData(isSilent = false) {
                               console.groupCollapsed('SKN Drive: โหลดภาพไม่สำเร็จ '+savedData.mediaErrors.length+' รายการ');
                               savedData.mediaErrors.forEach((error,i)=>console.warn('ภาพที่ '+(i+1)+':',String(error)));
                               console.groupEnd();
-                              setTimeout(()=>Swal.fire({toast:true,position:'top-end',icon:'warning',
-                                title:'รายงานเปิดได้ แต่ภาพบางไฟล์ยังโหลดจาก Drive ไม่สำเร็จ',
-                                text:'คลิก “แสดงชื่อรูปและสาเหตุ” ใต้แถบแจ้งเตือน เพื่อดูข้อผิดพลาดที่แท้จริง',
-                                showConfirmButton:false,timer:6500}),450);
+                              // The concise inline banner is the only user-visible warning.
                             }
                         }
                         this.view = viewName;
@@ -5732,6 +5751,8 @@ downloadCSVTemplate() {
               const i=Number(slot.slice(-1));this.reportData.photos={...this.reportData.photos,[i]:src};
             } else this.reportData.signatures={...this.reportData.signatures,[slot]:src};
             this.reportOriginalSources={...this.reportOriginalSources,[slot]:src};
+            // A successful retry must clear stale diagnostics for this file.
+            this.reportMediaErrors=(this.reportMediaErrors||[]).filter(err=>!String(err).startsWith(slot+':'));
           };
           const work=async([slot,ref])=>{
             try{
@@ -5754,6 +5775,15 @@ downloadCSVTemplate() {
           this._reportImageLoadPromise=pending;
           await pending;
         },
+        // V5.7.4: generic Drive links for the failed files only; do not expose
+        // internal slot names or GAS diagnostic error messages in the banner.
+        reportDriveFileLinks() {
+          const refs=Object.entries(this.reportMediaRefs||{}).filter(([slot,ref])=>ref?.id);
+          const failed=new Set((this.reportMediaErrors||[]).map(err=>String(err).split(':')[0].trim()));
+          const matches=refs.filter(([slot])=>failed.has(slot));
+          const selected=matches.length ? matches : refs;
+          return selected.map(([slot,ref])=>({id:ref.id,url:'https://drive.google.com/file/d/'+encodeURIComponent(ref.id)+'/view'}));
+        },
         async reloadReportImages() {
           if(!this.currentClubId||this.loading)return;
           this.loading=true;
@@ -5768,14 +5798,14 @@ downloadCSVTemplate() {
             const sigs={...this.reportData.signatures};
             for(const [k,v] of Object.entries(d.signatures||{}))if(v&&!sigs[k])sigs[k]=v;
             this.reportData.signatures=sigs;
+            this.reportMediaRefs=d.mediaRefs||this.reportMediaRefs||{};
             this.reportMediaErrors=d.mediaErrors||[];
             await this.loadReportImagesProgressively(true);
-            this.reportMediaRefs=d.mediaRefs||{};
             this.reportOriginalSources={logo:this.reportData.logo};
             for(let i=1;i<=4;i++)this.reportOriginalSources['photo_'+i]=this.reportData.photos?.[i]||'';
             for(const [k,v] of Object.entries(this.reportData.signatures||{}))this.reportOriginalSources[k]=v;
-            if(this.reportMediaErrors.length)Swal.fire('ยังโหลดภาพไม่ครบ',this.reportMediaErrors.join('\n').slice(0,800),'warning');
-            else Swal.fire({toast:true,position:'top-end',icon:'success',title:'โหลดรูปภาพจาก Drive เรียบร้อยแล้ว',timer:1800,showConfirmButton:false});
+            // Failed files remain visible in the short banner with retry and Drive links.
+            if(!this.reportMediaErrors.length)Swal.fire({toast:true,position:'top-end',icon:'success',title:'โหลดรูปภาพจาก Drive เรียบร้อยแล้ว',timer:1800,showConfirmButton:false});
           }catch(err){Swal.fire('โหลดรูปภาพไม่สำเร็จ',err.message||String(err),'error');}
           finally{this.loading=false;}
         },
@@ -6092,7 +6122,8 @@ downloadCSVTemplate() {
               const hasPhotos=[...clone.querySelectorAll('img')].some(im=>{
                 const r=im.getBoundingClientRect();return r.width>110&&r.height>65;
               });
-              const encoding=(hasPhotos||renderScale<=2.0)?'JPEG':'PNG';
+              // Cover contains most of the official report text: keep it lossless even if it has a logo.
+              const encoding=clone.classList.contains('skn-pdf-cover')?'PNG':((hasPhotos||renderScale<=2.0)?'JPEG':'PNG');
               const image=encoding==='JPEG'?canvas.toDataURL('image/jpeg',jpegQuality):canvas.toDataURL('image/png');
               if(written>0)pdf.addPage();
               // Embed content without stretching; all four paper margins remain visible.
