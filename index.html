@@ -1348,8 +1348,7 @@
       .skn-term-header > h6 { flex:0 0 100%; }
       .skn-term-primary-actions { grid-template-columns:1fr; flex:1 1 100%; gap:10px; }
       .skn-term-primary-actions > .btn { min-height:45px; }
-      /* V5.9.3: original TOP toolbar, not a fixed mobile footer. */
-      .skn-report-home-back { display:none !important; }
+      /* V5.9.4: retain original top toolbar and visible round back arrow on mobile. */
       .skn-report-header { margin-bottom:8px !important; padding-top:8px !important; }
       .skn-mobile-report-actions {
         display:grid !important;
@@ -2665,12 +2664,9 @@
                           :title="config.allow_report_email==='false' && user?.role!=='admin'?'ปิดการส่งเมลสำหรับครู':'เลือกระบบสร้าง PDF หรือแนบ PDF เอง'">
                   <i class="fas fa-envelope me-2"></i>{{config.allow_report_email==='false' && user?.role!=='admin'?'ปิดส่งอีเมล':'ส่งอีเมล'}}
                 </button>
-                <button type="button" @click="view = 'dashboard'" class="btn btn-white border shadow-sm px-4">
-                  <i class="fas fa-home me-2"></i>กลับหน้าหลัก
-                </button>
               </div>
 
-              <!-- V5.9.3: mobile toolbar stays in the TOP report action area with original button colors. -->
+              <!-- V5.9.4: keep the original round back arrow visible on every screen; only five action buttons on mobile. -->
               <div class="skn-mobile-report-actions no-print d-md-none" role="toolbar" aria-label="เครื่องมือรายงานสำหรับมือถือ">
                 <button type="button" @click="saveCurrentReport" class="btn btn-success skn-writable" :disabled="loading || archiveReadonly" title="บันทึกรายงาน" aria-label="บันทึกรายงาน"><i class="fas fa-cloud-upload-alt"></i><span>บันทึก</span></button>
                 <button type="button" @click="downloadWordReport" class="btn btn-primary" title="ดาวน์โหลด Word" aria-label="ดาวน์โหลด Word"><i class="fas fa-file-word"></i><span>Word</span></button>
