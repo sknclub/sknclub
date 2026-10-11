@@ -1377,6 +1377,294 @@
     }
   </style>
   <link rel="stylesheet" href="theme.css">
+  <style id="skn-r3-responsive">
+/* SKN CLUBS — Responsive All Devices R3 (2026-10-11)
+   SCREEN ONLY. Does not affect @media print or independent PDF capture root.
+   Embedded after theme.css: works with a single index.html upload to GitHub.
+   Responsive UI is not an authorization or security boundary. */
+@media screen and (max-width: 1199.98px) {
+  html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+  html, body { min-width: 0; width: 100%; max-width: 100%; }
+  body { overflow-x: clip; }
+  #app, #app .skn-r3-shell, #app .skn-r3-main { min-width: 0; max-width: 100%; }
+  #app .skn-r3-shell {
+    height: auto !important;
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+  #app .skn-r3-nav {
+    height: auto !important;
+    min-height: 66px;
+    padding-block: 10px !important;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    position: relative;
+    z-index: 3;
+  }
+  #app .skn-r3-nav > .d-flex { min-width: 0; }
+  #app .skn-r3-nav .skn-term-picker { min-width: 0; max-width: 100%; }
+  #app .skn-r3-main {
+    flex: 1 1 auto !important;
+    height: auto !important;
+    min-height: 0;
+    width: 100%;
+    overflow: visible !important;
+  }
+  #app .skn-r3-main :is(.container, .container-xl, .container-fluid, .row) {
+    min-width: 0;
+  }
+  #app .skn-r3-main .row > [class*="col-"] { min-width: 0; }
+  #app .skn-r3-main :is(img, video) { max-width: 100%; }
+  #app .skn-r3-main .card-clean { min-width: 0; overflow-wrap: anywhere; }
+  #app .skn-r3-main .skn-r3-actions {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    width: 100%;
+    gap: 8px;
+    justify-content: flex-start !important;
+  }
+  #app .skn-r3-main .skn-r3-actions > .btn {
+    flex: 1 1 160px;
+    min-width: 0;
+    min-height: 44px;
+    height: auto;
+    white-space: normal;
+  }
+  #app .skn-r3-main :is(.table-responsive, .table-wrapper) {
+    max-width: 100%;
+    -webkit-overflow-scrolling: touch;
+    overflow-x: auto;
+  }
+  #app .skn-r3-main .skn-attendance-scroll { max-width: 100%; }
+  #app .skn-r3-main .d-flex.flex-wrap > .btn { white-space: normal; }
+  /* Fit report previews to tablets as well as phones; full-size A4 still prints. */
+  #app .skn-r3-main .a4-container {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0;
+    margin-inline: auto !important;
+    box-sizing: border-box !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+  #app .skn-r3-main .a4-container.cover-page {
+    height: auto !important;
+    min-height: 0 !important;
+    overflow-x: clip !important;
+    overflow-y: visible !important;
+  }
+  #app .skn-r3-main .a4-container.cover-page :is(.skn-cover-term,.skn-cover-term b,.skn-cover-club-name) {
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+}
+
+@media screen and (max-width: 767.98px) {
+  #app .skn-r3-login {
+    width: 100%;
+    max-width: 100%;
+    min-height: 100vh !important;
+    min-height: 100svh !important;
+    box-sizing: border-box;
+    padding: 16px 12px !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+  #app .skn-r3-login-card {
+    width: 100% !important;
+    max-width: 440px !important;
+    margin-inline: auto !important;
+    box-sizing: border-box;
+    padding: 22px 18px !important;
+    border-radius: 16px !important;
+  }
+  #app .skn-r3-login-card img {
+    width: auto !important;
+    height: auto !important;
+    max-width: 100% !important;
+    max-height: 112px;
+    object-fit: contain;
+  }
+  #app .skn-r3-login-card h3 { font-size: clamp(1.25rem, 5.3vw, 1.65rem); }
+  #app .skn-r3-login-card :is(input.form-control, select.form-select) {
+    min-height: 46px;
+    width: 100%;
+    font-size: 16px !important; /* prevents unintended iOS zoom on focus */
+  }
+  #app .skn-r3-login-card > .btn { min-height: 46px; font-size: 16px; }
+  #app .skn-r3-login-card small { overflow-wrap: anywhere; }
+
+  #app .skn-r3-nav {
+    padding: 9px 12px !important;
+    gap: 7px 10px;
+    align-items: center !important;
+    justify-content: space-between !important;
+  }
+  #app .skn-r3-nav > .d-flex:first-child {
+    flex: 0 1 auto;
+    min-width: 0;
+    gap: 6px !important;
+  }
+  #app .skn-r3-nav > .d-flex:first-child > span {
+    font-size: clamp(15px, 3.8vw, 19px);
+    white-space: nowrap;
+  }
+  #app .skn-r3-nav > .d-flex:last-child {
+    flex: 1 1 auto;
+    min-width: 0;
+    justify-content: flex-end !important;
+    flex-wrap: wrap;
+    gap: 6px !important;
+  }
+  #app .skn-r3-nav .skn-term-picker { width: min(43vw, 160px); font-size: 13px; }
+  #app .skn-r3-nav .btn { min-width: 40px; min-height: 40px; }
+  #app .skn-r3-nav .btn.rounded-pill { padding-inline: 12px !important; }
+  #app .skn-r3-main { padding: 12px !important; }
+  #app .skn-r3-main h2 { font-size: clamp(1.35rem, 5.8vw, 1.9rem); }
+  #app .skn-r3-main h3 { font-size: clamp(1.24rem, 5vw, 1.65rem); }
+  #app .skn-r3-main h4 { font-size: clamp(1.08rem, 4.8vw, 1.35rem); }
+  #app .skn-r3-main .skn-r3-actions > .btn { flex: 1 1 calc(50% - 8px); }
+  #app .skn-r3-main :is(input.form-control, textarea.form-control, select.form-select) {
+    max-width: 100%;
+    font-size: 16px !important;
+  }
+  #app .skn-r3-main .input-group { min-width: 0; }
+  #app .skn-r3-main .input-group > .form-control,
+  #app .skn-r3-main .input-group > .form-select { min-width: 0; }
+  #app .skn-r3-main .skn-r3-admin .row.g-3 > .col-6 { width: 100%; max-width: 100%; flex: 0 0 100%; }
+  #app .skn-r3-main .skn-r3-admin .row.g-2 > .col-3 { width: 50%; max-width: 50%; flex: 0 0 50%; }
+  #app .skn-r3-main .skn-r3-admin .card-clean > .d-flex.justify-content-between { flex-wrap: wrap; gap: 10px; }
+  #app .skn-r3-main .skn-r3-admin .card-clean > .d-flex.justify-content-between > .d-flex { flex-wrap: wrap; gap: 6px !important; }
+  #app .skn-r3-main .skn-r3-admin input[type="date"] { min-width: 0; width: 100%; }
+  #app .skn-r3-main .skn-r3-admin .row.g-2 .input-group { flex-wrap: nowrap; }
+  #app .skn-r3-main .skn-r3-admin .row.g-2 .input-group input[type="date"] { font-size: 13px !important; }
+  #app .skn-r3-main .skn-r3-admin .d-flex.gap-2.mb-2.align-items-center { flex-wrap: wrap; }
+  #app .skn-r3-main .skn-r3-admin .d-flex.gap-2.mb-2.align-items-center input[type="text"] { flex: 1 1 120px; }
+  #app .skn-r3-main :is(.skn-r3-users, .skn-r3-lookup) > .d-flex,
+  #app .skn-r3-main .skn-r3-lookup > .mb-4.d-flex { flex-wrap: wrap; gap: 10px; }
+  #app .skn-r3-main .skn-r3-users > .d-flex > .d-flex { flex-wrap: wrap; min-width: 0; }
+  #app .skn-r3-main .skn-r3-users .table-responsive table,
+  #app .skn-r3-main .skn-r3-lookup .table-responsive table { min-width: 600px; }
+
+  /* Transform clubs table into readable cards on phones instead of desktop-size columns. */
+  #app .skn-r3-club-list,
+  #app .skn-r3-club-list .table-responsive { max-width: 100%; overflow: visible !important; }
+  #app .skn-r3-club-list table,
+  #app .skn-r3-club-list tbody { display: block; width: 100%; min-width: 0 !important; }
+  #app .skn-r3-club-list thead { display: none; }
+  #app .skn-r3-club-list tbody tr {
+    display: block;
+    width: 100%;
+    margin-bottom: 10px;
+    padding: 7px 0;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 10px;
+    background: white;
+  }
+  #app .skn-r3-club-list tbody td {
+    display: block;
+    width: 100%;
+    border: 0 !important;
+    padding: 7px 12px !important;
+    text-align: left !important;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  #app .skn-r3-club-list tbody td:nth-child(2)::before {
+    content: 'จำนวนสมาชิก';
+    display: block;
+    margin-bottom: 5px;
+    color: #64748b;
+    font-weight: 600;
+    font-size: 12px;
+  }
+  #app .skn-r3-club-list tbody td:last-child .d-flex { justify-content: flex-start !important; }
+  #app .skn-r3-club-list tbody td:last-child .btn {
+    flex: 1 1 calc(50% - 8px);
+    width: auto !important;
+    min-width: 0 !important;
+    min-height: 42px;
+    white-space: normal;
+  }
+  #app .skn-r3-club-list .progress { max-width: 100%; }
+  #app .skn-r3-main .skn-attendance-layout { height: auto !important; min-height: 0; }
+  #app .skn-r3-main .skn-attendance-layout > .d-flex:first-child { flex-wrap: wrap; align-items: flex-start !important; gap: 12px; }
+  #app .skn-r3-main .skn-attendance-layout > .d-flex:first-child > .d-flex { flex-wrap: wrap; gap: 8px !important; }
+  #app .skn-r3-main .skn-attendance-scroll {
+    position: relative;
+    height: min(68dvh, 650px);
+    min-height: 360px !important;
+    width: 100%;
+    overflow: hidden !important;
+  }
+  #app .skn-r3-main .skn-attendance-scroll table { min-width: 1400px; }
+  #app .skn-r3-main .skn-attendance-scroll :is(.form-control, .form-select) { font-size: 12px !important; }
+
+  /* Mobile report editor; isolated from independent #skn-pdf-capture-root. */
+  #app .skn-r3-main .skn-report-header { flex-wrap: wrap; gap: 8px; }
+  #app .skn-r3-main .skn-mobile-report-actions { min-width: 0; }
+  #app .skn-r3-main .skn-mobile-report-actions .btn { min-width: 0; }
+  #app .skn-r3-main .a4-container {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0;
+    min-height: 0 !important;
+    height: auto !important;
+    padding: 12px !important;
+    margin: 0 auto 14px !important;
+    box-sizing: border-box !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+  #app .skn-r3-main .a4-container.cover-page {
+    overflow-x: clip !important;
+    overflow-y: visible !important; /* no mobile horizontal overscroll */
+    display: flex !important;
+    flex-direction: column;
+  }
+  #app .skn-r3-main .a4-container .photo-grid { grid-template-columns: minmax(0, 1fr); }
+  #app .skn-r3-main .a4-container .photo-slot { height: 200px; }
+  #app .skn-r3-main .a4-container .table-report { min-width: 510px; }
+  #app .skn-r3-main .a4-container .skn-attendance-report-table { min-width: 820px; }
+  #app .skn-r3-main .a4-container .signature-grid { padding-inline: 0 !important; }
+  #app .skn-r3-main .a4-container .skn-signature-holder { max-width: 100%; width: 100%; }
+  #app .skn-r3-main .a4-container .skn-signature-space { max-width: 100%; width: 100%; }
+  #app .skn-r3-main .a4-container .skn-cover-club-name { font-size: clamp(1.35rem, 6vw, 1.85rem) !important; }
+  #app .skn-r3-main .a4-container .skn-cover-summary-panel { max-width: 100%; width: 100% !important; }
+  #app .skn-r3-main .a4-container .skn-cover-summary-stats.skn-summary-grid {
+    width: 100% !important;
+    padding: 0 !important;
+    gap: 6px;
+    grid-template-columns: minmax(0,1fr) !important;
+  }
+  #app .skn-r3-main .a4-container .skn-cover-summary-col { width: 100%; max-width: 100%; }
+  #app .skn-r3-main .a4-container .skn-cover-summary-line { white-space: normal; flex-wrap: wrap; font-size: 12pt; }
+  #app .skn-r3-main .a4-container .skn-objective-row { min-width: 0; }
+  #app .skn-r3-main .a4-container .skn-objective-input { min-width: 0; }
+  #app .skn-r3-main .skn-r3-report-toolbar { flex-wrap: wrap !important; gap: 10px; }
+  #app .skn-r3-main .skn-r3-report-toolbar > .d-flex { flex-wrap: wrap; gap: 8px; }
+  .swal2-popup { max-width: calc(100vw - 24px) !important; }
+  .modal-dialog { margin: 8px; max-width: calc(100% - 16px); }
+}
+
+@media screen and (max-width: 420px) {
+  #app .skn-r3-nav > .d-flex:first-child { flex: 1 1 100%; }
+  #app .skn-r3-nav > .d-flex:last-child { flex: 1 1 100%; justify-content: space-between !important; }
+  #app .skn-r3-nav .skn-term-picker { width: min(57vw, 190px); }
+  #app .skn-r3-main .skn-r3-actions > .btn { flex-basis: 100%; }
+  #app .skn-r3-main .skn-r3-club-list .btn { font-size: 12px; }
+  #app .skn-r3-main .a4-container .skn-signatory-name { font-size: 10pt !important; }
+}
+@media screen and (max-width: 359.98px) {
+  #app .skn-r3-login-card { padding: 17px 13px !important; }
+  #app .skn-r3-nav > .d-flex:first-child > span { font-size: 15px; }
+  #app .skn-r3-main { padding: 9px !important; }
+  #app .skn-r3-main .a4-container { padding: 9px !important; }
+}
+
+  </style>
 </head>
 
 <body>
@@ -1385,9 +1673,9 @@
     <input class="d-none" type="file" ref="adminSignatureInput" accept="image/png,image/jpeg,image/webp" @change="onAdminSignatureFile">
     <input class="d-none" type="file" ref="signatureLibraryInput" accept="image/png,image/jpeg,image/webp" @change="onSignatureLibraryFile">
 
-    <div v-if="!isLoggedIn" class="d-flex align-items-center justify-content-center min-vh-100 p-3 no-print"
+    <div v-if="!isLoggedIn" class="d-flex align-items-center justify-content-center min-vh-100 p-3 no-print skn-r3-login"
       style="background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);">
-      <div class="card-clean p-4 p-md-5 text-center shadow-lg border-0"
+      <div class="card-clean p-4 p-md-5 text-center shadow-lg border-0 skn-r3-login-card"
         style="width: 100%; max-width: 400px; border-radius: 20px;">
         <div class="mb-4">
           <!-- <div class="bg-primary bg-opacity-10 d-inline-block p-3 rounded-circle mb-3">
@@ -1452,8 +1740,8 @@
       </div>
     </div>
 
-    <div v-else class="d-flex flex-column vh-100">
-      <nav class="bg-white border-bottom px-4 d-flex justify-content-between align-items-center flex-shrink-0 no-print"
+    <div v-else class="d-flex flex-column vh-100 skn-r3-shell">
+      <nav class="bg-white border-bottom px-4 d-flex justify-content-between align-items-center flex-shrink-0 no-print skn-r3-nav"
         style="height: 70px;">
 
         <!-- <div class="d-flex align-items-center gap-2 fw-800 text-primary fs-4 tracking-tight">
@@ -1492,7 +1780,7 @@
         </div>
       </nav>
 
-      <div class="flex-grow-1 overflow-auto p-3 p-md-4" style="background-color: #f8fafc;">
+      <div class="flex-grow-1 overflow-auto p-3 p-md-4 skn-r3-main" style="background-color: #f8fafc;">
 
 
 
@@ -1510,7 +1798,7 @@
 
        <transition name="fade">
   <div v-if="view === 'admin_report'" class="container-fluid px-0">
-    <div class="d-flex justify-content-between align-items-center mb-4 container-xl no-print pt-3">
+    <div class="d-flex justify-content-between align-items-center mb-4 container-xl no-print pt-3 skn-r3-report-toolbar">
       <div class="d-flex align-items-center gap-3">
         <button @click="view = 'insight_report'" class="btn btn-white border shadow-sm rounded-circle p-0 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
           <i class="fas fa-arrow-left"></i>
@@ -1689,7 +1977,7 @@
 </div>
 
 
-        <div class="d-flex gap-2 justify-content-end gap-2">
+        <div class="d-flex gap-2 justify-content-end gap-2 skn-r3-actions">
 
           <!-- เพิ่มปุ่มค้นหารายห้อง -->
           <template v-if="user.role === 'admin' || user.role === 'teacher'">
@@ -1758,7 +2046,7 @@
         </div>
       </div>
 
-      <div class="card-clean overflow-hidden border-0 shadow-sm">
+      <div class="card-clean overflow-hidden border-0 shadow-sm skn-r3-club-list">
         <div class="table-responsive">
           <table class="table table-hover align-middle mb-0">
             <thead class="bg-light">
@@ -2048,7 +2336,7 @@
      หน้าต่างตั้งค่าระบบ (Admin Settings)
      ========================================== -->
 <transition name="fade">
-  <div v-if="view === 'admin_settings'" class="container-xl no-print">
+  <div v-if="view === 'admin_settings'" class="container-xl no-print skn-r3-admin">
     <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4 mt-3">
       <div>
         <h4 class="fw-800 m-0 text-danger"><i class="fas fa-cogs me-2"></i>ตั้งค่าระบบขั้นสูง</h4>
@@ -2261,7 +2549,7 @@
 
 
   <transition name="fade">
-    <div v-if="view === 'manage_users'" class="container-xl no-print">
+    <div v-if="view === 'manage_users'" class="container-xl no-print skn-r3-users">
       <div class="d-flex align-items-center justify-content-between mb-4">
         <div class="d-flex align-items-center gap-3">
           <button @click="view = 'dashboard'" class="btn btn-white border shadow-sm rounded-circle p-0 d-flex align-items-center justify-content-center" style="width: 40px; height:40px;"><i class="fas fa-arrow-left"></i></button>
@@ -2417,7 +2705,7 @@
 
 <!-- เพิ่มหน้าต่างค้นหาข้อมูลรายห้อง -->
 <transition name="fade">
-  <div v-if="view === 'room_lookup'" class="container-xl no-print">
+  <div v-if="view === 'room_lookup'" class="container-xl no-print skn-r3-lookup">
     <div class="mb-4 d-flex align-items-center justify-content-between">
       <div>
         <h4 class="fw-800 m-0 text-success"><i class="fas fa-users me-2"></i>ตรวจสอบสถานะการสมัครชุมนุมของนักเรียน</h4>
@@ -3624,6 +3912,25 @@ data() {
     },
 
     watch: {
+      // R3: bring mobile users to the top when signing in or changing views.
+      isLoggedIn(next) {
+        if (next && window.matchMedia('(max-width: 1199.98px)').matches) {
+          this.$nextTick(() => {
+            const content = document.querySelector('.skn-r3-main');
+            if (content) content.scrollTop = 0;
+            window.scrollTo(0, 0);
+          });
+        }
+      },
+      view() {
+        if (window.matchMedia('(max-width: 1199.98px)').matches) {
+          this.$nextTick(() => {
+            const content = document.querySelector('.skn-r3-main');
+            if (content) content.scrollTop = 0;
+            window.scrollTo(0, 0);
+          });
+        }
+      },
       'clubForm.owner_ids': {
         handler(newVal) { 
           if(this.user && this.user.role !== 'admin') this.clubForm.max_capacity = newVal.length * 20;  // ปรับจาก newVal.length * 30 เป็น 20
