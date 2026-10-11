@@ -191,6 +191,70 @@
       color: #cbd5e1;
     }
 
+    /* V5.4: independent A4 email attachment. Never alter the live report layout. */
+    #skn-pdf-capture-root .skn-pdf-capture-page {
+      font-family: 'Sarabun', 'TH Sarabun New', sans-serif !important;
+      color: #111 !important;
+      font-size: 13pt;
+      line-height: 1.52;
+      letter-spacing: 0;
+      background: #fff !important;
+    }
+    #skn-pdf-capture-root .skn-pdf-capture-page h3,
+    #skn-pdf-capture-root .skn-pdf-capture-page h4 {
+      font-family: 'Sarabun', 'TH Sarabun New', sans-serif !important;
+      line-height: 1.55 !important;
+      padding-top: 3px;
+      padding-bottom: 5px;
+      margin-top: 0;
+      break-after: avoid;
+      page-break-after: avoid;
+    }
+    #skn-pdf-capture-root .skn-pdf-capture-page h4 { font-size: 15pt !important; }
+    #skn-pdf-capture-root .skn-pdf-capture-page h3 { font-size: 17pt !important; }
+    #skn-pdf-capture-root .skn-pdf-capture-page p { margin-bottom: 8px; }
+    #skn-pdf-capture-root .skn-pdf-capture-page .table-report {
+      font-family: 'Sarabun', 'TH Sarabun New', sans-serif !important;
+      width: 100%;
+      font-size: 10pt;
+      table-layout: auto;
+      border-collapse: collapse;
+      margin-bottom: 10px;
+    }
+    #skn-pdf-capture-root .skn-pdf-capture-page .table-report th,
+    #skn-pdf-capture-root .skn-pdf-capture-page .table-report td {
+      border: 1px solid #333 !important;
+      padding: 4px 3px;
+      vertical-align: middle;
+      overflow-wrap: break-word;
+    }
+    #skn-pdf-capture-root .skn-pdf-capture-page .table-report thead th {
+      background-color: #f2f2f2 !important;
+      font-weight: 700;
+      line-height: 1.3;
+    }
+    #skn-pdf-capture-root .skn-pdf-capture-page .skn-attendance-report-table {
+      table-layout: fixed;
+      font-size: 8pt;
+    }
+    #skn-pdf-capture-root .skn-pdf-capture-page .skn-attendance-report-table th,
+    #skn-pdf-capture-root .skn-pdf-capture-page .skn-attendance-report-table td {
+      padding: 3px 0 !important;
+      overflow: hidden;
+      overflow-wrap: normal;
+    }
+    #skn-pdf-capture-root .skn-pdf-capture-page .th-rotate-container { min-height: 106px; }
+    #skn-pdf-capture-root .skn-pdf-capture-page .th-rotate { font-size: 9px; }
+    #skn-pdf-capture-root .skn-pdf-capture-page .skn-objective-row {
+      gap: 12px !important;
+      margin-bottom: 9px;
+      line-height: 1.5;
+    }
+    #skn-pdf-capture-root .skn-pdf-capture-page .skn-report-heading-safe {
+      padding-top: 4px !important;
+      line-height: 1.65 !important;
+    }
+
     /* Report & Print */
     .a4-container {
       width: 210mm;
@@ -2177,7 +2241,7 @@
               <div class="mb-5 page-break-before pt-4">
                 <h4 class="fw-bold mb-3 border-bottom border-dark pb-2 skn-report-heading-safe">3. แบบบันทึกเวลาเข้าร่วมกิจกรรม</h4>
                 <div style="font-size: 8.5pt;">
-                  <table class="table-report" style="table-layout: fixed;">
+                  <table class="table-report skn-attendance-report-table" style="table-layout: fixed;">
                     <thead>
                       <tr>
                         <th style="width: 4%;">ที่</th>
@@ -5214,6 +5278,19 @@ downloadCSVTemplate() {
         // V4.6 independent generator: snapshot ONLY the opened report A4 pages,
         // page-by-page, then construct a proper PDF attachment in memory.
         // This avoids the html2pdf multi-page worker/blank-page failure mode.
+        // V5.4: PDF attachment uses real A4 (210 x 297 mm) with consistent
+        // margins: left 22, right 18, top 20, bottom 22 mm.
+        // HTML content is rendered in the printable 170 x 255 mm area only.
+        sknPdfGeometry() {
+          const pixelsPerMm = 96 / 25.4;
+          return {
+            paperWidthMm:210, paperHeightMm:297,
+            leftMm:22, rightMm:18, topMm:20, bottomMm:22,
+            contentWidthMm:170, contentHeightMm:255,
+            contentWidthPx:Math.round(170 * pixelsPerMm),
+            contentHeightPx:Math.floor(255 * pixelsPerMm)
+          };
+        },
         sknReportPages() {
           if(this.view!=='report')throw Error('กรุณาเปิดหน้ารายงานชุมนุมก่อน');
           const pages=[...document.querySelectorAll('.a4-container')]
@@ -5250,7 +5327,23 @@ downloadCSVTemplate() {
             table.querySelectorAll('thead').forEach(head=>{head.style.display='table-header-group';});
             table.querySelectorAll('th').forEach(th=>{th.style.webkitPrintColorAdjust='exact';th.style.printColorAdjust='exact';});
           });
-          clone.style.cssText+=';font-family:Sarabun,TH Sarabun New,sans-serif!important;background:#fff!important;color:#000;width:794px!important;max-width:794px!important;min-height:1123px!important;height:auto!important;box-sizing:border-box!important;box-shadow:none!important;margin:0!important;break-before:auto!important;break-after:auto!important;page-break-before:auto!important;page-break-after:auto!important;overflow:visible!important';
+          const geom=this.sknPdfGeometry();
+          clone.classList.add('skn-pdf-capture-page');
+          // The source page already has padding. Remove it on the PDF clone:
+          // jsPDF provides official-document margins exactly once.
+          clone.style.cssText+=';font-family:Sarabun,TH Sarabun New,sans-serif!important;background:#fff!important;color:#111!important;'
+            +'width:'+geom.contentWidthPx+'px!important;max-width:'+geom.contentWidthPx+'px!important;'
+            +'padding:0!important;min-height:0!important;height:auto!important;'
+            +'box-sizing:border-box!important;box-shadow:none!important;margin:0!important;'
+            +'break-before:auto!important;break-after:auto!important;'
+            +'page-break-before:auto!important;page-break-after:auto!important;overflow:visible!important';
+          if(clone.classList.contains('cover-page')){
+            // Cover remains vertically centered inside the printable A4 area.
+            clone.style.setProperty('height',geom.contentHeightPx+'px','important');
+            clone.style.setProperty('min-height',geom.contentHeightPx+'px','important');
+            clone.style.setProperty('display','flex','important');
+            clone.style.setProperty('flex-direction','column','important');
+          }
           return clone;
         },
         sknCanvasContainsInk(canvas){
@@ -5272,6 +5365,8 @@ downloadCSVTemplate() {
         // Each continuation has its own table <thead> and section heading;
         // photos remain the last physical page, and no A4 bitmap is stretched.
         async sknPreparePdfPhysicalPages(root,logicalPages){
+          const geom=this.sknPdfGeometry();
+          const maxHeight=geom.contentHeightPx;
           const output=[];
           const add=page=>{root.appendChild(page);output.push(page);return page;};
           const mk=(source,content)=>{
@@ -5295,7 +5390,7 @@ downloadCSVTemplate() {
               const table=section.querySelector?.('table.table-report');
               if(!table){
                 const page=add(mk(source,section.cloneNode(true)));
-                if(page.scrollHeight>1125)throw Error('ส่วนรายงานที่ไม่มีตารางยาวเกิน A4 กรุณาย่อข้อความ');
+                if(page.scrollHeight>maxHeight+3)throw Error('ส่วนรายงานที่ไม่มีตารางยาวเกิน A4 กรุณาย่อข้อความ');
                 continue;
               }
               const rows=[...table.querySelectorAll('tbody > tr')];
@@ -5316,8 +5411,8 @@ downloadCSVTemplate() {
                 while(cursor<rows.length){
                   const row=rows[cursor].cloneNode(true);
                   body.appendChild(row);
-                  if(page.scrollHeight>1105 && count>0){row.remove();break;}
-                  if(page.scrollHeight>1125){throw Error('แถวตารางที่ '+(cursor+1)+' สูงเกินหน้า A4');}
+                  if(page.scrollHeight>maxHeight-12 && count>0){row.remove();break;}
+                  if(page.scrollHeight>maxHeight+3){throw Error('แถวตารางที่ '+(cursor+1)+' สูงเกินหน้า A4');}
                   cursor++;count++;
                 }
                 if(!count)throw Error('ไม่สามารถจัดตารางลงหน้า A4');
@@ -5334,17 +5429,18 @@ downloadCSVTemplate() {
             throw Error('ตัวสร้าง PDF แบบแยกหน้าโหลดไม่สำเร็จ: ตรวจ CDN html2canvas และ jsPDF');
           if(this._reportImageLoadPromise)await this._reportImageLoadPromise;
           if(this.reportMediaErrors?.length)throw Error('รูปภาพจาก Drive ยังโหลดไม่ครบ');
-          if(document.fonts?.load)await document.fonts.load('400 14px Sarabun');
+          if(document.fonts?.load){await document.fonts.load('400 14px Sarabun');await document.fonts.load('700 16px Sarabun');}
           if(document.fonts?.ready)await document.fonts.ready;
           if(this.$nextTick)await this.$nextTick();
           const pages=this.sknReportPages();
+          const geom=this.sknPdfGeometry();
           const Pdf=window.jspdf.jsPDF;
           const pdf=new Pdf({unit:'mm',format:'a4',orientation:'portrait',compress:true});
           const root=document.createElement('div');
           root.id='skn-pdf-capture-root';
           // The progress dialog is above the clone; the clone remains paintable
           // (display:none / opacity:0 breaks canvas captures in real browsers).
-          root.style.cssText='position:absolute;top:0;left:0;width:794px;z-index:1000;pointer-events:none;background:#fff';
+          root.style.cssText='position:absolute;top:0;left:0;width:'+geom.contentWidthPx+'px;z-index:1000;pointer-events:none;background:#fff';
           document.body.appendChild(root);
           let written=0;
           const savedScroll=[window.scrollX,window.scrollY];
@@ -5368,13 +5464,14 @@ downloadCSVTemplate() {
               // Wait for the layout/paint to settle before capturing.
               await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
               const captureHeight=Math.max(1,Math.ceil(clone.scrollHeight));
-              if(captureHeight>1125)throw Error('เนื้อหาหน้า '+(i+1)+' สูงเกิน A4');
+              if(captureHeight>geom.contentHeightPx+3)throw Error('เนื้อหาหน้า '+(i+1)+' สูงเกินพื้นที่พิมพ์ A4');
               let canvas;
               try{
                 canvas=await window.html2canvas(clone,{
                   scale:renderScale,backgroundColor:'#ffffff',useCORS:true,
                   allowTaint:false,logging:false,scrollX:0,scrollY:0,
-                  width:794,height:captureHeight,windowWidth:Math.max(794,document.documentElement.clientWidth)
+                  width:geom.contentWidthPx,height:captureHeight,
+                  windowWidth:Math.max(geom.contentWidthPx,document.documentElement.clientWidth)
                 });
               }catch(captureError){
                 throw Error('จับภาพหน้า '+(i+1)+' ไม่สำเร็จ: '+String(captureError?.message||captureError));
@@ -5382,15 +5479,27 @@ downloadCSVTemplate() {
               if(!canvas || canvas.width<100 || canvas.height<100 || !this.sknCanvasContainsInk(canvas))
                 throw Error('หน้า '+(i+1)+' ไม่มีภาพเอกสารที่ใช้งานได้');
               // A4 page image: preserve aspect ratio (no stretching), and never slice a table row.
-              const pageHeightMm=210*canvas.height/canvas.width;
-              if(pageHeightMm>297.5)throw Error('มีหน้ารายงานยาวเกิน A4');
+              const pageHeightMm=geom.contentWidthMm*canvas.height/canvas.width;
+              if(pageHeightMm>geom.contentHeightMm+0.5)
+                throw Error('เนื้อหาหน้า '+(i+1)+' ยาวเกินระยะพิมพ์ A4');
               const hasPhotos=[...clone.querySelectorAll('img')].some(im=>{
                 const r=im.getBoundingClientRect();return r.width>110&&r.height>65;
               });
               const encoding=(hasPhotos||renderScale<=2.0)?'JPEG':'PNG';
               const image=encoding==='JPEG'?canvas.toDataURL('image/jpeg',jpegQuality):canvas.toDataURL('image/png');
               if(written>0)pdf.addPage();
-              pdf.addImage(image,encoding,0,0,210,pageHeightMm,undefined,'FAST');
+              // Embed content without stretching; all four paper margins remain visible.
+              pdf.addImage(image,encoding,geom.leftMm,geom.topMm,
+                geom.contentWidthMm,pageHeightMm,undefined,'FAST');
+              // Quiet official-document footer; ASCII page numbers stay vector-sharp.
+              pdf.setDrawColor(170,170,170);
+              pdf.setLineWidth(0.2);
+              pdf.line(geom.leftMm,280,geom.paperWidthMm-geom.rightMm,280);
+              pdf.setFont('helvetica','normal');
+              pdf.setFontSize(9);
+              pdf.setTextColor(85,85,85);
+              pdf.text(String(i+1)+' / '+String(physical.length),geom.paperWidthMm-geom.rightMm,286,
+                {align:'right'});
               written++;
               this.sknEmailProgress(2,'สร้างเอกสาร PDF ทีละหน้า: เสร็จ '+(i+1)+'/'+physical.length+' ส่วน ('+written+' หน้า PDF)');
               await new Promise(resolve=>setTimeout(resolve,0));
@@ -5423,50 +5532,32 @@ downloadCSVTemplate() {
           const pages=[...document.querySelectorAll('.a4-container')];
           if(pages.length<1)throw Error('ไม่พบเนื้อหารายงานสำหรับสร้าง PDF');
           if(pages.map(x=>x.innerText||'').join('').trim().length<160)throw Error('รายงานไม่มีเนื้อหาพอสำหรับสร้าง PDF');
+          const geom=this.sknPdfGeometry();
           const target=document.createElement('div');
+          target.id='skn-pdf-capture-root';
           target.className='skn-pdf-document';
-          target.style.cssText='background:#fff;width:210mm;box-sizing:border-box;color:#000';
-          pages.forEach((page,i)=>{
-            const clone=page.cloneNode(true);
-            clone.querySelectorAll('input,textarea,select').forEach((node,j)=>{
-              const original=page.querySelectorAll('input,textarea,select')[j];
-              if(!original)return;
-              if(original.type==='file'){node.remove();return;}
-              if(original.type==='checkbox'){
-                const mark=document.createElement('span');mark.textContent=original.checked?'☑':'☐';
-                node.replaceWith(mark);return;
-              }
-              if(node.tagName==='SELECT'){
-                const label=document.createElement('span');label.textContent=original.selectedOptions?.[0]?.textContent||'';
-                node.replaceWith(label);return;
-              }
-              const label=document.createElement('span');label.textContent=original.value||'';
-              label.style.cssText='display:inline-block;white-space:pre-wrap;min-height:1em;min-width:2em;border-bottom:1px solid #ddd';
-              node.replaceWith(label);
-            });
-            clone.querySelectorAll('.photo-input,.no-print,button').forEach(el=>el.remove());
-            clone.classList.remove('shadow-sm');
-            clone.style.boxShadow='none';clone.style.margin='0';
-            clone.style.width='210mm';clone.style.maxWidth='210mm';
-            clone.style.boxSizing='border-box';
-            if(i<pages.length-1)clone.style.breakAfter='page';
-            target.appendChild(clone);
-          });
+          target.style.cssText='background:#fff;width:'+geom.contentWidthPx+'px;box-sizing:border-box;color:#000;'
+            +'font-family:Sarabun,TH Sarabun New,sans-serif;position:absolute;left:0;top:0;'
+            +'z-index:1000;pointer-events:none;opacity:1';
           document.body.appendChild(target);
-          target.style.position='absolute';target.style.left='0';target.style.top='0';
-          target.style.zIndex='1000';target.style.pointerEvents='none';target.style.opacity='1';
           try{
-            // Wait for every report image to decode BEFORE the html2canvas snapshot.
+            // Even the fallback uses the same physical pages as the primary:
+            // no cropped table rows, repeated <thead>, images last.
+            const physical=await this.sknPreparePdfPhysicalPages(target,pages);
+            physical.forEach((clone,i)=>{
+              clone.style.setProperty('break-after',i<physical.length-1?'page':'auto','important');
+              clone.style.setProperty('page-break-after',i<physical.length-1?'always':'auto','important');
+            });
             const imgs=[...target.querySelectorAll('img')];
             await Promise.all(imgs.map(im=>im.complete?Promise.resolve():new Promise((resolve,reject)=>{
               im.onload=resolve;im.onerror=()=>reject(Error('ไม่สามารถโหลดรูปภาพรายงานก่อนสร้าง PDF'));
             })));
             if(imgs.some(im=>!im.naturalWidth))throw Error('รูปภาพบางส่วนยังไม่พร้อมสำหรับสร้าง PDF');
-            const worker=window.html2pdf().set({margin:0,
-              image:{type:'jpeg',quality:0.91},
-              html2canvas:{scale:2.0,useCORS:true,backgroundColor:'#ffffff',logging:false},
+            const worker=window.html2pdf().set({margin:[geom.topMm,geom.rightMm,geom.bottomMm,geom.leftMm],
+              image:{type:'jpeg',quality:0.94},
+              html2canvas:{scale:2.4,useCORS:true,backgroundColor:'#ffffff',logging:false},
               jsPDF:{unit:'mm',format:'a4',orientation:'portrait',compress:true},
-              pagebreak:{mode:['css','legacy'],after:'.page-break-after',before:'.page-break-before'}
+              pagebreak:{mode:['css','legacy'],after:'.skn-pdf-capture-page:not(:last-child)'}
             }).from(target);
             await worker.toCanvas();
             const canvas=await worker.get('canvas');
@@ -5483,7 +5574,13 @@ downloadCSVTemplate() {
             await worker.toPdf();
             const pdfDoc=await worker.get('pdf');
             const writtenPages=pdfDoc?.internal?.getNumberOfPages?.()||0;
-            if(writtenPages<Math.max(1,pages.length))throw Error('จำนวนหน้า PDF ไม่ครบ ระบบยกเลิกการส่ง');
+            if(writtenPages<Math.max(1,physical.length))throw Error('จำนวนหน้า PDF ไม่ครบ ระบบยกเลิกการส่ง');
+            for(let n=1;n<=writtenPages;n++){
+              pdfDoc.setPage(n);pdfDoc.setDrawColor(170,170,170);pdfDoc.setLineWidth(0.2);
+              pdfDoc.line(geom.leftMm,280,geom.paperWidthMm-geom.rightMm,280);
+              pdfDoc.setFont('helvetica','normal');pdfDoc.setFontSize(9);pdfDoc.setTextColor(85,85,85);
+              pdfDoc.text(String(n)+' / '+String(writtenPages),geom.paperWidthMm-geom.rightMm,286,{align:'right'});
+            }
             const pdf=await worker.outputPdf('blob');
             if(!(pdf instanceof Blob)||pdf.size<12000)
               throw Error('สร้าง PDF ได้ไฟล์ว่างหรือขนาดผิดปกติ');
