@@ -1,0 +1,146 @@
+/* SKN CLUBS V5.9.5 - responsive screen-only enhancement for V5.9.4
+   Does not alter print/PDF capture styles. */
+@media screen and (max-width: 991.98px) {
+  html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+  body { max-width: 100%; overflow-x: clip; }
+  #app { min-width: 0; }
+  #app .skn-app-shell {
+    height: auto !important;
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex !important;
+    flex-direction: column;
+  }
+  #app .skn-app-main {
+    flex: 1 1 auto !important;
+    height: auto !important;
+    min-height: 0;
+    overflow-x: clip !important;
+    overflow-y: visible !important;
+  }
+  #app .skn-app-nav {
+    height: auto !important;
+    min-height: 64px;
+    position: sticky;
+    top: 0;
+    z-index: 1040;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+  #app .skn-app-nav > .d-flex { min-width: 0; }
+  #app .skn-term-picker { width: min(40vw, 190px); min-width: 0; max-width: 100%; }
+  #app .skn-app-main .container-xl,
+  #app .skn-app-main .container-fluid { min-width: 0; max-width: 100%; }
+  #app .skn-app-main .row > [class*="col-"] { min-width: 0; }
+  #app .skn-dashboard-actions {
+    flex-wrap: wrap !important;
+    justify-content: flex-start !important;
+    width: 100%;
+  }
+  #app .skn-dashboard-actions > .btn {
+    min-height: 44px;
+    flex: 1 1 160px;
+    white-space: normal;
+  }
+  #app .skn-app-main .table-wrapper,
+  #app .skn-app-main .skn-attendance-scroll {
+    max-width: 100%;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+  #app .skn-app-main img { max-width: 100%; height: auto; }
+}
+
+@media screen and (max-width: 767.98px) {
+  #app .skn-login-page {
+    min-height: 100vh !important;
+    min-height: 100svh !important;
+    width: 100%;
+    padding: 16px 12px !important;
+  }
+  #app .skn-login-card {
+    width: 100% !important;
+    max-width: 440px !important;
+    padding: 22px 18px !important;
+    border-radius: 16px !important;
+    margin-inline: auto;
+    box-sizing: border-box;
+  }
+  #app .skn-login-card img { width: auto; max-width: 100%; max-height: 112px; object-fit: contain; }
+  #app .skn-login-card h3 { font-size: clamp(1.25rem, 5vw, 1.6rem); }
+  #app .skn-login-card input {
+    min-height: 46px;
+    font-size: 16px !important; /* prevents iOS input-focus zoom */
+  }
+  #app .skn-login-card button.btn { min-height: 46px; font-size: 16px; }
+  #app .skn-app-nav { padding: 9px 12px !important; align-items: center; }
+  #app .skn-app-nav > .d-flex:first-child {
+    flex: 1 1 100px;
+    gap: 6px !important;
+    white-space: nowrap;
+  }
+  #app .skn-app-nav > .d-flex:first-child > span { font-size: 16px; }
+  #app .skn-app-nav > .d-flex:last-child {
+    flex: 1 1 auto;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 6px !important;
+    min-width: 0;
+  }
+  #app .skn-app-nav .skn-term-picker { width: min(43vw, 158px); font-size: 13px; }
+  #app .skn-app-nav .btn { min-width: 37px; min-height: 37px; }
+  #app .skn-app-main { padding: 12px !important; }
+  #app .skn-app-main h2 { font-size: clamp(1.4rem, 6vw, 1.9rem); }
+  #app .skn-app-main h3 { font-size: clamp(1.25rem, 5vw, 1.65rem); }
+  #app .skn-app-main h4 { font-size: clamp(1.1rem, 4.8vw, 1.35rem); }
+  #app .skn-app-main .card-clean { max-width: 100%; overflow-wrap: anywhere; }
+  #app .skn-dashboard-actions > .btn { flex: 1 1 100%; }
+  #app .skn-app-main input.form-control:not(.date-input-v),
+  #app .skn-app-main textarea.form-control,
+  #app .skn-app-main select.form-select {
+    font-size: 16px !important;
+  }
+  #app .skn-app-main .skn-attendance-scroll input.form-control {
+    font-size: 12px !important; /* retain dense attendance grid */
+  }
+  #app .skn-app-main .table-wrapper table { min-width: 580px; }
+  /* On-screen A4/report previews fit the phone. PDF capture clones live outside #app;
+     and @media print keeps the original 210mm document dimensions. */
+  #app .skn-app-main .a4-container {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: 0 !important;
+    box-sizing: border-box !important;
+    padding: 12px !important;
+    margin: 0 auto 14px !important;
+    overflow-x: auto;
+  }
+  #app .skn-app-main .a4-container .photo-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  #app .skn-app-main .a4-container .photo-slot { height: 200px; }
+  #app .skn-app-main .a4-container .table-report {
+    min-width: 480px; /* horizontal scrolling beats unreadable tiny text */
+  }
+  #app .skn-app-main .a4-container .signature-grid {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+  #app .skn-app-main .a4-container .signature-grid .skn-signature-space {
+    width: 100%;
+    max-width: 100%;
+  }
+  #app .skn-app-main .skn-mobile-report-actions { min-width: 0; }
+  #app .skn-app-main .skn-mobile-report-actions .btn { min-width: 0; }
+  #app .skn-app-main .modal-dialog {
+    margin: 8px;
+    max-width: calc(100% - 16px);
+  }
+}
+@media screen and (max-width: 359.98px) {
+  #app .skn-login-card { padding: 17px 13px !important; }
+  #app .skn-app-nav > .d-flex:first-child > span { font-size: 14px; }
+  #app .skn-app-nav .skn-term-picker { width: 115px; max-width: 42vw; }
+}
