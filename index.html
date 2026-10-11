@@ -255,9 +255,11 @@
       display: table-header-group;
     }
 
-    .table-report tr {
-      page-break-inside: avoid;
-    }
+    .table-report tr {page-break-inside:avoid;break-inside:avoid;}
+    .table-report thead {display:table-header-group;}
+    @media print {.a4-container{width:210mm;max-width:210mm;box-sizing:border-box;}
+      .table-report thead{display:table-header-group;} .table-report tr{break-inside:avoid;}}
+
 
     .signature-box {
       margin-top: 30px;
@@ -1391,6 +1393,9 @@
             <button class="btn btn-outline-success btn-sm" @click="openRestoreBackupModal" :disabled="user?.role!=='admin'">
               <i class="fas fa-file-import me-1"></i> นำเข้า / กู้คืนไฟล์สำรอง JSON จาก Drive หรือเครื่อง
             </button>
+            <button class="btn btn-outline-secondary btn-sm" @click="previewDatabaseTrash" :disabled="trashBusy||user?.role!=='admin'">
+              <i class="fas fa-broom me-1"></i> ตรวจ / ล้างขยะฐานข้อมูลที่ปลอดภัย
+            </button>
           </div>
           <p class="small text-muted mt-2 mb-0">การลบข้อมูลเทอม/ปีจะสำรอง JSON ไป Drive ก่อนเสมอ ไฟล์ภาพและบัญชีครูที่ใช้ร่วมกันจะไม่ถูกลบ</p>
         </div>
@@ -1417,9 +1422,9 @@
           </div>
         </div>
         <div class="d-flex flex-wrap gap-2">
-          <!-- <button class="btn btn-outline-secondary border btn-fast shadow-sm" @click="downloadCSVTemplate">
+          <button class="btn btn-outline-secondary border btn-fast shadow-sm" @click="downloadCSVTemplate">
             <i class="fas fa-file-download me-1"></i> แม่แบบ CSV
-          </button>    -->
+          </button>
           <button class="btn btn-white border btn-fast shadow-sm" @click="$refs.csvInput.click()">
             <i class="fas fa-file-csv me-1 text-success"></i> นำเข้า/อัพเดทรายชื่อ CSV
           </button>
@@ -2531,21 +2536,23 @@
             </div>
             <div v-if="restoreHasPasswordVault" class="alert alert-warning small mt-3">
               <div class="fw-bold mb-2"><i class="fas fa-lock me-2"></i>ไฟล์นี้มีรหัสผ่านครูและนักเรียนที่เข้ารหัส</div>
-              <label class="form-label">รหัสลับที่ใช้ตอนสำรองข้อมูล (อย่างน้อย 14 ตัวอักษร)</label>
-              <input type="password" v-model="restoreVaultPassword" class="form-control" autocomplete="off"
-                :disabled="restoreBusy" placeholder="กรอกรหัสลับเพื่อถอดรหัสและกู้คืนบัญชี" />
-              <div class="form-text">ระบบจะไม่ส่งรหัสลับไป Supabase หรือ Google Drive และจะไม่เขียนทับรหัสผ่านบัญชีที่มีอยู่แล้ว</div>
+              <div v-if="_restoreSnapshot?.credential_vault?.keyMode==='GAS-SCRIPT-PROPERTIES-V1'" class="form-text">ระบบใช้กุญแจเข้ารหัสจาก GAS อัตโนมัติ ไม่ต้องกรอกรหัสลับ (ต้องใช้ GAS เดิมหรือกุญแจสำรองของการติดตั้ง)</div>
+              <template v-else>
+                <label class="form-label">รหัสลับของไฟล์สำรองรุ่นเก่า (V4.8)</label>
+                <input type="password" v-model="restoreVaultPassword" class="form-control" autocomplete="off" :disabled="restoreBusy" placeholder="กรอกรหัสลับของ Backup รุ่นเก่า" />
+              </template>
             </div>
             <div class="row g-3">
               <div class="col-4"><label class="form-label fw-bold">ปีการศึกษาปลายทาง</label><input type="number" class="form-control" min="2500" max="2800" v-model.number="restoreYear" :disabled="restoreBusy" /></div>
               <div class="col-4"><label class="form-label fw-bold">ภาคเรียนปลายทาง</label><select class="form-select" v-model.number="restoreSemester" :disabled="restoreBusy"><option :value="1">1</option><option :value="2">2</option><option :value="3">3</option></select></div>
               <div class="col-4 d-flex align-items-end"><label class="form-check mb-2"><input type="checkbox" class="form-check-input" v-model="restoreMakeCurrent" :disabled="restoreBusy" /><span class="form-check-label">ตั้งเป็นปัจจุบัน</span></label></div>
             </div>
-            <div class="alert alert-info small mt-3 mb-0">กู้คืนเป็นเทอมใหม่เท่านั้น <b>ไม่ทับข้อมูลเดิม</b> ไฟล์ V4.8 ที่เข้ารหัสสามารถสร้างบัญชีที่ขาดหายได้เมื่อกรอกรหัสลับ; Backup รุ่นเก่าต้องมีบัญชีเดิมก่อน ไฟล์ JSON ไม่รวมภาพต้นฉบับจาก Drive</div>
+            <div class="form-check mt-3"><input type="checkbox" class="form-check-input" id="restoreOverwriteV49" v-model="restoreOverwrite" :disabled="restoreBusy"><label for="restoreOverwriteV49" class="form-check-label fw-bold text-danger">กู้คืนทับข้อมูลปี/ภาคเรียนปลายทางที่มีอยู่ (สำรองชุดปัจจุบันก่อนอัตโนมัติ)</label></div>
+            <div class="alert alert-warning small mt-2">โหมดทับข้อมูลใช้ Transaction ใน Supabase เฉพาะเทอมที่เลือก ไม่เปลี่ยน Period ID และไม่ลบภาพ Drive / Backup เดิม อาจเปลี่ยนรายชื่อ ชุมนุม การสมัคร เช็กชื่อ และรายงานในเทอมนั้น กรุณาทดสอบกับฐานข้อมูลสำรองก่อน</div>
             <div v-if="restoreError" class="alert alert-danger small mt-3 mb-0">{{restoreError}}</div>
           </div>
           <div class="modal-footer"><button class="btn btn-light" data-bs-dismiss="modal" :disabled="restoreBusy">ปิด</button>
-            <button class="btn btn-success" @click="executeRestoreBackup" :disabled="restoreBusy||!restorePreview"><span v-if="restoreBusy" class="spinner-border spinner-border-sm me-2"></span>ยืนยันกู้คืนเป็นภาคเรียนใหม่</button></div>
+            <button class="btn btn-success" @click="executeRestoreBackup" :disabled="restoreBusy||!restorePreview"><span v-if="restoreBusy" class="spinner-border spinner-border-sm me-2"></span>{{restoreOverwrite?'ยืนยันกู้ทับข้อมูลเทอมนี้':'ยืนยันกู้คืนเป็นภาคเรียนใหม่'}}</button></div>
         </div>
       </div>
     </div>
@@ -2664,7 +2671,7 @@ data() {
     periodImpact: null, periodImpactError: '', periodImpactLoading: false, periodBusy: false, periodDeleteConfirm: '',
     selectedBackupFileId: '', restoreBusy: false, restorePreview: null,
     restoreFileName: '', restoreOrigin: 'local', restoreError: '',
-    restoreYear: 2569, restoreSemester: 1, restoreMakeCurrent: true,
+    restoreYear: 2569, restoreSemester: 1, restoreMakeCurrent: true, restoreOverwrite:false, trashPreview:null, trashBusy:false,
 
     calcStartDate: '', // วันที่เริ่มต้นคำนวณ
     exportFilter: { type: 'ทั้งหมด', room: '' },
@@ -2965,7 +2972,7 @@ filteredClubs() {
         },
         async openRestoreBackupModal(){
           if(this.user?.role!=='admin')return;
-          this.restorePreview=null;this.restoreFileName='';this.restoreError='';
+          this.restorePreview=null;this.restoreFileName='';this.restoreError='';this.restoreOverwrite=false;
           this.selectedBackupFileId='';this._restoreSnapshot=null;
           this.restoreHasPasswordVault=false;this.restoreVaultPassword='';
           bootstrap.Modal.getOrCreateInstance(document.getElementById('restoreBackupModal')).show();
@@ -3009,20 +3016,27 @@ filteredClubs() {
         async executeRestoreBackup(){
           if(this.user?.role!=='admin'||this.restoreBusy||!this._restoreSnapshot)return;
           if(!Number.isInteger(Number(this.restoreYear))||this.restoreYear<2500||this.restoreYear>2800||![1,2,3].includes(Number(this.restoreSemester)))return Swal.fire('ปี/เทอมไม่ถูกต้อง','','warning');
-          if(this.periods.some(x=>x.academicYear===Number(this.restoreYear)&&x.semester===Number(this.restoreSemester)))return Swal.fire('มีเทอมนี้แล้ว','ระบบไม่กู้ทับเทอมที่มีอยู่ กรุณาเลือกปี/เทอมอื่นหรือลบชุดที่ผิดหลังสำรอง','warning');
-          if(this.restoreHasPasswordVault&&!this.restoreVaultPassword)
+          const existingPeriod=this.periods.find(x=>x.academicYear===Number(this.restoreYear)&&x.semester===Number(this.restoreSemester));
+          if(existingPeriod&&!this.restoreOverwrite)return Swal.fire('มีเทอมนี้แล้ว','หากต้องการกู้ทับให้เลือกช่องกู้คืนทับข้อมูลก่อน','warning');
+          if(!existingPeriod&&this.restoreOverwrite)return Swal.fire('ไม่พบเทอมปลายทาง','ยกเลิกตัวเลือกกู้ทับเพื่อสร้างเทอมใหม่','warning');
+          if(this.restoreHasPasswordVault&&this._restoreSnapshot?.credential_vault?.keyMode!=='GAS-SCRIPT-PROPERTIES-V1'&&!this.restoreVaultPassword)
             return this.restoreError='กรุณากรอกรหัสลับของไฟล์ Backup ก่อนกู้คืน';
-          const yes=await Swal.fire({title:'ยืนยันกู้คืนข้อมูล?',text:`สร้างภาคเรียน ${this.restoreSemester}/${this.restoreYear} จาก ${this.restoreFileName} โดยไม่ทับข้อมูลเทอมเดิม`,icon:'question',showCancelButton:true,confirmButtonText:'เริ่มกู้คืน',cancelButtonText:'ยกเลิก'});
+          const confirmText=this.restoreOverwrite?'RESTORE '+this.restoreYear+'-'+this.restoreSemester:'';
+          const yes=await Swal.fire({title:this.restoreOverwrite?'ยืนยันกู้ทับข้อมูลจริง?':'ยืนยันกู้คืนข้อมูล?',
+            text:this.restoreOverwrite?'ข้อมูลเทอมปลายทางจะถูกแทนที่ทั้งหมด (ไม่ลบรูป Drive) โดยระบบสำรองชุดปัจจุบันก่อน':'สร้างภาคเรียนใหม่โดยไม่ทับข้อมูลเดิม',
+            icon:'warning',showCancelButton:true,confirmButtonText:'เริ่มกู้คืน',cancelButtonText:'ยกเลิก',
+            input:this.restoreOverwrite?'text':undefined,inputPlaceholder:confirmText,
+            preConfirm:value=>!this.restoreOverwrite||value===confirmText||Swal.showValidationMessage('พิมพ์ '+confirmText+' เพื่อยืนยัน')});
           if(!yes.isConfirmed)return;
           this.restoreBusy=true;
           Swal.fire({title:'กำลังกู้ข้อมูลแบบธุรกรรมเดียว...',html:'กำลังตรวจข้อมูลครู นักเรียน การลงทะเบียน รายงาน และความสัมพันธ์ใน Supabase',allowOutsideClick:false,allowEscapeKey:false,didOpen:()=>Swal.showLoading()});
           try{
-            const res=await window.SKNBridge.invoke('restoreBackupSnapshot',[this._restoreSnapshot,Number(this.restoreYear),Number(this.restoreSemester),this.restoreMakeCurrent,this.restoreOrigin,this.restoreVaultPassword]);
+            const res=await window.SKNBridge.invoke('restoreBackupSnapshot',[this._restoreSnapshot,Number(this.restoreYear),Number(this.restoreSemester),this.restoreMakeCurrent,this.restoreOrigin,this.restoreVaultPassword,this.restoreOverwrite]);
             if(!res?.success)throw Error('กู้คืนไม่สำเร็จ');
             bootstrap.Modal.getOrCreateInstance(document.getElementById('restoreBackupModal')).hide();
             if(this.restoreMakeCurrent){window.SKNBridge.periodId=res.periodId;this.activePeriodId=res.periodId;}
             this.view='dashboard';await this.refreshData(true);
-            Swal.fire('กู้ข้อมูลเรียบร้อย','สร้างภาคเรียนใหม่จากไฟล์ JSON สำเร็จแล้ว ตรวจสอบรายชื่อนักเรียนและรูปภาพที่เชื่อม Drive อีกครั้ง','success');
+            Swal.fire('กู้ข้อมูลเรียบร้อย',this.restoreOverwrite?'กู้ทับข้อมูลเดิมแบบ Transaction สำเร็จแล้ว (ไฟล์เดิมถูกสำรองใน Drive ก่อน)':'สร้างภาคเรียนใหม่จาก Backup สำเร็จแล้ว','success');
           }catch(err){Swal.fire('กู้คืนไม่สำเร็จ',err.message||String(err),'error');}
           finally{this.restoreBusy=false;this.restoreVaultPassword='';}
         },
@@ -4419,6 +4433,8 @@ submitUser() {
                           <div style="max-height: 160px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 6px; padding: 2px;">
                             ${renderTable(res.updatedNames)}
                           </div>
+                          <div class="small text-muted text-start mt-2 mb-1">ไม่เปลี่ยนแปลง: <b>${res.unchangedCount||0}</b> รายการ · ข้ามหัวตารางอัตโนมัติ · ไม่เปลี่ยน Club ID</div>
+                          <div class="small text-start" style="max-height:100px;overflow:auto">${(res.updatedDetails||[]).slice(0,50).map(x=>`${String(x.id).replace(/[&<>"']/g,'')} : ${Array.isArray(x.fields)?x.fields.map(k=>({name:'ชื่อ',username:'ชื่อผู้ใช้',level:'ระดับชั้น',room:'ห้อง',no:'เลขที่',role:'สิทธิ์',password:'รหัสผ่าน',term_membership:'เพิ่มครูเข้าเทอม'})[k]||k).join(', '):''}`).join('<br>')}</div>
                           ${res.duplicateInCsvCount > 0 ? `<div class="alert alert-warning py-1 px-2 mt-2 mb-0 small" style="font-size:11px;">
                             <i class="fas fa-exclamation-triangle"></i> ข้ามข้อมูลที่ซ้ำกันในไฟล์ CSV จำนวน ${res.duplicateInCsvCount} รายการ
                           </div>` : ''}
@@ -4878,40 +4894,32 @@ downloadCSVTemplate() {
         // ฟังก์ชันเปิดดูประวัติแบคอัป
         async createFullBackupNow(){
           if(this.user?.role!=='admin'||this.backupBusy)return;
-          // Ask for a separate encryption passphrase. Never store it in Drive, Supabase,
-          // localStorage, the URL, or a file. All account passwords are encrypted locally.
-          const secret=await Swal.fire({
-            title:'สำรองข้อมูลพร้อมรหัสผ่าน (เข้ารหัส)',
-            html:'<div class="text-start small text-muted mb-2">ไฟล์สำรองรวม 8 ตารางและรหัสผ่านครู/นักเรียนที่เข้ารหัส AES-256-GCM ' +
-              'โปรดเก็บรหัสลับนี้ไว้นอกระบบ หากลืมจะกู้รหัสผ่านจาก Backup ไม่ได้</div>'+
-              '<input id="sknBackupPass1" type="password" autocomplete="new-password" class="swal2-input" placeholder="รหัสลับอย่างน้อย 14 ตัวอักษร" style="width:85%;margin:0.5rem 0;">'+
-              '<input id="sknBackupPass2" type="password" autocomplete="new-password" class="swal2-input" placeholder="ยืนยันรหัสลับอีกครั้ง" style="width:85%;margin:0.5rem 0;">',
-            showCancelButton:true,confirmButtonText:'เข้ารหัสและสำรองข้อมูล',cancelButtonText:'ยกเลิก',
-            preConfirm:()=>{
-              const first=document.getElementById('sknBackupPass1')?.value||'';
-              const second=document.getElementById('sknBackupPass2')?.value||'';
-              if(first.length<14||first!==second){Swal.showValidationMessage('กรุณาระบุรหัสลับอย่างน้อย 14 ตัวอักษร และยืนยันให้ตรงกัน');return false;}
-              return first;
-            }
-          });
-          if(!secret.isConfirmed||!secret.value)return;
           this.backupBusy=true;
-          Swal.fire({title:'กำลังสร้างไฟล์สำรองแบบเข้ารหัส',
-            html:'อ่านข้อมูล 8 ตาราง → อ่านรหัสผ่าน Admin-only → เข้ารหัสด้วยรหัสลับ → บันทึก Drive → ตรวจ SHA-256',
-            allowOutsideClick:false,allowEscapeKey:false,didOpen:()=>Swal.showLoading()});
           try{
-            const saved=await window.SKNBridge.invoke('createFullBackupNow',[secret.value]);
-            if(!saved?.success||!saved?.fileId||saved?.credentialsEncrypted!==true)throw Error('ระบบไม่ยืนยันไฟล์ Backup ที่เข้ารหัส');
+            Swal.fire({title:'กำลังสำรองข้อมูลครบ 8 ตาราง',text:'ระบบเข้ารหัสรหัสผ่านด้วยกุญแจของการติดตั้ง แล้วตรวจไฟล์บน Drive',allowOutsideClick:false,didOpen:()=>Swal.showLoading()});
+            const saved=await window.SKNBridge.invoke('createFullBackupNow',[]);
+            if(!saved?.success||!saved?.fileId||saved?.credentialsEncrypted!==true)throw Error('ระบบไม่ยืนยันไฟล์ Backup');
             this.backupLastResult=saved;
-            const labels={teachers:'ครู',period_teachers:'ครูในเทอม',students:'นักเรียน',clubs:'ชุมนุม',
-              registrations:'การลงทะเบียน',attendance:'ชุดเช็กชื่อ',club_reports:'รายงาน',period_config:'การตั้งค่า'};
+            const labels={teachers:'ครู',period_teachers:'ครูในเทอม',students:'นักเรียน',clubs:'ชุมนุม',registrations:'ลงทะเบียน',attendance:'เช็กชื่อ',club_reports:'รายงาน',period_config:'ตั้งค่า'};
             const summary=Object.entries(saved.counts||{}).map(([k,v])=>`${labels[k]||k}: ${v}`).join(' | ');
-            await Swal.fire({icon:'success',title:'สำรองข้อมูลพร้อมรหัสผ่านสำเร็จ',
-              text:`เทอม ${saved.periodCode}: ${summary}. รหัสผ่านครู ${saved.teacherPasswords} บัญชี และนักเรียน ${saved.studentPasswords} บัญชี ถูกเข้ารหัสไว้แล้ว (SHA-256 ตรงกัน)`,
-              footer:'อย่าลืมเก็บรหัสลับสำรอง! รูปภาพต้นฉบับต้องสำรองโฟลเดอร์ Drive แยกต่างหาก'});
-          }catch(err){
-            await Swal.fire({icon:'error',title:'สำรองข้อมูลยังไม่สำเร็จ',text:err.message||String(err)});
-          }finally{this.backupBusy=false;}
+            await Swal.fire({icon:'success',title:'สำรองข้อมูลสำเร็จ',text:`${saved.periodCode} — ${summary}. รหัสผ่านครู ${saved.teacherPasswords} และนักเรียน ${saved.studentPasswords} บัญชีเข้ารหัสแล้ว`,footer:'สำคัญ: เก็บสำเนา SKN_BACKUP_RECOVERY_KEY จาก GAS Script Properties ในที่ปลอดภัย และสำรองภาพจาก Drive แยก'});
+          }catch(err){await Swal.fire({icon:'error',title:'สำรองไม่สำเร็จ',text:err.message||String(err)});}
+          finally{this.backupBusy=false;}
+        },
+        async previewDatabaseTrash(){
+          if(this.user?.role!=='admin'||this.trashBusy)return;
+          this.trashBusy=true;
+          try{
+            const data=await window.SKNBridge.invoke('previewSafeTrash',[]);
+            const count=Number(data?.completedJobs||0),pending=Number(data?.pendingJobs||0);
+            const ask=await Swal.fire({title:'ตรวจขยะฐานข้อมูล',icon:'info',
+              html:`<div class="text-start">งานลบรูปที่ย้ายไฟล์ลงถังขยะ Drive เรียบร้อยและเก่ากว่า 30 วัน: <b>${count}</b> รายการ<br>งานที่ยังรอจัดการ: <b>${pending}</b> รายการ (จะไม่ลบ)<br><small>ไม่แตะข้อมูลครู นักเรียน ชุมนุม เช็กชื่อ รายงาน ประวัติ Backup และไฟล์ Drive</small></div>`,
+              showCancelButton:true,confirmButtonText:count?'ล้างเฉพาะงานเสร็จแล้ว':'ไม่มีขยะที่ล้างได้',confirmButtonColor:'#64748b',cancelButtonText:'ปิด'});
+            if(!ask.isConfirmed||!count)return;
+            const res=await window.SKNBridge.invoke('purgeSafeTrash',[]);
+            await Swal.fire('ล้างข้อมูลขยะสำเร็จ',`ลบเฉพาะบันทึกงานขยะเก่า ${res.deleted||0} รายการ (ไม่ลบไฟล์ Drive)`,'success');
+          }catch(err){await Swal.fire('ตรวจ/ล้างขยะไม่สำเร็จ',err.message||String(err),'error');}
+          finally{this.trashBusy=false;}
         },
                 openBackupHistoryModal() {
           this.backupFiles = [];
@@ -5132,6 +5140,67 @@ downloadCSVTemplate() {
           }
           return false;
         },
+        // V4.9: paginate at DOM table ROW boundaries before rasterization.
+        // Each continuation has its own table <thead> and section heading;
+        // photos remain the last physical page, and no A4 bitmap is stretched.
+        async sknPreparePdfPhysicalPages(root,logicalPages){
+          const output=[];
+          const add=page=>{root.appendChild(page);output.push(page);return page;};
+          const mk=(source,content)=>{
+            const page=this.sknPdfClonePage(source);
+            page.replaceChildren(content);
+            page.style.setProperty('min-height','0','important');page.style.height='auto';page.style.margin='0';
+            page.style.boxSizing='border-box';
+            return page;
+          };
+          const photoPages=[];
+          for(const source of logicalPages){
+            if(source.textContent?.includes('ประมวลภาพกิจกรรม')){photoPages.push(source);continue;}
+            const cleanSource=this.sknPdfClonePage(source);
+            const sections=[...cleanSource.children];
+            const hasTableSections=sections.some(el=>el.querySelector?.('table.table-report'));
+            if(!hasTableSections){
+              const page=this.sknPdfClonePage(source);
+              page.style.margin='0';add(page);continue;
+            }
+            for(const section of sections){
+              const table=section.querySelector?.('table.table-report');
+              if(!table){
+                const page=add(mk(source,section.cloneNode(true)));
+                if(page.scrollHeight>1125)throw Error('ส่วนรายงานที่ไม่มีตารางยาวเกิน A4 กรุณาย่อข้อความ');
+                continue;
+              }
+              const rows=[...table.querySelectorAll('tbody > tr')];
+              let cursor=0,serial=0;
+              if(!rows.length){add(mk(source,section.cloneNode(true)));continue;}
+              while(cursor<rows.length){
+                if(output.length>59)throw Error('รายงานยาวเกิน 60 หน้า');
+                const sec=section.cloneNode(true);
+                const body=sec.querySelector('table.table-report tbody');
+                body.replaceChildren();
+                if(serial>0){
+                  const heading=sec.querySelector('h4');
+                  if(heading)heading.textContent=(heading.textContent||'').trim()+' (ต่อ)';
+                }
+                const page=add(mk(source,sec));
+                // Include complete rows; a repeated <thead> is in each continuation.
+                let count=0;
+                while(cursor<rows.length){
+                  const row=rows[cursor].cloneNode(true);
+                  body.appendChild(row);
+                  if(page.scrollHeight>1105 && count>0){row.remove();break;}
+                  if(page.scrollHeight>1125){throw Error('แถวตารางที่ '+(cursor+1)+' สูงเกินหน้า A4');}
+                  cursor++;count++;
+                }
+                if(!count)throw Error('ไม่สามารถจัดตารางลงหน้า A4');
+                serial++;
+              }
+            }
+          }
+          // Image collage is always the last page(s), not interleaved with tables.
+          for(const source of photoPages){const page=this.sknPdfClonePage(source);page.style.margin='0';add(page);}
+          return output;
+        },
         async sknGenerateReportPdfByPages({jpegQuality=0.92,renderScale=2.4}={}){
           if(typeof window.html2canvas!=='function'||typeof window.jspdf?.jsPDF!=='function')
             throw Error('ตัวสร้าง PDF แบบแยกหน้าโหลดไม่สำเร็จ: ตรวจ CDN html2canvas และ jsPDF');
@@ -5151,10 +5220,12 @@ downloadCSVTemplate() {
           let written=0;
           const savedScroll=[window.scrollX,window.scrollY];
           try{
-            for(let i=0;i<pages.length;i++){
-              root.replaceChildren();
-              const clone=this.sknPdfClonePage(pages[i]);
-              root.appendChild(clone);
+            const physical=await this.sknPreparePdfPhysicalPages(root,pages);
+            for(let i=0;i<physical.length;i++){
+              const clone=physical[i];
+              // Keep the captured page at y=0; otherwise later pages render outside
+              // the html2canvas viewport when the entire long document is mounted.
+              root.replaceChildren(clone);
               const images=[...clone.querySelectorAll('img')].filter(im=>im.getAttribute('src'));
               await Promise.all(images.map(async im=>{
                 if(!im.complete)await new Promise((resolve,reject)=>{
@@ -5163,40 +5234,18 @@ downloadCSVTemplate() {
                 });
                 if(!im.naturalWidth)throw Error('รูปในรายงานไม่สมบูรณ์: หน้า '+(i+1));
               }));
-              // Split tall report sections into A4 slices; do not shrink long
-              // content to fit one sheet or silently crop the bottom.
-              const canvas=await window.html2canvas(clone,{scale:renderScale,useCORS:true,
-                allowTaint:false,backgroundColor:'#ffffff',logging:false,
-                windowWidth:Math.max(document.documentElement.clientWidth,850),
-                windowHeight:Math.max(document.documentElement.clientHeight,1250),
-                scrollX:0,scrollY:0});
-              if(!canvas||!canvas.width||!canvas.height||!this.sknCanvasContainsInk(canvas))
-                throw Error('หน้า '+(i+1)+' เป็นภาพว่างหรือสร้างภาพไม่สำเร็จ');
-              const a4HeightPx=Math.round(canvas.width*297/210);
-              const slices=Math.ceil(canvas.height/a4HeightPx);
-              if(slices>20||written+slices>40)throw Error('รายงานยาวเกินขีดจำกัดการสร้าง PDF 40 หน้า');
-              for(let slice=0;slice<slices;slice++){
-                const top=slice*a4HeightPx;
-                const take=Math.min(a4HeightPx,canvas.height-top);
-                const fragment=document.createElement('canvas');
-                fragment.width=canvas.width;fragment.height=take;
-                const ctx=fragment.getContext('2d');
-                if(!ctx)throw Error('ไม่สามารถแปลงภาพรายงานเป็น PDF');
-                ctx.fillStyle='#ffffff';ctx.fillRect(0,0,fragment.width,fragment.height);
-                ctx.drawImage(canvas,0,top,canvas.width,take,0,0,canvas.width,take);
-                // Table pages have no photos: use lossless PNG so Thai text, rotated
-                // date headers and thin table borders stay crisp when zoomed/printed.
-                // Photos use high-quality JPEG to keep MailApp attachments <= 8 MB.
-                const hasPhotos=[...clone.querySelectorAll('img')].some(im=>{
-                  const r=im.getBoundingClientRect();return r.width>110 && r.height>65;
-                });
-                const encoding=hasPhotos?'JPEG':'PNG';
-                const image=hasPhotos?fragment.toDataURL('image/jpeg',jpegQuality):fragment.toDataURL('image/png');
-                if(written>0)pdf.addPage();
-                pdf.addImage(image,encoding,0,0,210,210*take/canvas.width,undefined,'FAST');
-                written++;
-              }
-              this.sknEmailProgress(2,'สร้างเอกสาร PDF ทีละหน้า: เสร็จ '+(i+1)+'/'+pages.length+' ส่วน ('+written+' หน้า PDF)');
+              // A4 page image: preserve aspect ratio (no stretching), and never slice a table row.
+              const pageHeightMm=210*canvas.height/canvas.width;
+              if(pageHeightMm>297.5)throw Error('มีหน้ารายงานยาวเกิน A4');
+              const hasPhotos=[...clone.querySelectorAll('img')].some(im=>{
+                const r=im.getBoundingClientRect();return r.width>110&&r.height>65;
+              });
+              const encoding=(hasPhotos||renderScale<=2.0)?'JPEG':'PNG';
+              const image=encoding==='JPEG'?canvas.toDataURL('image/jpeg',jpegQuality):canvas.toDataURL('image/png');
+              if(written>0)pdf.addPage();
+              pdf.addImage(image,encoding,0,0,210,pageHeightMm,undefined,'FAST');
+              written++;
+              this.sknEmailProgress(2,'สร้างเอกสาร PDF ทีละหน้า: เสร็จ '+(i+1)+'/'+physical.length+' ส่วน ('+written+' หน้า PDF)');
               await new Promise(resolve=>setTimeout(resolve,0));
             }
             if(written===0||pdf.internal.getNumberOfPages()!==written)
@@ -5512,13 +5561,24 @@ downloadCSVTemplate() {
           if(Object.values(this.reportData.photos||{}).includes('__DELETE__')||
              Object.values(this.reportData.signatures||{}).includes('__DELETE__'))
             return Swal.fire('มีรูปที่รอลบ','กรุณาบันทึกหรือยกเลิกการลบรูปก่อนส่ง PDF','warning');
+          const mode=await Swal.fire({title:'เลือกวิธีส่งรายงาน PDF',icon:'question',showDenyButton:true,showCancelButton:true,
+            confirmButtonText:'สร้าง PDF จากหน้าเว็บและส่งอัตโนมัติ',denyButtonText:'แนบไฟล์ PDF เอง',cancelButtonText:'ยกเลิก'});
+          if(!mode.isConfirmed&&!mode.isDenied)return;
+          const userManual=mode.isDenied;
           this.loading=true;
           try{
             let attachment=null;
             try{
+              if(userManual){
+                const file=await this.chooseManualReportPdf();
+                if(!file)return;
+                this.sknEmailProgress(3,'กำลังตรวจ PDF ที่แนบเอง');
+                attachment={pdfFile:file,integrity:await this.sknPdfIntegrity(file),createdAutomatically:false};
+              }else{
               // This method WAITS for: report save, Drive images, PDF render,
               // PDF integrity. No file picker or Google Docs call occurs here.
               attachment=await this.sknCreateAutoPdfWithRetries(email);
+              }
             }catch(automaticError){
               this.sknEmailProgressClose();
               if(automaticError?.stage==='save')throw automaticError;

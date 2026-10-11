@@ -199,7 +199,7 @@ async function mediaSave(input, existing, p, c, slot) {
     }
     const match = input.match(/^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=]+)$/);
     assert(match, 'รองรับรูป PNG, JPEG หรือ WebP เท่านั้น');
-    assert(match[2].length <= 8_500_000, 'ภาพมีขนาดใหญ่เกิน 6 MB กรุณาเลือกไฟล์ต้นฉบับที่เล็กลง');
+    assert(match[2].length <= 8500000, 'ภาพมีขนาดใหญ่เกิน 6 MB กรุณาเลือกไฟล์ต้นฉบับที่เล็กลง');
     const sha = sknHex(new Uint8Array(await crypto.subtle.digest('SHA-256', sknEncoder ? sknEncoder.encode(match[2]) : Uint8Array.from(match[2], (c) => c.charCodeAt(0)))));
     if (existing?.[slot]?.sha === sha)
         return existing[slot];
@@ -519,28 +519,42 @@ async function sknInvoke(method, args, periodId) {
             const type = String(args[1]);
             assert(['teacher', 'student'].includes(type));
             const raw = String(args[0] || '');
-            assert(raw.length <= 3_000_000, 'CSV ใหญ่เกินไป');
-            const lines = csvParse(raw);
-            const ids = new Set();
-            let duplicates = 0;
+            assert(raw.length <= 3000000, 'CSV ใหญ่เกินไป');
+            const lines = csvParse(raw), ids = new Set();
+            let duplicates = 0, headers = 0;
             const data = [];
             for (let i = 0; i < lines.length; i++) {
-                const r = lines[i].map(v => v.trim());
-                if (!r[0] || r[0].toLowerCase() === 'id' || r[0].toLowerCase().includes('id') && i === 0)
+                const r = lines[i].map(v => String(v || '').trim());
+                const id = r[0].replace(/^\uFEFF/, '');
+                if (!id)
                     continue;
-                if (ids.has(r[0])) {
+                if (/^(id|รหัส|รหัสครู|รหัสนักเรียน|student_id|teacher_id)$/i.test(id) || (i === 0 && /id/i.test(id) && r.length > 1 && /name|ชื่อ/i.test(r[1]))) {
+                    headers++;
+                    continue;
+                }
+                if (ids.has(id)) {
                     duplicates++;
                     continue;
                 }
-                ids.add(r[0]);
-                data.push(type === 'teacher' ? { id: r[0], name: r[1] || '', username: r[2] || r[0], password: r[3] || '', role: r[4] || 'teacher' } : { id: r[0], name: r[1] || '', level: r[2] || '', room: r[3] || '', no: r[4] || '', password: r[5] || '' });
+                ids.add(id);
+                const row = type === 'teacher'
+                    ? { id, name: r[1] || '', username: r[2] || id, password: r[3] || '', role: r[4] || 'teacher' }
+                    : { id, name: r[1] || '', level: r[2] || '', room: r[3] || '', no: r[4] || '', password: r[5] || '' };
+                data.push(row);
             }
-            const existing = type === 'teacher' ? await all('teachers') : await all('students', p.id);
-            const eMap = new Map(existing.map(x => [x.id, x]));
-            const addedNames = data.filter(x => !eMap.has(x.id)).map(({ password, ...rest }) => rest), updatedNames = data.filter(x => eMap.has(x.id) && Object.entries(x).some(([k, v]) => k !== 'password' && eMap.get(x.id)[k] !== v)).map(({ password, ...rest }) => rest);
-            for (let i = 0; i < data.length; i += 150)
-                await result(db.rpc('skn_upsert_users', { p_period: p.id, p_role: type, p_rows: data.slice(i, i + 150) }));
-            output = { addedCount: addedNames.length, updatedCount: updatedNames.length, addedNames, updatedNames, duplicateInCsvCount: duplicates };
+            assert(data.length > 0, 'ไม่พบรายการนำเข้าใน CSV');
+            assert(data.length <= 10000, 'CSV เกิน 10,000 แถว');
+            const out = { addedCount: 0, updatedCount: 0, unchangedCount: 0, duplicateInCsvCount: duplicates, headerRowsSkipped: headers, addedNames: [], updatedNames: [], updatedDetails: [] };
+            for (let i = 0; i < data.length; i += 150) {
+                const resp = await result(db.rpc('skn_import_users_v49', { p_period: p.id, p_role: type, p_rows: data.slice(i, i + 150) }));
+                out.addedCount += Number(resp.addedCount || 0);
+                out.updatedCount += Number(resp.updatedCount || 0);
+                out.unchangedCount += Number(resp.unchangedCount || 0);
+                out.addedNames.push(...(resp.addedNames || []));
+                out.updatedNames.push(...(resp.updatedNames || []));
+                out.updatedDetails.push(...(resp.updatedDetails || []));
+            }
+            output = out;
             break;
         }
         case 'deleteUser': {
@@ -702,7 +716,7 @@ async function sknInvoke(method, args, periodId) {
             const settings = JSON.parse((await cfg(p.id)).adminSettings || '{}');
             const email = String(settings.reportEmail || '').trim();
             assert(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email), 'กรุณาตั้งค่าอีเมลรับรายงานในหน้าตั้งค่าระบบขั้นสูงก่อน');
-            assert(typeof f.pdfFile === 'string' && f.pdfFile.startsWith('data:application/pdf;base64,') && f.pdfFile.length < 12_000_000, 'ระบบสร้าง PDF ไม่สำเร็จ หรือไฟล์เกิน 9 MB');
+            assert(typeof f.pdfFile === 'string' && f.pdfFile.startsWith('data:application/pdf;base64,') && f.pdfFile.length < 12000000, 'ระบบสร้าง PDF ไม่สำเร็จ หรือไฟล์เกิน 9 MB');
             const a = await gas('sendReportEmail', { periodId: p.id, clubId: club.id, email, data: { ...f, clubName: club.name, semester: p.semester, academicYear: p.academic_year }, period: `${p.semester}-${p.academic_year}` });
             output = { success: a.success === true, sentTo: a.sentTo || email, pdfBytes: a.pdfBytes || 0 };
             break;
@@ -876,7 +890,7 @@ async function sknInvoke(method, args, periodId) {
             const semester = Number(args[2]);
             const makeCurrent = args[3] === true;
             assert(snap?.format === 'SKN-SUPABASE-V1' && snap.tables && snap.period, 'รองรับเฉพาะไฟล์สำรอง SKN-SUPABASE-V1');
-            assert(new TextEncoder().encode(JSON.stringify(snap)).length <= 7_500_000, 'ไฟล์ JSON เกิน 7.5 MB สำหรับหน้าเว็บ');
+            assert(new TextEncoder().encode(JSON.stringify(snap)).length <= 7500000, 'ไฟล์ JSON เกิน 7.5 MB สำหรับหน้าเว็บ');
             if (String(args[4] || 'local') === 'local') {
                 // Archive uploaded JSON in Drive before invoking the restore transaction.
                 const uploaded = await gas('saveImportedBackup', {
@@ -889,13 +903,46 @@ async function sknInvoke(method, args, periodId) {
                     file_id: uploaded.id, name: uploaded.name
                 }));
             }
-            const credentials = snap.credential_vault ?
-                await sknDecryptCredentials(snap.credential_vault, String(args[5] || '')) : null;
+            const overwrite = args[6] === true;
+            const vault = snap.credential_vault;
+            let vaultKey = String(args[5] || '');
+            if (vault?.keyMode === 'GAS-SCRIPT-PROPERTIES-V1') {
+                const response = await gas('getBackupKey', { periodId: p.id, clubId: 'ADMIN-REPORT' });
+                assert(response?.success && response?.key, 'GAS ไม่มีกุญแจถอดรหัสไฟล์สำรองนี้');
+                vaultKey = String(response.key);
+            }
+            const credentials = vault ? await sknDecryptCredentials(vault, vaultKey) : null;
             // The vault is never included in the RPC payload; only decrypted credentials,
             // transmitted over authenticated HTTPS, are used to create MISSING accounts.
-            if (credentials) {
-                const cleanSnapshot = { ...snap };
-                delete cleanSnapshot.credential_vault;
+            const cleanSnapshot = { ...snap };
+            delete cleanSnapshot.credential_vault;
+            if (overwrite) {
+                const target = (await getPeriod()).periods.find(x => x.academic_year === year && x.semester === semester);
+                assert(target, 'ไม่พบเทอมปลายทางที่จะกู้ทับ');
+                // Hard requirement: archive CURRENT data to Google Drive BEFORE replacing any rows.
+                const original = await snapshot(target.id);
+                // Also protect credentials in the automatic pre-overwrite safety backup.
+                const keyResponse = await gas('getBackupKey', { periodId: target.id, clubId: 'ADMIN-REPORT' });
+                assert(keyResponse?.success && String(keyResponse.key || '').length >= 60, 'ไม่พบกุญแจสำรองใน GAS');
+                const archiveCred = await result(db.rpc('skn_backup_credentials_v48', { p_period: target.id }));
+                assert(archiveCred?.students?.length === original.tables.students.length, 'Backup ก่อนกู้ทับ: ข้อมูลบัญชีนักเรียนไม่ครบ');
+                const memberIds = new Set(original.tables.period_teachers.map((r) => r.teacher_id));
+                assert(archiveCred.teachers?.length === memberIds.size && archiveCred.teachers.every((r) => memberIds.has(r.id)), 'Backup ก่อนกู้ทับ: ข้อมูลบัญชีครูไม่ครบ');
+                original.credential_vault = await sknEncryptCredentials(archiveCred, String(keyResponse.key));
+                original.credential_vault.keyMode = 'GAS-SCRIPT-PROPERTIES-V1';
+                original.backup_manifest.version = 'V4.9';
+                original.backup_manifest.credentials = 'AES-256-GCM (GAS installation key)';
+                const content = JSON.stringify(original);
+                const safe = await gas('saveBackup', { periodId: target.id, clubId: 'ADMIN-REPORT', fileName: 'Before_Restore_Overwrite.json', content });
+                await verifyBackupFile(content, safe);
+                await result(db.from('backup_logs').insert({ period_id: target.id, period_code: target.period_code, file_id: safe.id, name: safe.name }));
+                output = await result(db.rpc('skn_restore_overwrite_v49', {
+                    p_snapshot: cleanSnapshot, p_target: target.id, p_backup_file: safe.id,
+                    p_make_current: makeCurrent, p_credentials: credentials || {}
+                }));
+                output.backupFileId = safe.id;
+            }
+            else if (credentials) {
                 output = await result(db.rpc('skn_restore_snapshot_with_credentials_v48', {
                     p_snapshot: cleanSnapshot, p_year: year, p_sem: semester,
                     p_make_current: makeCurrent, p_credentials: credentials
@@ -903,15 +950,16 @@ async function sknInvoke(method, args, periodId) {
             }
             else {
                 output = await result(db.rpc('skn_restore_snapshot_v45', {
-                    p_snapshot: snap, p_year: year, p_sem: semester, p_make_current: makeCurrent
+                    p_snapshot: cleanSnapshot, p_year: year, p_sem: semester, p_make_current: makeCurrent
                 }));
             }
             break;
         }
         case 'createFullBackupNow': {
             mustAdmin(u);
-            const passphrase = String(args[0] || '');
-            assert(passphrase.length >= 14, 'ต้องกำหนดรหัสลับเข้ารหัสไฟล์ Backup อย่างน้อย 14 ตัวอักษร');
+            const keyResponse = await gas('getBackupKey', { periodId: p.id, clubId: 'ADMIN-REPORT' });
+            const passphrase = String(keyResponse?.key || '');
+            assert(keyResponse?.success && passphrase.length >= 60, 'ไม่สามารถอ่านกุญแจ Backup จาก GAS');
             const data = await snapshot(p.id);
             assert(data.tables.teachers.every((t) => !Object.prototype.hasOwnProperty.call(t, 'password')) &&
                 data.tables.students.every((t) => !Object.prototype.hasOwnProperty.call(t, 'password')), 'ข้อมูลจาก Public View ไม่ปลอดภัย: พบคอลัมน์ password ในไฟล์ JSON ก่อนเข้ารหัส');
@@ -924,11 +972,12 @@ async function sknInvoke(method, args, periodId) {
             assert(credentials.students.every((s) => typeof s.password === 'string' && s.password.length > 0) &&
                 credentials.teachers.every((t) => typeof t.password === 'string' && t.password.length > 0), 'มีบัญชีที่ยังไม่ได้ตั้งรหัสผ่าน ระบบไม่สร้างไฟล์สำรองที่ไม่ครบ');
             data.credential_vault = await sknEncryptCredentials(credentials, passphrase);
+            data.credential_vault.keyMode = 'GAS-SCRIPT-PROPERTIES-V1';
             data.backup_manifest.version = 'V4.8';
-            data.backup_manifest.credentials = 'AES-256-GCM encrypted; passphrase NEVER stored';
+            data.backup_manifest.credentials = 'AES-256-GCM encrypted with installation key held in GAS Script Properties';
             data.backup_manifest.note = 'ไฟล์ JSON มีรหัสผ่านครูและนักเรียนที่เข้ารหัสไว้ใน credential_vault; ไฟล์ภาพต้นฉบับเก็บใน Drive แยกต่างหาก';
             const content = JSON.stringify(data);
-            assert(new TextEncoder().encode(content).length <= 7_500_000, 'ไฟล์ JSON เกิน 7.5 MB โปรดใช้สำรองข้อมูลผ่าน Supabase Database Backup แทน');
+            assert(new TextEncoder().encode(content).length <= 7500000, 'ไฟล์ JSON เกิน 7.5 MB โปรดใช้สำรองข้อมูลผ่าน Supabase Database Backup แทน');
             const name = `SKN_Full_Backup_${p.academic_year}_${p.semester}_${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
             const saved = await gas('saveBackup', { periodId: p.id, clubId: 'ADMIN-REPORT', fileName: name, content });
             await verifyBackupFile(content, saved);
@@ -954,6 +1003,16 @@ async function sknInvoke(method, args, periodId) {
             const opts = { p_source: p.id, p_year: Number(o.newYear), p_sem: Number(o.newSemester), p_teachers: o.copyTeachers === true, p_students: o.copyStudents === true, p_clubs: o.copyClubs === true, p_regs: o.copyRegistrations === true, p_att: o.copyAttendance === true, p_reports: o.copyReports === true };
             const newId = await result(db.rpc('skn_create_period', opts));
             output = { success: true, message: 'สร้างภาคเรียนใหม่เรียบร้อยแล้ว (เก็บข้อมูลเดิมไว้)', newPeriodId: newId, backupFileId: backup.id };
+            break;
+        }
+        case 'previewSafeTrash': {
+            mustAdmin(u);
+            output = await result(db.rpc('skn_trash_preview_v49'));
+            break;
+        }
+        case 'purgeSafeTrash': {
+            mustAdmin(u);
+            output = await result(db.rpc('skn_trash_purge_v49', { p_limit: 300 }));
             break;
         }
         case 'getBackupFilesList': {
