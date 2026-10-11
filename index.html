@@ -1348,25 +1348,28 @@
       .skn-term-header > h6 { flex:0 0 100%; }
       .skn-term-primary-actions { grid-template-columns:1fr; flex:1 1 100%; gap:10px; }
       .skn-term-primary-actions > .btn { min-height:45px; }
+      /* V5.9.3: original TOP toolbar, not a fixed mobile footer. */
+      .skn-report-home-back { display:none !important; }
+      .skn-report-header { margin-bottom:8px !important; padding-top:8px !important; }
       .skn-mobile-report-actions {
-        display:grid !important; grid-template-columns:repeat(6,minmax(0,1fr));
-        position:fixed; bottom:0; left:0; right:0;
-        z-index:1100; gap:3px; padding:7px 5px calc(7px + env(safe-area-inset-bottom,0px));
-        background:#fff; border-top:1px solid #cbd5e1;
-        box-shadow:0 -3px 16px rgba(15,23,42,.14);
+        display:grid !important;
+        grid-template-columns:repeat(5,minmax(0,1fr));
+        position:static; width:100%; min-width:0; margin:0;
+        gap:5px; padding:0;
+        background:transparent; border:0; box-shadow:none;
       }
-      .skn-mobile-report-actions button {
-        min-width:0; min-height:49px; display:flex; flex-direction:column;
-        justify-content:center; align-items:center; gap:4px; padding:4px 1px;
-        border:0; background:transparent; color:#1e293b; border-radius:8px;
-        font-family:inherit; font-weight:700; font-size:10px; line-height:1.15;
+      .skn-mobile-report-actions .btn {
+        min-width:0; height:42px; min-height:42px;
+        display:flex; flex-direction:column; align-items:center; justify-content:center;
+        padding:3px 2px; gap:2px; border-radius:7px;
+        font-size:10px; line-height:1.05; font-weight:700;
+        box-shadow:0 2px 5px rgba(0,0,0,.1);
       }
-      .skn-mobile-report-actions button i { font-size:17px; }
-      .skn-mobile-report-actions button:focus-visible,.skn-mobile-report-actions button:active { background:#e0e7ff;outline:2px solid #2563eb; }
-      .skn-mobile-report-actions button:disabled { opacity:.42; }
-      .skn-report-scroll-top { bottom:calc(86px + env(safe-area-inset-bottom,0px)); right:14px; width:36px; height:36px; }
-      .skn-report-header { margin-bottom:8px !important; }
-      .skn-report-page { padding-bottom:calc(82px + env(safe-area-inset-bottom,0px)) !important; }
+      .skn-mobile-report-actions .btn i { font-size:14px; line-height:1; }
+      .skn-mobile-report-actions .btn:focus-visible { outline:2px solid #1d4ed8;outline-offset:2px; }
+      .skn-mobile-report-actions .btn:disabled { opacity:.52; }
+      .skn-report-scroll-top { bottom:14px; right:14px; width:36px; height:36px; }
+      .skn-report-page { padding-bottom:0 !important; }
     }
     @media print {
       .skn-mobile-report-actions,.skn-report-scroll-top { display:none !important; }
@@ -2627,7 +2630,7 @@
           <div v-if="view === 'report'" class="container-fluid px-0 skn-report-page">
             <div ref="reportScrollAnchor" class="d-flex justify-content-between align-items-center mb-4 container-xl no-print pt-3 skn-report-header">
               <div class="d-flex align-items-center gap-3">
-                <button @click="view = 'dashboard'" type="button" class="btn btn-white border shadow-sm rounded-circle p-0 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px; flex:0 0 40px" aria-label="กลับหน้าหลัก" title="กลับหน้าหลัก"><i class="fas fa-arrow-left"></i></button>
+                <button @click="view = 'dashboard'" type="button" class="btn btn-white border shadow-sm rounded-circle p-0 d-flex align-items-center justify-content-center skn-report-home-back" style="width: 40px; height: 40px; flex:0 0 40px" aria-label="กลับหน้าหลัก" title="กลับหน้าหลัก"><i class="fas fa-arrow-left"></i></button>
                 <div class="d-none d-md-block">
                   <h4 class="fw-800 m-0">เอกสารรายงานชุมนุม</h4>
                   <div class="text-muted small">แบบฟอร์มมาตรฐานพิมพ์ลง A4</div>
@@ -2667,19 +2670,17 @@
                 </button>
               </div>
 
-
+              <!-- V5.9.3: mobile toolbar stays in the TOP report action area with original button colors. -->
+              <div class="skn-mobile-report-actions no-print d-md-none" role="toolbar" aria-label="เครื่องมือรายงานสำหรับมือถือ">
+                <button type="button" @click="saveCurrentReport" class="btn btn-success skn-writable" :disabled="loading || archiveReadonly" title="บันทึกรายงาน" aria-label="บันทึกรายงาน"><i class="fas fa-cloud-upload-alt"></i><span>บันทึก</span></button>
+                <button type="button" @click="downloadWordReport" class="btn btn-primary" title="ดาวน์โหลด Word" aria-label="ดาวน์โหลด Word"><i class="fas fa-file-word"></i><span>Word</span></button>
+                <button type="button" @click="printReport" class="btn btn-danger" title="ดาวน์โหลด PDF" aria-label="ดาวน์โหลด PDF"><i class="fas fa-file-pdf"></i><span>PDF</span></button>
+                <button type="button" @click="printReport" class="btn btn-dark" title="พิมพ์เอกสาร" aria-label="พิมพ์เอกสาร"><i class="fas fa-print"></i><span>พิมพ์</span></button>
+                <button type="button" @click="promptSendEmail" class="btn btn-info text-white" :disabled="archiveReadonly || loading || (config.allow_report_email==='false' && user?.role!=='admin')" title="ส่งอีเมล" aria-label="ส่งอีเมล"><i class="fas fa-envelope"></i><span>ส่งเมล</span></button>
+              </div>
 
             </div>
 
-            <!-- V5.9.2: compact mobile-only action bar; never appears in the A4 report/PDF. -->
-            <div class="skn-mobile-report-actions no-print d-md-none" role="toolbar" aria-label="เครื่องมือรายงานสำหรับมือถือ">
-              <button type="button" @click="view = 'dashboard'" title="กลับหน้าหลัก"><i class="fas fa-home"></i><span>หน้าหลัก</span></button>
-              <button type="button" @click="saveCurrentReport" :disabled="loading || archiveReadonly" title="บันทึกรายงาน"><i class="fas fa-save"></i><span>บันทึก</span></button>
-              <button type="button" @click="downloadWordReport" title="ดาวน์โหลด Word"><i class="fas fa-file-word"></i><span>Word</span></button>
-              <button type="button" @click="printReport" title="ดาวน์โหลด PDF"><i class="fas fa-file-pdf"></i><span>PDF</span></button>
-              <button type="button" @click="printReport" title="พิมพ์เอกสาร"><i class="fas fa-print"></i><span>พิมพ์</span></button>
-              <button type="button" @click="promptSendEmail" :disabled="archiveReadonly || loading || (config.allow_report_email==='false' && user?.role!=='admin')" title="ส่งอีเมล"><i class="fas fa-envelope"></i><span>ส่งเมล</span></button>
-            </div>
             <button type="button" @click="scrollReportToTop" class="skn-report-scroll-top no-print" aria-label="กลับขึ้นด้านบนของรายงาน" title="ขึ้นด้านบนสุด"><i class="fas fa-arrow-up"></i></button>
 
             <div v-if="reportMediaErrors.length" class="alert alert-warning container-xl no-print d-flex flex-wrap justify-content-between align-items-center gap-2">
@@ -5601,6 +5602,9 @@ downloadCSVTemplate() {
           const signerName=String(this.signatureLibraryDraftNames[slot]||'').trim();
           if(signerName.length<2)return Swal.fire('ระบุชื่อเจ้าของลายเซ็น','กรุณากรอกชื่อ–นามสกุลก่อนอัปโหลด','warning');
           this.signatureLibraryWorking=true;
+          const priorId=String(this.signatureLibraryRecords[slot]?.file_id||'');
+          let newFileId='';
+          let committed=false;
           try{
             const src=await this.readOriginalImage(file,3);
             const saved=await window.SKNFile.invoke('saveSignatureLibraryFile',{
@@ -5608,14 +5612,43 @@ downloadCSVTemplate() {
               base64:src.split(',')[1]
             });
             if(!saved?.id)throw Error('Google Drive ไม่ยืนยัน File ID');
+            newFileId=String(saved.id);
             const row=await window.SKNBridge.invoke('upsertSignatureLibrary',[{
-              slot,signerName,fileId:saved.id,fileUrl:saved.url||''
+              slot,signerName,fileId:newFileId,fileUrl:saved.url||''
             }]);
+            committed=true;
             this.signatureLibraryRecords={...this.signatureLibraryRecords,[slot]:row};
             this.signatureLibraryImages={...this.signatureLibraryImages,[slot]:src};
-            Swal.fire('บันทึกลงคลังแล้ว','ภาพใหม่ยังไม่เปิดใช้ ต้องตรวจสอบสิทธิ์เจ้าของลายเซ็นและกด “อนุญาตใช้” ก่อน','success');
-          }catch(err){Swal.fire('บันทึกคลังลายเซ็นไม่สำเร็จ',String(err?.message||err),'error');}
-          finally{this.signatureLibraryWorking=false;}
+            // Never remove the old source before Supabase has committed the replacement.
+            // The GAS endpoint re-checks that it is no longer the active library file.
+            if(priorId && priorId!==newFileId){
+              try{
+                await this.trashSignatureLibraryFile(slot,priorId);
+              }catch(cleanupErr){
+                await Swal.fire('เปลี่ยนลายเซ็นแล้ว แต่ลบรูปเก่าไม่สำเร็จ',
+                  'บันทึกภาพใหม่สำเร็จแล้ว แต่ไฟล์เก่า ('+priorId+') ยังอาจอยู่ใน Drive: '+String(cleanupErr?.message||cleanupErr),'warning');
+                return;
+              }
+            }
+            Swal.fire('บันทึกลงคลังแล้ว','รูปเดิมถูกย้ายไปถังขยะของ Drive แล้ว (ถ้ามี) รูปใหม่ต้องได้รับอนุญาตก่อนใช้','success');
+          }catch(err){
+            if(newFileId && !committed){
+              // An upload that failed during DB save is not referenced by the library.
+              try{await this.trashSignatureLibraryFile(slot,newFileId);}
+              catch(cleanupErr){console.warn('SKN orphan signature upload cleanup:',String(cleanupErr?.message||cleanupErr));}
+            }
+            Swal.fire('บันทึกคลังลายเซ็นไม่สำเร็จ',String(err?.message||err),'error');
+          }finally{this.signatureLibraryWorking=false;}
+        },
+        async trashSignatureLibraryFile(slot,fileId){
+          if(this.user?.role!=='admin')throw Error('เฉพาะ Admin');
+          const id=String(fileId||'');
+          if(!/^[A-Za-z0-9_-]{8,200}$/.test(id))throw Error('File ID ไม่ถูกต้อง');
+          const result=await window.SKNFile.invoke('trashSignatureLibraryFile',{
+            periodId:this.activePeriodId,clubId:'ADMIN-REPORT',slot,fileId:id
+          });
+          if(!result?.success || (!result.trashed && !result.alreadyTrashed))throw Error('Drive ไม่ยืนยันการลบไฟล์');
+          return result;
         },
         async setSignatureLibraryApproval(slot,enabled){
           if(this.user?.role!=='admin'||this.signatureLibraryWorking)return;
@@ -5644,16 +5677,26 @@ downloadCSVTemplate() {
         },
         async archiveSignatureLibrary(slot){
           if(this.user?.role!=='admin'||this.signatureLibraryWorking)return;
-          const confirm=await Swal.fire({title:'นำลายเซ็นออกจากคลัง?',
-            text:'จะเก็บไฟล์ต้นฉบับไว้ใน Drive เพื่อใช้ตรวจสอบย้อนหลัง แต่จะไม่สามารถนำลงรายงานใหม่',
-            icon:'warning',showCancelButton:true,confirmButtonText:'นำออกจากคลัง',cancelButtonText:'ยกเลิก'});
+          const confirm=await Swal.fire({title:'นำลายเซ็นออกจากคลังและ Drive?',
+            text:'จะปิดรายการในคลังและย้ายไฟล์ต้นฉบับไปถังขยะของ Drive แต่ไม่ลบเอกสาร PDF ที่ดาวน์โหลดไปแล้ว',
+            icon:'warning',showCancelButton:true,confirmButtonText:'นำออกและลบรูปเก่า',cancelButtonText:'ยกเลิก'});
           if(!confirm.isConfirmed)return;
+          const oldFileId=String(this.signatureLibraryRecords[slot]?.file_id||'');
           this.signatureLibraryWorking=true;
           try{
-            await window.SKNBridge.invoke('archiveSignatureLibrary',[slot]);
+            const archived=await window.SKNBridge.invoke('archiveSignatureLibrary',[slot]);
+            if(archived!==true)throw Error('Supabase ไม่ยืนยันการนำรายการออก');
             const records={...this.signatureLibraryRecords};delete records[slot];this.signatureLibraryRecords=records;
             const images={...this.signatureLibraryImages};delete images[slot];this.signatureLibraryImages=images;
-            Swal.fire({toast:true,position:'top-end',icon:'success',title:'นำออกจากคลังแล้ว',timer:1800,showConfirmButton:false});
+            if(oldFileId){
+              try{await this.trashSignatureLibraryFile(slot,oldFileId);}
+              catch(cleanupErr){
+                await Swal.fire('นำออกจากคลังแล้ว แต่ลบไฟล์ใน Drive ไม่สำเร็จ',
+                  'โปรดตรวจสอบไฟล์เก่า ('+oldFileId+') ใน Google Drive: '+String(cleanupErr?.message||cleanupErr),'warning');
+                return;
+              }
+            }
+            Swal.fire({toast:true,position:'top-end',icon:'success',title:'นำออกจากคลังและย้ายไฟล์ไปถังขยะแล้ว',timer:2200,showConfirmButton:false});
           }catch(err){Swal.fire('นำออกไม่ได้',String(err?.message||err),'error');}
           finally{this.signatureLibraryWorking=false;}
         },
