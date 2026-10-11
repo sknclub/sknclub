@@ -719,14 +719,14 @@
     #skn-pdf-capture-root .skn-pdf-cover .skn-cover-term,
     #skn-pdf-capture-root .skn-pdf-cover .skn-cover-advisor {margin-bottom: 5px !important;}
 
-    /* V5.7.5: all five signer names are prominent in print and mail PDFs.
+    /* V5.9: balanced signatory labels for A4 print and emailed PDF. Former V5.7.5: all five signer names are prominent in print and mail PDFs.
        This has higher specificity than the earlier cover signature-grid * rule. */
     .cover-page .signature-grid .skn-signatory-name,
     .cover-page .signature-grid .skn-signatory-name * {
       font-family: 'TH Sarabun New', 'Sarabun', sans-serif;
-      font-size: 14pt !important;
+      font-size: 12pt !important;
       font-weight: 700 !important;
-      line-height: 1.35 !important;
+      line-height: 1.24 !important;
       color: #101010 !important;
       text-align: center !important;
       white-space: normal !important;
@@ -735,11 +735,21 @@
     #skn-pdf-capture-root .skn-pdf-cover .signature-grid .skn-signatory-name,
     #skn-pdf-capture-root .skn-pdf-cover .signature-grid .skn-signatory-name * {
       font-family: 'TH Sarabun New', 'Sarabun', sans-serif !important;
-      font-size: 14pt !important;
+      font-size: 12pt !important;
       font-weight: 700 !important;
-      line-height: 1.35 !important;
+      line-height: 1.24 !important;
       color: #111 !important;
       text-shadow: none !important;
+    }
+
+    @media print {
+      .cover-page .signature-grid .skn-signatory-name,
+      .cover-page .signature-grid .skn-signatory-name * {
+        font-size: 12pt !important;
+        font-weight: 700 !important;
+        line-height: 1.24 !important;
+        overflow-wrap: break-word !important;
+      }
     }
 
     /* Report & Print */
@@ -1421,6 +1431,15 @@
 
 
 
+        <!-- V5.9: exclusive Admin batch export progress, prevents accidental edits while snapshots render. -->
+        <div v-if="adminBulkExportBusy" class="no-print" role="status" aria-live="polite"
+             style="position:fixed;inset:0;z-index:2147482900;display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,.7);padding:20px">
+          <div style="width:min(560px,94vw);background:white;padding:24px;border-radius:14px;box-shadow:0 20px 70px #0005">
+            <h5 class="fw-bold mb-3">กำลังจัดทำ PDF รายงานทุกชุมนุม</h5>
+            <div class="mb-2"><i class="fas fa-spinner fa-spin text-primary me-2"></i>{{ adminBulkExportProgress }}</div>
+            <p class="small text-secondary mb-0">โปรดเปิดหน้านี้ไว้ ระบบจะรวม PDF ลง ZIP โดยไม่แก้ไขรายงานต้นฉบับ</p>
+          </div>
+        </div>
         <div v-if="archiveReadonly" class="skn-archive-note no-print"><i class="fas fa-lock me-2"></i>กำลังเปิดภาคเรียนย้อนหลัง: ดูและดาวน์โหลดข้อมูลได้ แต่แก้ไขไม่ได้ (เฉพาะผู้ดูแลระบบแก้ไขย้อนหลังได้)</div>
         <!-- เพิ่มหน้า View สำหรับกระดาษ A4 (Admin Report) 23/05/69  -->
 
@@ -1436,7 +1455,13 @@
           <div class="text-muted small">แบบฟอร์มมาตรฐานพิมพ์ลง A4</div>
         </div>
       </div>
-      <div class="d-flex gap-2 no-print">
+      <div class="d-flex gap-2 no-print flex-wrap justify-content-end">
+        <button v-if="user?.role==='admin'" @click="downloadAdminBulkReports"
+                class="btn btn-success btn-fast shadow-sm px-3"
+                :disabled="adminBulkExportBusy || signatureLibraryWorking"
+                title="ดาวน์โหลด PDF ทุกชุมนุมเป็น ZIP โดยใช้ลายเซ็นส่วนกลางที่ได้รับอนุญาตเฉพาะในไฟล์ส่งออก">
+          <i class="fas fa-file-archive me-2"></i>ดาวน์โหลด PDF ทุกชุมนุม (ลายเซ็นกลาง)
+        </button>
         <!-- เพิ่มปุ่มดาวน์โหลด Word สำหรับ Admin -->
         <button @click="downloadAdminWordReport" class="btn btn-primary btn-fast shadow-sm px-4">
           <i class="fas fa-file-word me-2"></i>ดาวน์โหลด Word
@@ -2043,11 +2068,17 @@
         <div class="card-clean p-4 bg-white border-0 shadow-sm">
           <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
             <h6 class="fw-bold m-0 text-primary"><i class="fas fa-signature me-2"></i>คลังลายเซ็นส่วนกลางสำหรับ Admin</h6>
-            <button type="button" class="btn btn-sm btn-outline-primary" @click="loadSignatureLibrary" :disabled="signatureLibraryWorking">
-              <i class="fas fa-sync-alt me-1"></i>โหลดข้อมูลคลัง
-            </button>
+            <div class="d-flex flex-wrap align-items-center gap-2">
+              <button type="button" class="btn btn-sm btn-outline-success" v-if="user?.role==='admin'"
+                      @click="downloadAdminBulkReports" :disabled="adminBulkExportBusy || signatureLibraryWorking">
+                <i class="fas fa-file-archive me-1"></i>ดาวน์โหลด PDF ทุกชุมนุม
+              </button>
+              <button type="button" class="btn btn-sm btn-outline-primary" @click="loadSignatureLibrary" :disabled="signatureLibraryWorking">
+                <i class="fas fa-sync-alt me-1"></i>โหลดข้อมูลคลัง
+              </button>
+            </div>
           </div>
-          <p class="small text-muted mb-3">บันทึกลายเซ็นผู้บริหารไว้ใช้ข้ามภาคเรียนได้ ต้องได้รับอนุญาตจากเจ้าของลายเซ็นก่อนเปิดใช้ และ Admin ต้องเลือกรายงานที่จะใช้ลายเซ็นแต่ละครั้ง ไม่มีการลงนามทุกฉบับอัตโนมัติ</p>
+          <p class="small text-muted mb-3">Admin จัดเก็บและอนุญาตลายเซ็นได้ที่นี่ จากนั้นเลือก “ดาวน์โหลด PDF ทุกชุมนุม” เพื่อใส่ลายเซ็นที่อนุญาตแล้วลงในไฟล์ PDF ของทุกชุมนุมและรวมเป็น ZIP เฉพาะไฟล์ที่ส่งออก ไม่เปลี่ยนรายงานของครู และบันทึกประวัติการใช้งาน</p>
           <div class="row g-3">
             <div v-for="item in signatureLibrarySlots" :key="item.slot" class="col-md-6 col-xl-3">
               <div class="border rounded-3 p-3 h-100 d-flex flex-column gap-2">
@@ -2552,11 +2583,6 @@
                   <span v-if="loading" class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
                   {{ loading ? 'กำลังบันทึก...' : 'บันทึกรายงานลงระบบ' }}
                 </button>
-                  <button v-if="user?.role==='admin'" @click="applySignatureLibraryToReport"
-                          class="btn btn-outline-primary btn-fast shadow-sm px-3"
-                          :disabled="loading || signatureLibraryWorking || !currentClubId" title="เลือกใช้ลายเซ็นส่วนกลางที่อนุญาตแล้วเฉพาะรายงานนี้">
-                    <i class="fas fa-signature me-1"></i>ใช้ลายเซ็นจากคลัง
-                  </button>
                   <button @click="downloadWordReport" class="btn btn-primary btn-fast shadow-sm px-4">
                       <i class="fas fa-file-word me-2"></i>ดาวน์โหลด Word
                   </button>
@@ -3352,6 +3378,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" integrity="sha512-GsLlZN/3F2ErC5ifS5QtgpiJtWd43JWSuIgh7mbzZ8zBps+dvLusV+eNQATqgA/HdeKFVgA5v3S/cIrLF7QnIg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <!-- Local MIT-licensed JSZip for Admin export of one PDF per club. -->
+    <script src="vendor/jszip.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
@@ -3406,6 +3434,7 @@ data() {
     signatureLibraryDraftNames: {},
     signatureLibraryUploadSlot: '',
     signatureLibraryWorking: false,
+    adminBulkExportBusy: false, adminBulkExportProgress: '', 
     manageRole: 'student', 
     usersList: [], 
     searchClubQuery: '',
@@ -5538,51 +5567,145 @@ downloadCSVTemplate() {
           }catch(err){Swal.fire('นำออกไม่ได้',String(err?.message||err),'error');}
           finally{this.signatureLibraryWorking=false;}
         },
-        async applySignatureLibraryToReport(){
-          if(this.user?.role!=='admin'||this.signatureLibraryWorking||!this.currentClubId)return;
-          const clubId=this.currentClubId,periodId=this.activePeriodId;
-          this.signatureLibraryWorking=true;
-          let prepared=[];
+        // V5.9: Admin-only export of ALL saved club reports as individual PDFs in one ZIP.
+        // The four centrally approved signatures are layered onto in-memory report data
+        // for rendering only. This function NEVER writes back to club_reports or Drive.
+        // Signature use is audited in a single database transaction before download.
+        async downloadAdminBulkReports(){
+          if(this.user?.role!=='admin'||this.adminBulkExportBusy)return;
+          if(typeof window.JSZip!=='function'){
+            Swal.fire('ดาวน์โหลดไม่ได้','ไม่พบตัวรวม ZIP กรุณาตรวจไฟล์ web/vendor/jszip.min.js','error');return;
+          }
+          const periodId=this.activePeriodId;
+          const prior={
+            view:this.view,clubId:this.currentClubId,clubName:this.currentClubName,
+            students:this.attStudents,attendance:this.attData,reportData:this.reportData,
+            actData:this.reportActData,mediaRefs:this.reportMediaRefs,
+            originalSources:this.reportOriginalSources,mediaErrors:this.reportMediaErrors,
+            mediaPending:this.reportImagesPending,mediaPromise:this._reportImageLoadPromise,
+            mediaKey:this._mediaLoadKey
+          };
+          let ok=false;
           try{
-            const rows=await window.SKNBridge.invoke('getSignatureLibrary',[]);
-            const enabled=(rows||[]).filter(row=>row.is_enabled===true && row.file_id &&
-              ['sigHeadClub','sigHeadDev','sigDeputy','sigDirector'].includes(row.slot));
-            if(!enabled.length){Swal.fire('ยังไม่มีลายเซ็นพร้อมใช้งาน','ให้ Admin อัปโหลดและอนุญาตใช้ในคลังลายเซ็นก่อน','info');return;}
-            const answer=await Swal.fire({title:'ใช้ลายเซ็นส่วนกลางกับรายงานนี้?',
-              html:'จะนำลายเซ็นที่ได้รับอนุญาต '+enabled.length+' ตำแหน่ง ลงรายงาน <b>'+String(this.currentClubName||'').replace(/</g,'&lt;')+'</b> และบันทึกสำเนาใน Drive พร้อมประวัติการใช้ <br><strong>การดำเนินการนี้ไม่ใช่การอนุมัติรายงานโดยอัตโนมัติจากเจ้าของลายเซ็น</strong>',
-              icon:'question',showCancelButton:true,confirmButtonText:'ยืนยันใช้กับรายงานนี้',cancelButtonText:'ยกเลิก'});
+            const [clubs,rows]=await Promise.all([
+              window.SKNBridge.invoke('getClubs',[]),
+              window.SKNBridge.invoke('getSignatureLibrary',[])
+            ]);
+            const signatureSlots=['sigHeadClub','sigHeadDev','sigDeputy','sigDirector'];
+            const selected=(rows||[]).filter(r=>signatureSlots.includes(r.slot)&&r.is_enabled===true&&
+              !r.is_archived&&r.approved_at&&r.file_id);
+            if(!selected.length)throw Error('ยังไม่มีลายเซ็นส่วนกลางที่ได้รับอนุญาต');
+            const allClubs=(clubs||[]).slice().sort((a,b)=>String(a.id).localeCompare(String(b.id),'th',{numeric:true}));
+            if(!allClubs.length)throw Error('ไม่พบข้อมูลชุมนุมในภาคเรียนนี้');
+            if(allClubs.length>150)throw Error('รองรับการดาวน์โหลดไม่เกิน 150 ชุมนุมต่อชุด');
+            const answer=await Swal.fire({
+              title:'ดาวน์โหลดรายงานทุกชุมนุม?',
+              html:'ระบบจะสร้าง PDF แยก '+allClubs.length+' ชุมนุม และแนบลายเซ็นส่วนกลางที่ได้รับอนุญาต '+selected.length+' ตำแหน่ง เฉพาะใน PDF ที่ดาวน์โหลดเท่านั้น<br><b>รายงานต้นฉบับของครูจะไม่ถูกเปลี่ยน</b>',
+              icon:'question',showCancelButton:true,confirmButtonText:'สร้าง ZIP รายงานทุกชุมนุม',cancelButtonText:'ยกเลิก',
+              allowOutsideClick:false
+            });
             if(!answer.isConfirmed)return;
-            for(const row of enabled){
-              const result=await window.SKNFile.invoke('getSignatureLibraryFile',{
+            this.adminBulkExportBusy=true;
+            const signatureImages={};
+            for(let n=0;n<selected.length;n++){
+              const row=selected[n];
+              this.adminBulkExportProgress='โหลดลายเซ็นกลาง '+(n+1)+'/'+selected.length;
+              const file=await window.SKNFile.invoke('getSignatureLibraryFile',{
                 periodId,clubId:'ADMIN-REPORT',slot:row.slot,fileId:row.file_id
               });
-              if(!result?.src?.startsWith('data:image/'))throw Error('โหลดภาพจากคลังไม่ได้: '+row.slot);
-              prepared.push({slot:row.slot,sourceId:row.file_id,src:result.src});
+              if(!file?.src?.startsWith('data:image/'))throw Error('ไม่สามารถอ่านลายเซ็นจาก Drive: '+row.slot);
+              signatureImages[row.slot]=file.src;
             }
-            if(this.currentClubId!==clubId||this.activePeriodId!==periodId)throw Error('ข้อมูลรายงานเปลี่ยน กรุณาลองใหม่');
-            const originals={...this.reportData.signatures};
-            const originalNames={...(this.reportActData.signedNames||{})};
-            const newNames={...originalNames};
-            for(const row of enabled)newNames[row.slot]=row.signer_name;
-            this.reportActData.signedNames=newNames;
-            this.reportData.signatures={...originals,...Object.fromEntries(prepared.map(x=>[x.slot,x.src]))};
+            const archive=new window.JSZip();
+            const manifest={};
+            let bytesTotal=0;
+            for(let i=0;i<allClubs.length;i++){
+              if(this.activePeriodId!==periodId)throw Error('ภาคเรียนเปลี่ยนระหว่างสร้างเอกสาร');
+              const club=allClubs[i];
+              this.adminBulkExportProgress='สร้าง PDF '+(i+1)+'/'+allClubs.length+' — '+club.name;
+              const [att,report]=await Promise.all([
+                window.SKNBridge.invoke('getClubAttendanceGrid',[club.id]),
+                window.SKNBridge.invoke('getSavedClubReport',[club.id])
+              ]);
+              // No unsubmitted reports should ever be marked as signed.
+              if(!report?.found)throw Error('ชุมนุม '+club.name+' ยังไม่ได้บันทึกรายงาน กรุณาตรวจสอบก่อนส่งออกทุกชุมนุม');
+              const d=report.data||{};
+              const students=(att?.students||[]).slice().sort((a,b)=>String(a.room).localeCompare(String(b.room),'th',{numeric:true})||Number(a.no)-Number(b.no));
+              const dates=(att?.gridData?.dates||[]).slice(0,20);
+              while(dates.length<20)dates.push('');
+              for(let j=0;j<20;j++)if(!dates[j]&&this.systemDates?.[j])dates[j]=this.systemDates[j];
+              const records={...(att?.gridData?.records||{})};
+              for(const student of students){
+                const vals=Array.isArray(records[student.id])?records[student.id]:[];
+                records[student.id]=Array.from({length:20},(_,j)=>{
+                  const v=vals[j];return v==='P'?1:v==='L'?2:v==='A'?3:Number(v)||0;
+                });
+              }
+              this.currentClubId=club.id;this.currentClubName=club.name;
+              this.attStudents=students;this.attData={dates,records};
+              const baseAct={
+                objectives:['','',''],committees:['','','','',''],activities:Array(20).fill(''),
+                remark:'ไม่มี',caption:'บรรยากาศการเรียนการสอนและการทำกิจกรรมร่วมกันของนักเรียน',signedNames:{}
+              };
+              this.reportActData={...baseAct,...(d.actData||{}),signedNames:{...(d.actData?.signedNames||{})}};
+              this.reportData={teacher:d.teacher||club.teacher_name||'',logo:d.logo||'',
+                photos:{...(d.photos||{})},signatures:{...(d.signatures||{})}};
+              this.reportMediaRefs=d.mediaRefs||{};
+              this.reportMediaErrors=[...(d.mediaErrors||[])];
+              this.reportOriginalSources={logo:this.reportData.logo};
+              for(let j=1;j<=4;j++)this.reportOriginalSources['photo_'+j]=this.reportData.photos[j]||'';
+              for(const [slot,src] of Object.entries(this.reportData.signatures))this.reportOriginalSources[slot]=src;
+              this._reportImageLoadPromise=null;
+              this.view='report';
+              await this.$nextTick();
+              await this.loadReportImagesProgressively(true);
+              if(this.reportMediaErrors.length)throw Error('โหลดรูปไม่ครบในรายงาน '+club.name+': กรุณาตรวจไฟล์บน Drive');
+              // Export-only overlay: no save call, no replacement of the source report's media.
+              this.reportData.signatures={...this.reportData.signatures,...signatureImages};
+              const names={...this.reportActData.signedNames};
+              for(const row of selected)names[row.slot]=row.signer_name;
+              this.reportActData.signedNames=names;
+              await this.$nextTick();
+              const dataUrl=await this.sknGenerateReportPdfByPages({renderScale:2.2,jpegQuality:0.9});
+              const marker='data:application/pdf;base64,';
+              if(!String(dataUrl).startsWith(marker))throw Error('ไฟล์ PDF '+club.name+' ไม่สมบูรณ์');
+              const pdfBytes=Uint8Array.from(atob(dataUrl.slice(marker.length)),c=>c.charCodeAt(0));
+              if(pdfBytes.length<12000)throw Error('ไฟล์ PDF '+club.name+' ว่างหรือเสียหาย');
+              bytesTotal+=pdfBytes.length;
+              if(bytesTotal>250*1024*1024)throw Error('PDF รวมใหญ่เกิน 250 MB กรุณาแบ่งการส่งออกตามภาคเรียนหรือปรับขนาดรูป');
+              const label=String(club.name||'ชุมนุม').replace(/[\\/:*?"<>|\x00-\x1F]/g,'_').slice(0,65);
+              archive.file(String(club.id).replace(/[^A-Za-z0-9_-]/g,'_')+'_'+label+'.pdf',pdfBytes,{binary:true});
+              manifest[String(club.id)]=Object.fromEntries(selected.map(row=>[row.slot,row.file_id]));
+            }
+            this.adminBulkExportProgress='รวม PDF ทั้งหมดลง ZIP และตรวจสิทธิ์ลายเซ็น...';
+            const zipBlob=await archive.generateAsync({type:'blob',compression:'DEFLATE',compressionOptions:{level:3}},m=>{
+              this.adminBulkExportProgress='รวมไฟล์ ZIP '+Math.round(m.percent||0)+'%';
+            });
+            if(zipBlob.size<1000)throw Error('ไฟล์ ZIP ที่สร้างไม่สมบูรณ์');
+            const exportId='BULK-'+new Date().toISOString().replace(/[^0-9A-Za-z]/g,'').slice(0,20)+'_'+Math.random().toString(36).slice(2,10);
+            this.adminBulkExportProgress='บันทึกประวัติการใช้ลายเซ็นใน Supabase...';
+            await window.SKNBridge.invoke('recordBulkSignatureExport',[manifest,exportId]);
+            const url=URL.createObjectURL(zipBlob);
             try{
-              clearTimeout(this._reportSaveTimer);
-              await this.queueReportSave();
-            }catch(saveErr){
-              this.reportData.signatures=originals;
-              this.reportActData.signedNames=originalNames;
-              throw saveErr;
-            }
-            const sources=Object.fromEntries(prepared.map(x=>[x.slot,x.sourceId]));
-            try{await window.SKNBridge.invoke('recordSignatureLibraryUse',[clubId,sources]);}
-            catch(auditErr){
-              console.error('Signature audit pending:',auditErr);
-              throw Error('บันทึกรายงานแล้ว แต่บันทึกประวัติการใช้ลายเซ็นไม่สำเร็จ: '+String(auditErr.message||auditErr));
-            }
-            Swal.fire('ใช้ลายเซ็นเรียบร้อย','ระบบบันทึกสำเนาลายเซ็นในรายงานนี้และประวัติการใช้แล้ว','success');
-          }catch(err){Swal.fire('ใช้ลายเซ็นจากคลังไม่สำเร็จ',String(err?.message||err),'error');}
-          finally{this.signatureLibraryWorking=false;}
+              const a=document.createElement('a');a.href=url;
+              a.download='SKN_Reports_'+String(this.adminSettings.academicYear||'')+'_'+String(this.adminSettings.semester||'')+'_'+exportId+'.zip';
+              document.body.appendChild(a);a.click();a.remove();
+            }finally{setTimeout(()=>URL.revokeObjectURL(url),60000);}
+            ok=true;
+          }catch(err){
+            Swal.fire('ดาวน์โหลดรายงานทุกชุมนุมไม่สำเร็จ',String(err?.message||err),'error');
+          }finally{
+            this._mediaLoadKey=null;
+            this.view=prior.view;this.currentClubId=prior.clubId;this.currentClubName=prior.clubName;
+            this.attStudents=prior.students;this.attData=prior.attendance;
+            this.reportData=prior.reportData;this.reportActData=prior.actData;
+            this.reportMediaRefs=prior.mediaRefs;this.reportOriginalSources=prior.originalSources;
+            this.reportMediaErrors=prior.mediaErrors;this.reportImagesPending=prior.mediaPending;
+            this._reportImageLoadPromise=null;
+            this.adminBulkExportBusy=false;this.adminBulkExportProgress='';
+            if(this.$nextTick)await this.$nextTick();
+          }
+          if(ok)Swal.fire('สร้างรายงานสำเร็จ','ดาวน์โหลด ZIP รายงานครบทุกชุมนุมแล้ว โดยไม่ได้แก้ไขรายงานต้นฉบับ','success');
         },
 
         chooseAdminSignature(slot) {
@@ -6369,7 +6492,8 @@ downloadCSVTemplate() {
               pdf.text(String(i+1)+' / '+String(physical.length),geom.paperWidthMm-geom.rightMm,286,
                 {align:'right'});
               written++;
-              this.sknEmailProgress(2,'สร้างเอกสาร PDF ทีละหน้า: เสร็จ '+(i+1)+'/'+physical.length+' ส่วน ('+written+' หน้า PDF)');
+              if(!this.adminBulkExportBusy)
+                this.sknEmailProgress(2,'สร้างเอกสาร PDF ทีละหน้า: เสร็จ '+(i+1)+'/'+physical.length+' ส่วน ('+written+' หน้า PDF)');
               await new Promise(resolve=>setTimeout(resolve,0));
             }
             if(written===0||pdf.internal.getNumberOfPages()!==written)
