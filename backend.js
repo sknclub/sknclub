@@ -199,7 +199,7 @@ async function mediaSave(input, existing, p, c, slot) {
     }
     const match = input.match(/^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=]+)$/);
     assert(match, 'รองรับรูป PNG, JPEG หรือ WebP เท่านั้น');
-    assert(match[2].length <= 8500000, 'ภาพมีขนาดใหญ่เกิน 6 MB กรุณาเลือกไฟล์ต้นฉบับที่เล็กลง');
+    assert(match[2].length <= 8_500_000, 'ภาพมีขนาดใหญ่เกิน 6 MB กรุณาเลือกไฟล์ต้นฉบับที่เล็กลง');
     const sha = sknHex(new Uint8Array(await crypto.subtle.digest('SHA-256', sknEncoder ? sknEncoder.encode(match[2]) : Uint8Array.from(match[2], (c) => c.charCodeAt(0)))));
     if (existing?.[slot]?.sha === sha)
         return existing[slot];
@@ -361,6 +361,9 @@ async function sknInvoke(method, args, periodId) {
             break;
         case 'getAppData': {
             const [clubs, regs, config, teachers] = await Promise.all([all('clubs', p.id), all('registrations', p.id), cfg(p.id), all('teachers')]);
+            // Missing flag in V4.9 data means email was enabled; preserve that on upgrade.
+            if (config.allow_report_email !== 'false')
+                config.allow_report_email = 'true';
             try {
                 const a = JSON.parse(config.adminSettings || '{}');
                 config.adminSettings = JSON.stringify({ ...a, semester: String(p.semester), academicYear: String(p.academic_year) });
@@ -519,7 +522,7 @@ async function sknInvoke(method, args, periodId) {
             const type = String(args[1]);
             assert(['teacher', 'student'].includes(type));
             const raw = String(args[0] || '');
-            assert(raw.length <= 3000000, 'CSV ใหญ่เกินไป');
+            assert(raw.length <= 3_000_000, 'CSV ใหญ่เกินไป');
             const lines = csvParse(raw), ids = new Set();
             let duplicates = 0, headers = 0;
             const data = [];
@@ -713,10 +716,12 @@ async function sknInvoke(method, args, periodId) {
             const f = args[1] || {};
             const club = await clubById(p.id, String(f.clubId || args[2] || ''));
             assert(owner(u, club));
-            const settings = JSON.parse((await cfg(p.id)).adminSettings || '{}');
+            const periodConfig = await cfg(p.id);
+            assert(periodConfig.allow_report_email !== 'false', 'Admin ปิดการส่งอีเมลในหน้ารายงานแล้ว');
+            const settings = JSON.parse(periodConfig.adminSettings || '{}');
             const email = String(settings.reportEmail || '').trim();
             assert(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email), 'กรุณาตั้งค่าอีเมลรับรายงานในหน้าตั้งค่าระบบขั้นสูงก่อน');
-            assert(typeof f.pdfFile === 'string' && f.pdfFile.startsWith('data:application/pdf;base64,') && f.pdfFile.length < 12000000, 'ระบบสร้าง PDF ไม่สำเร็จ หรือไฟล์เกิน 9 MB');
+            assert(typeof f.pdfFile === 'string' && f.pdfFile.startsWith('data:application/pdf;base64,') && f.pdfFile.length < 12_000_000, 'ระบบสร้าง PDF ไม่สำเร็จ หรือไฟล์เกิน 9 MB');
             const a = await gas('sendReportEmail', { periodId: p.id, clubId: club.id, email, data: { ...f, clubName: club.name, semester: p.semester, academicYear: p.academic_year }, period: `${p.semester}-${p.academic_year}` });
             output = { success: a.success === true, sentTo: a.sentTo || email, pdfBytes: a.pdfBytes || 0 };
             break;
@@ -890,7 +895,7 @@ async function sknInvoke(method, args, periodId) {
             const semester = Number(args[2]);
             const makeCurrent = args[3] === true;
             assert(snap?.format === 'SKN-SUPABASE-V1' && snap.tables && snap.period, 'รองรับเฉพาะไฟล์สำรอง SKN-SUPABASE-V1');
-            assert(new TextEncoder().encode(JSON.stringify(snap)).length <= 7500000, 'ไฟล์ JSON เกิน 7.5 MB สำหรับหน้าเว็บ');
+            assert(new TextEncoder().encode(JSON.stringify(snap)).length <= 7_500_000, 'ไฟล์ JSON เกิน 7.5 MB สำหรับหน้าเว็บ');
             if (String(args[4] || 'local') === 'local') {
                 // Archive uploaded JSON in Drive before invoking the restore transaction.
                 const uploaded = await gas('saveImportedBackup', {
@@ -977,7 +982,7 @@ async function sknInvoke(method, args, periodId) {
             data.backup_manifest.credentials = 'AES-256-GCM encrypted with installation key held in GAS Script Properties';
             data.backup_manifest.note = 'ไฟล์ JSON มีรหัสผ่านครูและนักเรียนที่เข้ารหัสไว้ใน credential_vault; ไฟล์ภาพต้นฉบับเก็บใน Drive แยกต่างหาก';
             const content = JSON.stringify(data);
-            assert(new TextEncoder().encode(content).length <= 7500000, 'ไฟล์ JSON เกิน 7.5 MB โปรดใช้สำรองข้อมูลผ่าน Supabase Database Backup แทน');
+            assert(new TextEncoder().encode(content).length <= 7_500_000, 'ไฟล์ JSON เกิน 7.5 MB โปรดใช้สำรองข้อมูลผ่าน Supabase Database Backup แทน');
             const name = `SKN_Full_Backup_${p.academic_year}_${p.semester}_${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
             const saved = await gas('saveBackup', { periodId: p.id, clubId: 'ADMIN-REPORT', fileName: name, content });
             await verifyBackupFile(content, saved);

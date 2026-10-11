@@ -935,6 +935,13 @@
           <input class="form-check-input" type="checkbox" v-model="config.allow_edit_club" :true-value="'true'" :false-value="'false'" @change="saveConfig">
           <label class="small fw-600 ms-1">ครูแก้ไขข้อมูลชุมนุมได้</label>
         </div>
+        <div class="form-check form-switch">
+          <input id="adminAllowReportEmail" class="form-check-input" type="checkbox"
+                 v-model="config.allow_report_email" :true-value="'true'" :false-value="'false'"
+                 @change="saveConfig" :disabled="loading">
+          <label for="adminAllowReportEmail" class="small fw-600 ms-1">ครูส่งรายงานผ่านเมล (เปิด/ปิด)</label>
+          <span class="small ms-2" :class="config.allow_report_email==='false'?'text-danger':'text-success'">{{config.allow_report_email==='false'?'ปิดใช้งาน':'เปิดใช้งาน'}}</span>
+        </div>
       </div>
 
       <div class="card-clean border-0 shadow-sm p-3 mb-3 bg-white">
@@ -1812,8 +1819,9 @@
                    </button>
 
                   
-                  <button @click="promptSendEmail" class="btn btn-info btn-fast shadow-sm px-4 text-white" :disabled="archiveReadonly">
-                  <i class="fas fa-envelope me-2"></i>ส่งอีเมล
+                  <button @click="promptSendEmail" class="btn btn-info btn-fast shadow-sm px-4 text-white" :disabled="archiveReadonly || loading || config.allow_report_email==='false'"
+                          :title="config.allow_report_email==='false'?'Admin ปิดการส่งอีเมลรายงานไว้':'เลือกระบบสร้าง PDF หรือแนบ PDF เอง'">
+                  <i class="fas fa-envelope me-2"></i>{{config.allow_report_email==='false'?'Admin ปิดส่งอีเมล':'ส่งอีเมล'}}
                 </button>
 
 
@@ -2536,7 +2544,7 @@
             </div>
             <div v-if="restoreHasPasswordVault" class="alert alert-warning small mt-3">
               <div class="fw-bold mb-2"><i class="fas fa-lock me-2"></i>ไฟล์นี้มีรหัสผ่านครูและนักเรียนที่เข้ารหัส</div>
-              <div v-if="_restoreSnapshot?.credential_vault?.keyMode==='GAS-SCRIPT-PROPERTIES-V1'" class="form-text">ระบบใช้กุญแจเข้ารหัสจาก GAS อัตโนมัติ ไม่ต้องกรอกรหัสลับ (ต้องใช้ GAS เดิมหรือกุญแจสำรองของการติดตั้ง)</div>
+              <div v-if="restoreSnapshot?.credential_vault?.keyMode==='GAS-SCRIPT-PROPERTIES-V1'" class="form-text">ระบบใช้กุญแจเข้ารหัสจาก GAS อัตโนมัติ ไม่ต้องกรอกรหัสลับ (ต้องใช้ GAS เดิมหรือกุญแจสำรองของการติดตั้ง)</div>
               <template v-else>
                 <label class="form-label">รหัสลับของไฟล์สำรองรุ่นเก่า (V4.8)</label>
                 <input type="password" v-model="restoreVaultPassword" class="form-control" autocomplete="off" :disabled="restoreBusy" placeholder="กรอกรหัสลับของ Backup รุ่นเก่า" />
@@ -2669,7 +2677,7 @@ data() {
     loadingBackup: false,
     managePeriodId: '', deleteScope: 'term', replacementPeriodId: '',
     periodImpact: null, periodImpactError: '', periodImpactLoading: false, periodBusy: false, periodDeleteConfirm: '',
-    selectedBackupFileId: '', restoreBusy: false, restorePreview: null,
+    selectedBackupFileId: '', restoreBusy: false, restorePreview: null, restoreSnapshot: null,
     restoreFileName: '', restoreOrigin: 'local', restoreError: '',
     restoreYear: 2569, restoreSemester: 1, restoreMakeCurrent: true, restoreOverwrite:false, trashPreview:null, trashBusy:false,
 
@@ -2973,7 +2981,7 @@ filteredClubs() {
         async openRestoreBackupModal(){
           if(this.user?.role!=='admin')return;
           this.restorePreview=null;this.restoreFileName='';this.restoreError='';this.restoreOverwrite=false;
-          this.selectedBackupFileId='';this._restoreSnapshot=null;
+          this.selectedBackupFileId='';this.restoreSnapshot=null;
           this.restoreHasPasswordVault=false;this.restoreVaultPassword='';
           bootstrap.Modal.getOrCreateInstance(document.getElementById('restoreBackupModal')).show();
           try{const res=await window.SKNBridge.invoke('getBackupFilesList',[]);this.backupFiles=res?.data||[];}
@@ -2985,7 +2993,7 @@ filteredClubs() {
           if(parsed.format!=='SKN-SUPABASE-V1'||!parsed.period||!parsed.tables)throw Error('ไฟล์ไม่ใช่ JSON Backup รูปแบบ SKN-SUPABASE-V1');
           const names=['period_teachers','students','clubs','registrations','attendance','club_reports','period_config'];
           if(names.some(k=>!Array.isArray(parsed.tables[k])))throw Error('ไฟล์สำรองขาดตารางข้อมูลที่จำเป็น');
-          this._restoreSnapshot=parsed;
+          this.restoreSnapshot=parsed;
           this.restoreHasPasswordVault=!!parsed.credential_vault;
           this.restoreVaultPassword='';
           this.restorePreview={year:Number(parsed.period.academic_year),semester:Number(parsed.period.semester),
@@ -3014,12 +3022,12 @@ filteredClubs() {
           finally{this.restoreBusy=false;}
         },
         async executeRestoreBackup(){
-          if(this.user?.role!=='admin'||this.restoreBusy||!this._restoreSnapshot)return;
+          if(this.user?.role!=='admin'||this.restoreBusy||!this.restoreSnapshot)return;
           if(!Number.isInteger(Number(this.restoreYear))||this.restoreYear<2500||this.restoreYear>2800||![1,2,3].includes(Number(this.restoreSemester)))return Swal.fire('ปี/เทอมไม่ถูกต้อง','','warning');
           const existingPeriod=this.periods.find(x=>x.academicYear===Number(this.restoreYear)&&x.semester===Number(this.restoreSemester));
           if(existingPeriod&&!this.restoreOverwrite)return Swal.fire('มีเทอมนี้แล้ว','หากต้องการกู้ทับให้เลือกช่องกู้คืนทับข้อมูลก่อน','warning');
           if(!existingPeriod&&this.restoreOverwrite)return Swal.fire('ไม่พบเทอมปลายทาง','ยกเลิกตัวเลือกกู้ทับเพื่อสร้างเทอมใหม่','warning');
-          if(this.restoreHasPasswordVault&&this._restoreSnapshot?.credential_vault?.keyMode!=='GAS-SCRIPT-PROPERTIES-V1'&&!this.restoreVaultPassword)
+          if(this.restoreHasPasswordVault&&this.restoreSnapshot?.credential_vault?.keyMode!=='GAS-SCRIPT-PROPERTIES-V1'&&!this.restoreVaultPassword)
             return this.restoreError='กรุณากรอกรหัสลับของไฟล์ Backup ก่อนกู้คืน';
           const confirmText=this.restoreOverwrite?'RESTORE '+this.restoreYear+'-'+this.restoreSemester:'';
           const yes=await Swal.fire({title:this.restoreOverwrite?'ยืนยันกู้ทับข้อมูลจริง?':'ยืนยันกู้คืนข้อมูล?',
@@ -3031,7 +3039,7 @@ filteredClubs() {
           this.restoreBusy=true;
           Swal.fire({title:'กำลังกู้ข้อมูลแบบธุรกรรมเดียว...',html:'กำลังตรวจข้อมูลครู นักเรียน การลงทะเบียน รายงาน และความสัมพันธ์ใน Supabase',allowOutsideClick:false,allowEscapeKey:false,didOpen:()=>Swal.showLoading()});
           try{
-            const res=await window.SKNBridge.invoke('restoreBackupSnapshot',[this._restoreSnapshot,Number(this.restoreYear),Number(this.restoreSemester),this.restoreMakeCurrent,this.restoreOrigin,this.restoreVaultPassword,this.restoreOverwrite]);
+            const res=await window.SKNBridge.invoke('restoreBackupSnapshot',[this.restoreSnapshot,Number(this.restoreYear),Number(this.restoreSemester),this.restoreMakeCurrent,this.restoreOrigin,this.restoreVaultPassword,this.restoreOverwrite]);
             if(!res?.success)throw Error('กู้คืนไม่สำเร็จ');
             bootstrap.Modal.getOrCreateInstance(document.getElementById('restoreBackupModal')).hide();
             if(this.restoreMakeCurrent){window.SKNBridge.periodId=res.periodId;this.activePeriodId=res.periodId;}
@@ -4177,7 +4185,17 @@ refreshData(isSilent = false) {
 
 
         fetchData(){this.requestFastRefresh();},
-        saveConfig() { google.script.run.withSuccessHandler(() => {this.requestFastRefresh(); const Toast = Swal.mixin({toast: true, position: 'top-end', showConfirmButton: false, timer: 1500}); Toast.fire({ icon: 'success', title: 'บันทึกค่าแล้ว' }); }).updateConfig(this.config); },
+        saveConfig() {
+          google.script.run
+            .withFailureHandler(err=>{
+              Swal.fire('บันทึกการตั้งค่าไม่สำเร็จ',String(err?.message||err),'error');
+              this.requestFastRefresh();
+            })
+            .withSuccessHandler(()=>{
+              this.requestFastRefresh();
+              Swal.fire({toast:true,position:'top-end',icon:'success',title:'บันทึกการตั้งค่าแล้ว',showConfirmButton:false,timer:1600});
+            }).updateConfig(this.config);
+        },
        
         goToAttendance(club) { this.loadClubData(club, 'attendance'); },
         goToReport(club) {
@@ -5553,8 +5571,13 @@ downloadCSVTemplate() {
           if(!sent?.success)throw Error('MailApp ยังไม่ยืนยันการรับไฟล์ PDF');
           return sent;
         },
+        // V5.0: modes are independent. Automatic NEVER invokes the manual picker;
+        // manual NEVER starts any PDF generation. Errors stay in the chosen mode.
         async promptSendEmail(){
           if(this.archiveReadonly||this.loading)return;
+          if(this.config.allow_report_email==='false'){
+            await Swal.fire('ปิดการส่งอีเมล','Admin ปิดการส่งอีเมลในหน้าตั้งค่าการรับสมัคร','info');return;
+          }
           let email='';
           try{email=await this.sknMailRecipient();}
           catch(err){return Swal.fire('ตั้งค่าอีเมลไม่ครบ',err.message||String(err),'warning');}
@@ -5562,51 +5585,47 @@ downloadCSVTemplate() {
              Object.values(this.reportData.signatures||{}).includes('__DELETE__'))
             return Swal.fire('มีรูปที่รอลบ','กรุณาบันทึกหรือยกเลิกการลบรูปก่อนส่ง PDF','warning');
           const mode=await Swal.fire({title:'เลือกวิธีส่งรายงาน PDF',icon:'question',showDenyButton:true,showCancelButton:true,
-            confirmButtonText:'สร้าง PDF จากหน้าเว็บและส่งอัตโนมัติ',denyButtonText:'แนบไฟล์ PDF เอง',cancelButtonText:'ยกเลิก'});
+            confirmButtonText:'ให้ระบบสร้าง PDF แล้วส่งอัตโนมัติ',denyButtonText:'แนบไฟล์ PDF เอง',cancelButtonText:'ยกเลิก',
+            allowOutsideClick:false});
           if(!mode.isConfirmed&&!mode.isDenied)return;
-          const userManual=mode.isDenied;
+          const selectedMode=mode.isDenied?'manual':'auto';
           this.loading=true;
           try{
-            let attachment=null;
-            try{
-              if(userManual){
-                const file=await this.chooseManualReportPdf();
-                if(!file)return;
-                this.sknEmailProgress(3,'กำลังตรวจ PDF ที่แนบเอง');
-                attachment={pdfFile:file,integrity:await this.sknPdfIntegrity(file),createdAutomatically:false};
-              }else{
-              // This method WAITS for: report save, Drive images, PDF render,
-              // PDF integrity. No file picker or Google Docs call occurs here.
+            let attachment;
+            if(selectedMode==='manual'){
+              // Manual mode: user supplies a pre-existing PDF. No report PDF builder is called.
+              const picked=await this.chooseManualReportPdf();
+              if(!picked)return;
+              this.sknEmailProgress(3,'กำลังตรวจ PDF ที่เลือกแนบด้วยตนเอง');
+              attachment={pdfFile:picked,integrity:await this.sknPdfIntegrity(picked),createdAutomatically:false};
+            }else{
+              // Automatic mode: WAIT for save -> Drive media -> render -> PDF validation.
+              // If it fails after the programmed retries, report error only. NEVER open picker.
               attachment=await this.sknCreateAutoPdfWithRetries(email);
-              }
-            }catch(automaticError){
-              this.sknEmailProgressClose();
-              if(automaticError?.stage==='save')throw automaticError;
-              const choice=await Swal.fire({
-                icon:'warning',title:'สร้าง PDF อัตโนมัติไม่สำเร็จหลังลองครบทุกวิธี',
-                text:String(automaticError?.message||automaticError).slice(0,1600),
-                showDenyButton:true,showCancelButton:true,
-                confirmButtonText:'แนบ PDF เอง (ทางเลือกสุดท้าย)',
-                denyButtonText:'ปิด แล้วลองใหม่ภายหลัง',cancelButtonText:'ยกเลิก',
-                allowOutsideClick:false
-              });
-              if(!choice.isConfirmed)return;
-              const file=await this.chooseManualReportPdf();
-              if(!file)return;
-              this.sknEmailProgress(3,'กำลังตรวจไฟล์ PDF ที่เลือกเอง');
-              attachment={pdfFile:file,integrity:await this.sknPdfIntegrity(file)};
             }
+            // Re-read switch immediately before sending. Server/GAS enforce it too.
+            if(this.config.allow_report_email==='false')throw Error('Admin ปิดการส่งอีเมลระหว่างสร้างรายงาน');
             const jobId=(crypto.randomUUID?crypto.randomUUID():String(Date.now())+'-'+Math.random().toString(36).slice(2));
-            const source=attachment.createdAutomatically?'browser-auto':'manual-last-resort';
+            const source=selectedMode==='auto'?'browser-auto':'manual-selected';
             const sent=await this.sknSendBrowserReportPdf(email,attachment,source,jobId);
             this.sknEmailProgress(5,'MailApp รับคำสั่งส่งไฟล์ PDF แล้ว');
             this.sknEmailProgressClose();
             await Swal.fire({icon:'success',title:'ส่งอีเมลพร้อม PDF แล้ว',
               text:'MailApp รับคำสั่งส่งไฟล์แนบไปยัง '+(sent.sentTo||email)+' เรียบร้อยแล้ว'});
           }catch(error){
+            const stage=String(error?.stage||'');
             this.sknEmailProgressClose();
-            await Swal.fire({icon:'error',title:'ยังไม่สามารถยืนยันการส่งอีเมล',
-              text:String(error?.message||error)+' — หากระบบเคยถึงขั้นส่ง กรุณาตรวจกล่องผู้รับก่อนกดซ้ำ'});
+            const message=String(error?.message||error);
+            if(selectedMode==='auto' && !error?.ambiguousMail){
+              await Swal.fire({icon:'error',title:'สร้าง/ส่ง PDF อัตโนมัติไม่สำเร็จ',
+                html:'<p class="text-start" style="overflow-wrap:anywhere">'+String(message).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]))+'</p>'+ 
+                 '<p class="small text-muted">ขั้นตอน: '+({save:'บันทึกรายงาน',images:'รอรูปภาพ',pdf:'สร้างและตรวจ PDF'}[stage]||'ส่งอีเมล')+ 
+                 ' — ระบบยังคงอยู่ในโหมดสร้าง PDF อัตโนมัติ ไม่มีการสลับไปแนบไฟล์เอง</p>',
+                confirmButtonText:'ปิดและลองสร้างใหม่',allowOutsideClick:false});
+            }else{
+              await Swal.fire({icon:'error',title:'ยังไม่สามารถยืนยันการส่งอีเมล',
+                text:message+' — หากถึงขั้นส่งแล้ว กรุณาตรวจกล่องผู้รับก่อนกดซ้ำ'});
+            }
           }finally{this.sknEmailProgressClose();this.loading=false;}
         },
 
