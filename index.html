@@ -654,13 +654,13 @@
     }
     #skn-pdf-capture-root .skn-pdf-cover .skn-cover-summary-stats.row {
       display: grid !important;
-      grid-template-columns: repeat(2,minmax(0,1fr)) !important;
-      align-items: center !important;
+      grid-template-columns: repeat(2,minmax(250px, 1fr)) !important;
+      align-items: start !important;
       justify-items: center !important;
-      column-gap: 10px !important;
-      row-gap: 7px !important;
-      width: 100% !important;
-      max-width: 100% !important;
+      column-gap: 14px !important;
+      row-gap: 8px !important;
+      width: 92% !important;
+      max-width: 92% !important;
       margin: 0 auto !important;
     }
     #skn-pdf-capture-root .skn-pdf-cover .skn-cover-summary-stats.row > div {
@@ -670,12 +670,36 @@
       max-width: none !important;
       flex: none !important;
       padding: 0 !important;
-      text-align: center !important;
+      text-align: left !important;
       line-height: 1.42 !important;
     }
     #skn-pdf-capture-root .skn-pdf-cover .skn-cover-summary-stats.row > div b {
       font-size: 15pt !important;
       font-weight: 700 !important;
+    }
+    #skn-pdf-capture-root .skn-pdf-cover .skn-cover-summary-col {
+      width: 100% !important;
+      max-width: 265px !important;
+      margin: 0 auto !important;
+    }
+    #skn-pdf-capture-root .skn-pdf-cover .skn-cover-summary-line {
+      display: grid !important;
+      grid-template-columns: minmax(0,1fr) 36px 28px !important;
+      align-items: baseline !important;
+      column-gap: 10px !important;
+      margin: 5px 0 !important;
+      white-space: nowrap !important;
+    }
+    #skn-pdf-capture-root .skn-pdf-cover .skn-cover-summary-label {
+      text-align: left !important;
+    }
+    #skn-pdf-capture-root .skn-pdf-cover .skn-cover-summary-value,
+    #skn-pdf-capture-root .skn-pdf-cover .skn-cover-summary-note {
+      text-align: center !important;
+      min-width: 36px !important;
+    }
+    #skn-pdf-capture-root .skn-pdf-cover .skn-cover-summary-unit {
+      text-align: left !important;
     }
     #skn-pdf-capture-root .skn-pdf-cover .signature-grid,
     #skn-pdf-capture-root .skn-pdf-cover .signature-grid * {
@@ -862,6 +886,35 @@
     .th-rotate.th-fallback {
       font-size: 9px;
       gap: 2px;
+    }
+
+    .skn-cover-summary-col {
+      width: 100%;
+      max-width: 265px;
+      margin: 0 auto;
+    }
+
+    .skn-cover-summary-line {
+      display: grid;
+      grid-template-columns: minmax(0,1fr) 36px 28px;
+      align-items: baseline;
+      column-gap: 10px;
+      margin: 5px 0;
+      white-space: nowrap;
+    }
+
+    .skn-cover-summary-label {
+      text-align: left;
+    }
+
+    .skn-cover-summary-value,
+    .skn-cover-summary-note {
+      text-align: center;
+      min-width: 36px;
+    }
+
+    .skn-cover-summary-unit {
+      text-align: left;
     }
 
     .skn-report-heading-safe {
@@ -2514,32 +2567,37 @@
                   <h6 class="fw-bold text-center mb-3 text-decoration-underline skn-cover-summary-heading" style="font-size: 13pt;">
                     สรุปผลการประเมินกิจกรรม</h6>
 
-                  <div class="row g-2 justify-content-center skn-cover-summary-stats mx-auto" style="font-size: 12pt; width: 82%;">
+                  <div class="row g-2 justify-content-center skn-cover-summary-stats mx-auto" style="font-size: 12pt; width: 86%; max-width: 720px;">
 
                     <div class="col-6 d-flex justify-content-center">
-                      <div class="text-start d-inline-block" style="min-width: 220px;">
-                        นักเรียนทั้งหมด: <b>{{ attStudents.length }}</b> คน
+                      <div class="skn-cover-summary-col text-start">
+                        <div class="skn-cover-summary-line">
+                          <span class="skn-cover-summary-label">นักเรียนทั้งหมด:</span>
+                          <span class="skn-cover-summary-value"><b>{{ attStudents.length }}</b></span>
+                          <span class="skn-cover-summary-unit">คน</span>
+                        </div>
+                        <div class="skn-cover-summary-line">
+                          <span class="skn-cover-summary-label">ไม่ผ่านการประเมิน:</span>
+                          <span class="skn-cover-summary-value"><b class="text-danger">{{ countFail() }}</b></span>
+                          <span class="skn-cover-summary-unit">คน</span>
+                        </div>
                       </div>
                     </div>
 
                     <div class="col-6 d-flex justify-content-center">
-                      <div class="text-start d-inline-block" style="min-width: 220px;">
-                        ผ่านการประเมิน: <b class="text-success">{{ countPass() }}</b> คน
+                      <div class="skn-cover-summary-col text-start">
+                        <div class="skn-cover-summary-line">
+                          <span class="skn-cover-summary-label">ผ่านการประเมิน:</span>
+                          <span class="skn-cover-summary-value"><b class="text-success">{{ countPass() }}</b></span>
+                          <span class="skn-cover-summary-unit">คน</span>
+                        </div>
+                        <div class="skn-cover-summary-line">
+                          <span class="skn-cover-summary-label">หมายเหตุ:</span>
+                          <span class="skn-cover-summary-note editable" :contenteditable="!archiveReadonly">ไม่มี</span>
+                          <span class="skn-cover-summary-unit"></span>
+                        </div>
                       </div>
                     </div>
-
-                    <div class="col-6 d-flex justify-content-center">
-                      <div class="text-start d-inline-block" style="min-width: 220px;">
-                        ไม่ผ่านการประเมิน: <b class="text-danger">{{ countFail() }}</b> คน
-                      </div>
-                    </div>
-
-                    <div class="col-6 d-flex justify-content-center">
-                      <div class="text-start d-inline-block" style="min-width: 220px;">
-                        หมายเหตุ: <span class="editable" :contenteditable="!archiveReadonly">ไม่มี</span>
-                      </div>
-                    </div>
-
                   </div>
 
                 </div>
