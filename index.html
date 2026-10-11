@@ -2508,21 +2508,37 @@
 
 
 
-                <div class="p-3 mb-4 mx-auto text-start skn-cover-summary-panel"
+                <div class="p-3 mb-4 mx-auto text-center skn-cover-summary-panel"
                   style="width: 90%; border: 1.5px solid #000; border-radius: 10px; background: #fafafa;">
 
                   <h6 class="fw-bold text-center mb-3 text-decoration-underline skn-cover-summary-heading" style="font-size: 13pt;">
                     สรุปผลการประเมินกิจกรรม</h6>
 
-                  <div class="row g-2 skn-cover-summary-stats" style="font-size: 12pt;">
+                  <div class="row g-2 justify-content-center skn-cover-summary-stats mx-auto" style="font-size: 12pt; width: 82%;">
 
-                    <div class="col-6">นักเรียนทั้งหมด: <b>{{ attStudents.length }}</b> คน</div>
+                    <div class="col-6 d-flex justify-content-center">
+                      <div class="text-start d-inline-block" style="min-width: 220px;">
+                        นักเรียนทั้งหมด: <b>{{ attStudents.length }}</b> คน
+                      </div>
+                    </div>
 
-                    <div class="col-6">ผ่านการประเมิน: <b class="text-success">{{ countPass() }}</b> คน</div>
+                    <div class="col-6 d-flex justify-content-center">
+                      <div class="text-start d-inline-block" style="min-width: 220px;">
+                        ผ่านการประเมิน: <b class="text-success">{{ countPass() }}</b> คน
+                      </div>
+                    </div>
 
-                    <div class="col-6">ไม่ผ่านการประเมิน: <b class="text-danger">{{ countFail() }}</b> คน</div>
+                    <div class="col-6 d-flex justify-content-center">
+                      <div class="text-start d-inline-block" style="min-width: 220px;">
+                        ไม่ผ่านการประเมิน: <b class="text-danger">{{ countFail() }}</b> คน
+                      </div>
+                    </div>
 
-                    <div class="col-6">หมายเหตุ: <span class="editable" :contenteditable="!archiveReadonly">ไม่มี</span></div>
+                    <div class="col-6 d-flex justify-content-center">
+                      <div class="text-start d-inline-block" style="min-width: 220px;">
+                        หมายเหตุ: <span class="editable" :contenteditable="!archiveReadonly">ไม่มี</span>
+                      </div>
+                    </div>
 
                   </div>
 
