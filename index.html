@@ -351,12 +351,56 @@
     }
 
     .skn-report-heading-safe {
-      line-height: 1.5;
-      padding-top: 1mm;
+      line-height: 1.65;
+      padding-top: 2mm;
       overflow: visible;
       white-space: normal;
       word-break: keep-all;
+      break-after: avoid-page;
+      page-break-after: avoid;
+      orphans: 2;
+      widows: 2;
     }
+
+    /* V5.3: constant spacing for objectives in live report, print and PDF clones. */
+    .skn-objective-list {
+      margin: 0 0 14px 8px;
+      padding: 0;
+      font-family: 'Sarabun', 'TH Sarabun New', sans-serif;
+    }
+    .skn-objective-row {
+      display: flex !important;
+      align-items: baseline;
+      gap: 12px;
+      width: 100%;
+      min-height: 30px;
+      margin: 0 0 9px;
+      break-inside: avoid;
+      page-break-inside: avoid;
+      box-sizing: border-box;
+    }
+    .skn-objective-number {
+      flex: 0 0 24px;
+      width: 24px;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      line-height: 1.5;
+    }
+    .skn-objective-input,
+    .skn-objective-row > span:not(.skn-objective-number) {
+      flex: 1 1 0 !important;
+      min-width: 0;
+      width: auto !important;
+      text-align: left;
+      font-family: inherit;
+      font-size: 14px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+    .skn-objective-input {height: auto; padding: 1px 0 2px !important;}
+    .a4-container {font-family: 'Sarabun', 'TH Sarabun New', sans-serif;}
+    .table-report thead th {break-inside: avoid; page-break-inside: avoid;}
 
     .fa-spin {
       animation: fa-spin 1s infinite linear;
@@ -395,10 +439,15 @@
       }
 
       .skn-report-heading-safe {
-        line-height: 1.65 !important;
+        line-height: 1.7 !important;
         padding-top: 2mm !important;
         margin-top: 0 !important;
+        break-after: avoid-page !important;
+        page-break-after: avoid !important;
       }
+      .skn-objective-row {display:flex !important;gap:12px !important;break-inside:avoid;}
+      .skn-objective-input {width:auto !important;flex:1 1 0 !important;}
+      .a4-container {font-family:'Sarabun','TH Sarabun New',sans-serif !important;}
 
       .no-print,
       .navbar,
@@ -1913,7 +1962,7 @@
                 <div style="font-size: 18pt; font-weight: bold; line-height: 1.2;">แบบรายงานการจัดกิจกรรมชุมนุม</div>
 
                 <div style="font-size: 14pt; margin-bottom: 20px;">
-                  ประจำภาคเรียนที่ <b>{{ adminSettings.semester }}</b> ปีการศึกษา <b>{{ adminSettings.academicYear }}</b>
+                  ประจำภาคเรียนที่ <b>{{ sknArabicDigits(adminSettings.semester) }}</b> ปีการศึกษา <b>{{ sknArabicDigits(adminSettings.academicYear) }}</b>
                 </div>
 
 
@@ -2045,43 +2094,39 @@
 
             <div class="a4-container shadow-sm" style="min-height: auto;">
               <div class="mb-5">
-                <h4 class="fw-bold border-bottom border-dark pb-2 mb-3 skn-report-heading-safe">๑. ข้อมูลทั่วไปของกิจกรรมชุมนุม</h4>
+                <h4 class="fw-bold border-bottom border-dark pb-2 mb-3 skn-report-heading-safe">1. ข้อมูลทั่วไปของกิจกรรมชุมนุม</h4>
                 <p><b>ชื่อกิจกรรม:</b> {{ currentClubName }}</p>
 
 
                 <p><b>จุดประสงค์:</b></p>
-                <ol class="ms-2">
-                  <li class="mb-2 w-100">
-                    <input type="text" v-model="reportActData.objectives[0]" class="form-control border-0 border-bottom bg-transparent p-0 w-100 rounded-0">
-                  </li>
-                  <li class="mb-2 w-100">
-                    <input type="text" v-model="reportActData.objectives[1]" class="form-control border-0 border-bottom bg-transparent p-0 w-100 rounded-0">
-                  </li>
-                  <li class="mb-2 w-100">
-                    <input type="text" v-model="reportActData.objectives[2]" class="form-control border-0 border-bottom bg-transparent p-0 w-100 rounded-0">
-                  </li>
-                </ol>
+                <div class="skn-objective-list" aria-label="จุดประสงค์ของกิจกรรมชุมนุม">
+                  <div v-for="i in 3" :key="'objective'+i" class="skn-objective-row">
+                    <span class="skn-objective-number">{{ i }}.</span>
+                    <input type="text" v-model="reportActData.objectives[i-1]" :aria-label="'จุดประสงค์ข้อ '+i"
+                      class="skn-objective-input form-control border-0 border-bottom bg-transparent p-0 rounded-0">
+                  </div>
+                </div>
 
                 <p class="mt-4"><b>คณะกรรมการชุมนุม:</b></p>
                 <div class="ps-3">
                   <div class="d-flex align-items-center mb-2">
-                    <span style="min-width: 100px;">๑. ประธาน:</span>
+                    <span style="min-width: 100px;">1. ประธาน:</span>
                     <input type="text" v-model="reportActData.committees[0]" class="form-control border-0 border-bottom bg-transparent ms-2 p-0 w-50 rounded-0">
                   </div>
                   <div class="d-flex align-items-center mb-2">
-                    <span style="min-width: 100px;">๒. รองประธาน:</span>
+                    <span style="min-width: 100px;">2. รองประธาน:</span>
                     <input type="text" v-model="reportActData.committees[1]" class="form-control border-0 border-bottom bg-transparent ms-2 p-0 w-50 rounded-0">
                   </div>
                   <div class="d-flex align-items-center mb-2">
-                    <span style="min-width: 100px;">๓. เลขานุการ:</span>
+                    <span style="min-width: 100px;">3. เลขานุการ:</span>
                     <input type="text" v-model="reportActData.committees[2]" class="form-control border-0 border-bottom bg-transparent ms-2 p-0 w-50 rounded-0">
                   </div>
                   <div class="d-flex align-items-center mb-2">
-                    <span style="min-width: 100px;">๔. เหรัญญิก:</span>
+                    <span style="min-width: 100px;">4. เหรัญญิก:</span>
                     <input type="text" v-model="reportActData.committees[3]" class="form-control border-0 border-bottom bg-transparent ms-2 p-0 w-50 rounded-0">
                   </div>
                   <div class="d-flex align-items-center mb-2">
-                    <span style="min-width: 100px;">๕. ประชาสัมพันธ์:</span>
+                    <span style="min-width: 100px;">5. ประชาสัมพันธ์:</span>
                     <input type="text" v-model="reportActData.committees[4]" class="form-control border-0 border-bottom bg-transparent ms-2 p-0 w-50 rounded-0">
                   </div>
                 </div>
@@ -2092,7 +2137,7 @@
               </div>
 
               <div class="mb-5">
-                <h4 class="fw-bold mb-3 border-bottom border-dark pb-2">๒. แบบบันทึกรายละเอียดการจัดกิจกรรม</h4>
+                <h4 class="fw-bold mb-3 border-bottom border-dark pb-2 skn-report-heading-safe">2. แบบบันทึกรายละเอียดการจัดกิจกรรม</h4>
                 <table class="table-report">
                   <thead>
                     <tr>
@@ -2130,16 +2175,16 @@
               
 
               <div class="mb-5 page-break-before pt-4">
-                <h4 class="fw-bold mb-3 border-bottom border-dark pb-2">๓. แบบบันทึกเวลาเข้าร่วมกิจกรรม</h4>
+                <h4 class="fw-bold mb-3 border-bottom border-dark pb-2 skn-report-heading-safe">3. แบบบันทึกเวลาเข้าร่วมกิจกรรม</h4>
                 <div style="font-size: 8.5pt;">
                   <table class="table-report" style="table-layout: fixed;">
                     <thead>
                       <tr>
                         <th style="width: 4%;">ที่</th>
-                        <th style="width: 30%;">ชื่อ-สกุล</th>
+                        <th style="width: 26%;">ชื่อ-สกุล</th>
                         <th style="width: 8%;">ชั้น/ห้อง</th>
                         <th style="width: 5%;">เลขที่</th>
-                        <th v-for="i in 20" :key="i" style="width: 2.8%; vertical-align: bottom; padding-bottom: 5px;">
+                        <th v-for="i in 20" :key="i" style="width: 2.5%; vertical-align: bottom; padding: 3px 0 5px;">
                           <div class="th-rotate-container">
                             <div class="th-rotate" :class="{'th-fallback': !attData.dates[i-1]}">
                               <template v-if="attData.dates[i-1]">
@@ -2153,15 +2198,15 @@
                             </div>
                           </div>
                         </th>
-                        <th style="width: 6%;">รวม</th>
+                        <th style="width: 7%;">รวม</th>
                       </tr>
                     </thead>
                     <tbody style="font-size: 12px;">
                       <tr v-for="(s, idx) in attStudents" :key="s.id">
                         <td class="text-center">{{ idx + 1 }}</td>
                         <td class="ps-1" style="white-space: nowrap; overflow: hidden;">{{ s.name }}</td>
-                        <td class="text-center">{{ s.room }}</td>
-                        <td class="text-center">{{ s.no }}</td>
+                        <td class="text-center">{{ sknArabicDigits(s.room) }}</td>
+                        <td class="text-center">{{ sknArabicDigits(s.no) }}</td>
                         <td v-for="i in 20" :key="i" class="text-center p-0"
                           style="font-size: 9px; vertical-align: middle;">{{ getStatusSymbol(attData.records[s.id][i-1]
                           || 0) }}</td>
@@ -2174,7 +2219,7 @@
               </div>
 
               <div class="mb-5 page-break-before pt-4">
-                <h4 class="fw-bold mb-3 border-bottom border-dark pb-2">๔. สรุปผลการประเมินกิจกรรมชุมนุม</h4>
+                <h4 class="fw-bold mb-3 border-bottom border-dark pb-2 skn-report-heading-safe">4. สรุปผลการประเมินกิจกรรมชุมนุม</h4>
                 <table class="table-report">
                   <thead>
                     <tr>
@@ -2192,8 +2237,8 @@
                     <tr v-for="(s, idx) in attStudents" :key="s.id">
                       <td class="text-center">{{ idx + 1 }}</td>
                       <td class="ps-2">{{ s.name }}</td>
-                      <td class="text-center">{{ s.room }}</td>
-                      <td class="text-center">{{ s.no }}</td>
+                      <td class="text-center">{{ sknArabicDigits(s.room) }}</td>
+                      <td class="text-center">{{ sknArabicDigits(s.no) }}</td>
                       <td class="text-center fw-bold">{{ countSessionPresence(s.id) }}</td>
                       <td class="text-center">{{ calculateGrade(s.id) === 'ผ่าน' ? 'ผ่าน' : 'ไม่ผ่าน' }}</td>
                       <td class="text-center" :contenteditable="!archiveReadonly">ผ่าน</td>
@@ -2203,8 +2248,8 @@
                 </table>
                 <div class="mt-4 p-3 bg-light border border-dark small" style="border-radius: 5px;">
                   <b>เกณฑ์การประเมิน:</b><br>
-                        ๑. เวลาเรียนต้องไม่น้อยกว่าร้อยละ ๘๐ ของเวลาเรียนทั้งหมด<br>
-                        ๒. ผ่านจุดประสงค์การเรียนรู้ที่สำคัญของกิจกรรมตามที่ครูที่ปรึกษากำหนด
+                        1. เวลาเรียนต้องไม่น้อยกว่าร้อยละ 80 ของเวลาเรียนทั้งหมด<br>
+                        2. ผ่านจุดประสงค์การเรียนรู้ที่สำคัญของกิจกรรมตามที่ครูที่ปรึกษากำหนด
                 </div>
               </div>
             </div>
@@ -3858,11 +3903,12 @@ downloadWordReport() {
     let combinedHtml = "";
     
     content.forEach((el, index) => {
-      // เพิ่มตัวแบ่งหน้า (Page Break) สำหรับ Word
       if (index > 0) {
         combinedHtml += '<br clear="all" style="mso-special-character:line-break;page-break-before:always">';
       }
-      combinedHtml += el.innerHTML;
+      const clone=this.sknPdfClonePage(el);
+      // Clone controlled inputs with their current values; never export empty objectives.
+      combinedHtml += clone.innerHTML;
     });
 
     // 2. สร้างโครงสร้างไฟล์ Word HTML
@@ -3880,6 +3926,11 @@ downloadWordReport() {
           .fw-bold { font-weight: bold; }
           img { max-width: 100%; }
           .editable { border-bottom: none !important; }
+          .skn-objective-row {display:table;width:100%;margin:0 0 8px;page-break-inside:avoid;}
+          .skn-objective-number {display:table-cell;width:35px;min-width:35px;vertical-align:top;text-align:right;padding-right:12px;}
+          .skn-objective-row .skn-objective-value {display:table-cell;vertical-align:top;white-space:pre-wrap;}
+          .skn-report-heading-safe {line-height:1.65;page-break-after:avoid;}
+          .table-report thead {display:table-header-group;}
         </style>
       </head>
       <body>`;
@@ -4633,6 +4684,10 @@ downloadCSVTemplate() {
 
         countPass() { return this.attStudents.filter(s => this.calculateGrade(s.id) === 'ผ่าน').length; },
         countFail() { return this.attStudents.filter(s => this.calculateGrade(s.id) === 'ไม่ผ่าน').length; },
+        // V5.3: normalize display-only Thai digits; keep the original values in Supabase.
+        sknArabicDigits(value) {
+          return String(value ?? '').replace(/[๐-๙]/g, digit => String(digit.charCodeAt(0) - 0x0E50));
+        },
         getStatusSymbol(val) { if(val===1) return '/'; if(val===2) return 'ล'; if(val===3) return 'ข'; return ''; },
         formatDateThai(dateStr) { if(!dateStr) return ''; const d = new Date(dateStr); return `${d.getDate().toString().padStart(2,'0')}/${(d.getMonth()+1).toString().padStart(2,'0')}/${d.getFullYear()+543}`; },
         formatAttendanceHeaderVertical(dateStr) {
@@ -5179,6 +5234,10 @@ downloadCSVTemplate() {
             else if(from.tagName==='SELECT')label.textContent=from.selectedOptions?.[0]?.textContent||'';
             else label.textContent=from.value||'';
             label.style.cssText='display:inline-block;white-space:pre-wrap;min-width:1.5em;min-height:1em';
+            if(node.closest('.skn-objective-row')){
+              label.classList.add('skn-objective-value');
+              label.style.cssText='display:block;flex:1 1 0;min-width:0;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.5';
+            }
             node.replaceWith(label);
           });
           clone.querySelectorAll('.no-print,.photo-input,button,input[type="file"],#skn-pdf-progress-overlay')
@@ -5191,7 +5250,7 @@ downloadCSVTemplate() {
             table.querySelectorAll('thead').forEach(head=>{head.style.display='table-header-group';});
             table.querySelectorAll('th').forEach(th=>{th.style.webkitPrintColorAdjust='exact';th.style.printColorAdjust='exact';});
           });
-          clone.style.cssText+=';background:#fff!important;color:#000;width:794px!important;max-width:794px!important;min-height:1123px!important;height:auto!important;box-sizing:border-box!important;box-shadow:none!important;margin:0!important;break-before:auto!important;break-after:auto!important;page-break-before:auto!important;page-break-after:auto!important;overflow:visible!important';
+          clone.style.cssText+=';font-family:Sarabun,TH Sarabun New,sans-serif!important;background:#fff!important;color:#000;width:794px!important;max-width:794px!important;min-height:1123px!important;height:auto!important;box-sizing:border-box!important;box-shadow:none!important;margin:0!important;break-before:auto!important;break-after:auto!important;page-break-before:auto!important;page-break-after:auto!important;overflow:visible!important';
           return clone;
         },
         sknCanvasContainsInk(canvas){
@@ -5275,6 +5334,7 @@ downloadCSVTemplate() {
             throw Error('ตัวสร้าง PDF แบบแยกหน้าโหลดไม่สำเร็จ: ตรวจ CDN html2canvas และ jsPDF');
           if(this._reportImageLoadPromise)await this._reportImageLoadPromise;
           if(this.reportMediaErrors?.length)throw Error('รูปภาพจาก Drive ยังโหลดไม่ครบ');
+          if(document.fonts?.load)await document.fonts.load('400 14px Sarabun');
           if(document.fonts?.ready)await document.fonts.ready;
           if(this.$nextTick)await this.$nextTick();
           const pages=this.sknReportPages();
