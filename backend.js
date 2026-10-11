@@ -717,7 +717,7 @@ async function sknInvoke(method, args, periodId) {
             const club = await clubById(p.id, String(f.clubId || args[2] || ''));
             assert(owner(u, club));
             const periodConfig = await cfg(p.id);
-            assert(periodConfig.allow_report_email !== 'false', 'Admin ปิดการส่งอีเมลในหน้ารายงานแล้ว');
+            assert(u.role === 'admin' || periodConfig.allow_report_email !== 'false', 'ปิดการส่งเมลสำหรับครู');
             const settings = JSON.parse(periodConfig.adminSettings || '{}');
             const email = String(settings.reportEmail || '').trim();
             assert(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email), 'กรุณาตั้งค่าอีเมลรับรายงานในหน้าตั้งค่าระบบขั้นสูงก่อน');

@@ -939,7 +939,7 @@
           <input id="adminAllowReportEmail" class="form-check-input" type="checkbox"
                  v-model="config.allow_report_email" :true-value="'true'" :false-value="'false'"
                  @change="saveConfig" :disabled="loading">
-          <label for="adminAllowReportEmail" class="small fw-600 ms-1">ครูส่งรายงานผ่านเมล (เปิด/ปิด)</label>
+          <label for="adminAllowReportEmail" class="small fw-600 ms-1">ครูส่งเมล</label>
           <span class="small ms-2" :class="config.allow_report_email==='false'?'text-danger':'text-success'">{{config.allow_report_email==='false'?'ปิดใช้งาน':'เปิดใช้งาน'}}</span>
         </div>
       </div>
@@ -1819,9 +1819,9 @@
                    </button>
 
                   
-                  <button @click="promptSendEmail" class="btn btn-info btn-fast shadow-sm px-4 text-white" :disabled="archiveReadonly || loading || config.allow_report_email==='false'"
-                          :title="config.allow_report_email==='false'?'Admin ปิดการส่งอีเมลรายงานไว้':'เลือกระบบสร้าง PDF หรือแนบ PDF เอง'">
-                  <i class="fas fa-envelope me-2"></i>{{config.allow_report_email==='false'?'Admin ปิดส่งอีเมล':'ส่งอีเมล'}}
+                  <button @click="promptSendEmail" class="btn btn-info btn-fast shadow-sm px-4 text-white" :disabled="archiveReadonly || loading || (config.allow_report_email==='false' && user?.role!=='admin')"
+                          :title="config.allow_report_email==='false' && user?.role!=='admin'?'ปิดการส่งเมลสำหรับครู':'เลือกระบบสร้าง PDF หรือแนบ PDF เอง'">
+                  <i class="fas fa-envelope me-2"></i>{{config.allow_report_email==='false' && user?.role!=='admin'?'ปิดส่งอีเมล':'ส่งอีเมล'}}
                 </button>
 
 
@@ -5252,6 +5252,24 @@ downloadCSVTemplate() {
                 });
                 if(!im.naturalWidth)throw Error('รูปในรายงานไม่สมบูรณ์: หน้า '+(i+1));
               }));
+              // V5.1: render the actual A4 DOM clone. V5.0 referenced `canvas`
+              // without creating it, so the main builder could never succeed.
+              // Wait for the layout/paint to settle before capturing.
+              await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+              const captureHeight=Math.max(1,Math.ceil(clone.scrollHeight));
+              if(captureHeight>1125)throw Error('เนื้อหาหน้า '+(i+1)+' สูงเกิน A4');
+              let canvas;
+              try{
+                canvas=await window.html2canvas(clone,{
+                  scale:renderScale,backgroundColor:'#ffffff',useCORS:true,
+                  allowTaint:false,logging:false,scrollX:0,scrollY:0,
+                  width:794,height:captureHeight,windowWidth:Math.max(794,document.documentElement.clientWidth)
+                });
+              }catch(captureError){
+                throw Error('จับภาพหน้า '+(i+1)+' ไม่สำเร็จ: '+String(captureError?.message||captureError));
+              }
+              if(!canvas || canvas.width<100 || canvas.height<100 || !this.sknCanvasContainsInk(canvas))
+                throw Error('หน้า '+(i+1)+' ไม่มีภาพเอกสารที่ใช้งานได้');
               // A4 page image: preserve aspect ratio (no stretching), and never slice a table row.
               const pageHeightMm=210*canvas.height/canvas.width;
               if(pageHeightMm>297.5)throw Error('มีหน้ารายงานยาวเกิน A4');
@@ -5288,7 +5306,7 @@ downloadCSVTemplate() {
           if(typeof window.html2pdf!=='function')throw Error('โหลดตัวสร้าง PDF ไม่สำเร็จ กรุณาตรวจอินเทอร์เน็ต');
           // Do not generate a report before its Drive images have resolved.
           if(this._reportImageLoadPromise)await this._reportImageLoadPromise;
-          if(this.reportMediaErrors?.length)throw Error('มีรูปภาพจาก Drive โหลดไม่สำเร็จ กรุณาตรวจรูปก่อน หรือเลือกแนบ PDF เอง');
+          if(this.reportMediaErrors?.length)throw Error('รูปภาพจาก Drive ยังโหลดไม่ครบ');
           if(document.fonts?.ready)await document.fonts.ready;
           // Clone the actual report, including user-edited text, images and signatures.
           const pages=[...document.querySelectorAll('.a4-container')];
@@ -5486,7 +5504,7 @@ downloadCSVTemplate() {
             const err=Error('รูปภาพจาก Drive ยังไม่พร้อมหลังลองซ้ำ: '+this.reportMediaErrors.join('; ').slice(0,350));
             err.stage='images';throw err;
           }
-          let lastPdfError;
+          let lastPdfError,primaryPdfError;
           // Do not offer a manual PDF after the first transient canvas/asset error.
           for(let attempt=1;attempt<=3;attempt++){
             try{
@@ -5500,11 +5518,17 @@ downloadCSVTemplate() {
               this.sknEmailProgress(3,'สร้างไฟล์แล้ว กำลังตรวจ PDF และตรวจ SHA-256 ก่อนส่ง');
               const integrity=await this.sknPdfIntegrity(dataUrl);
               return {pdfFile:dataUrl,integrity,createdAutomatically:true};
-            }catch(err){lastPdfError=err;
+            }catch(err){lastPdfError=err;if(attempt<=2)primaryPdfError=err;
               if(attempt<3){this.sknEmailProgress(2,'สร้าง PDF ครั้งที่ '+attempt+' ไม่สำเร็จ: '+String(err?.message||err)+'\nระบบกำลังลองใหม่อัตโนมัติ...');await this.sknPausePdf(1800);}
             }
           }
-          const err=Error('ลองสร้าง/ตรวจ PDF อัตโนมัติครบ 3 ครั้งแล้ว แต่ยังไม่สำเร็จ: '+String(lastPdfError?.message||lastPdfError));
+          // An old html2pdf blank-canvas error must not hide the real reason
+          // reported by the newer page-by-page generator on attempts 1–2.
+          const reasonSource=/ไม่มีภาพเอกสาร|เอกสารว่าง/.test(String(lastPdfError?.message||''))
+            ?(primaryPdfError||lastPdfError):lastPdfError;
+          const reason=String(reasonSource?.message||reasonSource||'ไม่ทราบสาเหตุ');
+          console.error('SKN PDF: all automatic generators failed',{primaryPdfError,lastPdfError});
+          const err=Error('สร้าง PDF ไม่สำเร็จหลังลอง 3 ครั้ง: '+reason);
           err.stage='pdf';throw err;
         },
         async sknPdfIntegrity(dataUrl) {
@@ -5575,8 +5599,8 @@ downloadCSVTemplate() {
         // manual NEVER starts any PDF generation. Errors stay in the chosen mode.
         async promptSendEmail(){
           if(this.archiveReadonly||this.loading)return;
-          if(this.config.allow_report_email==='false'){
-            await Swal.fire('ปิดการส่งอีเมล','Admin ปิดการส่งอีเมลในหน้าตั้งค่าการรับสมัคร','info');return;
+          if(this.config.allow_report_email==='false' && this.user?.role!=='admin'){
+            await Swal.fire('ปิดการส่งเมล','Admin ปิดการส่งเมลสำหรับครู','info');return;
           }
           let email='';
           try{email=await this.sknMailRecipient();}
@@ -5604,7 +5628,8 @@ downloadCSVTemplate() {
               attachment=await this.sknCreateAutoPdfWithRetries(email);
             }
             // Re-read switch immediately before sending. Server/GAS enforce it too.
-            if(this.config.allow_report_email==='false')throw Error('Admin ปิดการส่งอีเมลระหว่างสร้างรายงาน');
+            if(this.config.allow_report_email==='false' && this.user?.role!=='admin')
+              throw Error('ปิดการส่งเมลสำหรับครู');
             const jobId=(crypto.randomUUID?crypto.randomUUID():String(Date.now())+'-'+Math.random().toString(36).slice(2));
             const source=selectedMode==='auto'?'browser-auto':'manual-selected';
             const sent=await this.sknSendBrowserReportPdf(email,attachment,source,jobId);
@@ -5617,11 +5642,11 @@ downloadCSVTemplate() {
             this.sknEmailProgressClose();
             const message=String(error?.message||error);
             if(selectedMode==='auto' && !error?.ambiguousMail){
-              await Swal.fire({icon:'error',title:'สร้าง/ส่ง PDF อัตโนมัติไม่สำเร็จ',
-                html:'<p class="text-start" style="overflow-wrap:anywhere">'+String(message).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]))+'</p>'+ 
-                 '<p class="small text-muted">ขั้นตอน: '+({save:'บันทึกรายงาน',images:'รอรูปภาพ',pdf:'สร้างและตรวจ PDF'}[stage]||'ส่งอีเมล')+ 
-                 ' — ระบบยังคงอยู่ในโหมดสร้าง PDF อัตโนมัติ ไม่มีการสลับไปแนบไฟล์เอง</p>',
-                confirmButtonText:'ปิดและลองสร้างใหม่',allowOutsideClick:false});
+              const step=({save:'บันทึกรายงาน',images:'โหลดรูปภาพ',pdf:'สร้าง PDF'}[stage]||'ส่งอีเมล');
+              const concise=message.length>180?message.slice(0,177)+'...':message;
+              const detail=stage==='pdf'?concise.replace(/^สร้าง PDF ไม่สำเร็จหลังลอง 3 ครั้ง:\s*/,'ลองสร้าง 3 ครั้งแล้ว — '):step+': '+concise;
+              await Swal.fire({icon:'error',title:stage==='pdf'?'สร้าง PDF ไม่สำเร็จ':'ส่งรายงานไม่สำเร็จ',
+                text:detail,confirmButtonText:'ปิด',allowOutsideClick:false});
             }else{
               await Swal.fire({icon:'error',title:'ยังไม่สามารถยืนยันการส่งอีเมล',
                 text:message+' — หากถึงขั้นส่งแล้ว กรุณาตรวจกล่องผู้รับก่อนกดซ้ำ'});
