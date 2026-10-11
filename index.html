@@ -313,20 +313,49 @@
     }
 
     .th-rotate-container {
-      height: 100px;
+      min-height: 104px;
       position: relative;
       width: 100%;
       display: flex;
       justify-content: center;
       align-items: flex-end;
+      padding-bottom: 4px;
     }
 
     .th-rotate {
-      writing-mode: vertical-rl;
-      transform: rotate(180deg);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 1px;
+      min-height: 94px;
+      line-height: 1;
       white-space: nowrap;
       font-size: 10px;
-      margin-bottom: 5px;
+      font-weight: 700;
+      margin: 0;
+      letter-spacing: 0;
+      font-variant-numeric: tabular-nums;
+      text-rendering: geometricPrecision;
+    }
+
+    .th-rotate .th-vertical-sep {
+      font-size: 8px;
+      line-height: .8;
+      margin: 1px 0;
+    }
+
+    .th-rotate.th-fallback {
+      font-size: 9px;
+      gap: 2px;
+    }
+
+    .skn-report-heading-safe {
+      line-height: 1.5;
+      padding-top: 1mm;
+      overflow: visible;
+      white-space: normal;
+      word-break: keep-all;
     }
 
     .fa-spin {
@@ -363,6 +392,12 @@
       body {
         background: white;
         padding: 0 !important;
+      }
+
+      .skn-report-heading-safe {
+        line-height: 1.65 !important;
+        padding-top: 2mm !important;
+        margin-top: 0 !important;
       }
 
       .no-print,
@@ -2010,7 +2045,7 @@
 
             <div class="a4-container shadow-sm" style="min-height: auto;">
               <div class="mb-5">
-                <h4 class="fw-bold border-bottom border-dark pb-2 mb-3">๑. ข้อมูลทั่วไปของกิจกรรมชุมนุม</h4>
+                <h4 class="fw-bold border-bottom border-dark pb-2 mb-3 skn-report-heading-safe">๑. ข้อมูลทั่วไปของกิจกรรมชุมนุม</h4>
                 <p><b>ชื่อกิจกรรม:</b> {{ currentClubName }}</p>
 
 
@@ -2106,8 +2141,16 @@
                         <th style="width: 5%;">เลขที่</th>
                         <th v-for="i in 20" :key="i" style="width: 2.8%; vertical-align: bottom; padding-bottom: 5px;">
                           <div class="th-rotate-container">
-                            <div class="th-rotate">{{ attData.dates[i-1] ? formatDateThai(attData.dates[i-1]) :
-                              'ครั้งที่ ' + i }}</div>
+                            <div class="th-rotate" :class="{'th-fallback': !attData.dates[i-1]}">
+                              <template v-if="attData.dates[i-1]">
+                                <span v-for="(part, partIdx) in formatAttendanceHeaderVertical(attData.dates[i-1])" :key="partIdx" :class="part==='/' ? 'th-vertical-sep' : ''">{{ part }}</span>
+                              </template>
+                              <template v-else>
+                                <span>ครั้ง</span>
+                                <span>ที่</span>
+                                <span>{{ i }}</span>
+                              </template>
+                            </div>
                           </div>
                         </th>
                         <th style="width: 6%;">รวม</th>
@@ -4592,6 +4635,14 @@ downloadCSVTemplate() {
         countFail() { return this.attStudents.filter(s => this.calculateGrade(s.id) === 'ไม่ผ่าน').length; },
         getStatusSymbol(val) { if(val===1) return '/'; if(val===2) return 'ล'; if(val===3) return 'ข'; return ''; },
         formatDateThai(dateStr) { if(!dateStr) return ''; const d = new Date(dateStr); return `${d.getDate().toString().padStart(2,'0')}/${(d.getMonth()+1).toString().padStart(2,'0')}/${d.getFullYear()+543}`; },
+        formatAttendanceHeaderVertical(dateStr) {
+          if(!dateStr) return [];
+          const full = this.formatDateThai(dateStr).split('/');
+          if(full.length!==3) return String(this.formatDateThai(dateStr)||'').split('');
+          const [dd,mm,yyyy]=full;
+          const yy=String(yyyy||'').slice(-2);
+          return [...String(dd).padStart(2,'0'), '/', ...String(mm).padStart(2,'0'), '/', ...String(yy).padStart(2,'0')];
+        },
 
 
         // ---------------------------------------------------------

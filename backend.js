@@ -298,7 +298,7 @@ async function checkLogin(username, password) {
             throw Error('Supabase ไม่ส่งข้อมูลเซสชันกลับมา: ตรวจการตั้งค่า Anonymous Auth');
     }
     const v = await result(db.rpc('skn_login_credentials', {
-        p_username: String(username || ''), p_password: String(password || '')
+        p_username: String(username || '').trim(), p_password: String(password || '').trim()
     }));
     if (!v?.success)
         return { success: false, message: v?.message || 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' };
