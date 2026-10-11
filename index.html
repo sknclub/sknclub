@@ -1310,6 +1310,68 @@
     .skn-attendance-scroll .sticky-col-2 { box-shadow: 3px 0 8px rgba(30,41,59,.06); }
     @media(max-width: 768px) {.skn-attendance-layout { padding: 12px 14px 20px !important; }
       .skn-attendance-scroll { min-height: 470px; }}
+
+    /* V5.9.2: UI-only responsiveness; not applied to printable A4 pages. */
+    .skn-navbar-refresh { color:#1e293b !important; font-weight:700 !important; }
+    .skn-navbar-refresh i,.skn-navbar-refresh span { color:#1e293b !important; font-weight:700 !important; }
+    .skn-term-header { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
+    .skn-term-header > h6 { flex:1 1 260px; line-height:1.45; }
+    .skn-term-primary-actions {
+      flex:1 1 615px; display:grid; grid-template-columns:repeat(3,minmax(0,1fr));
+      gap:10px; width:100%;
+    }
+    .skn-term-primary-actions > .btn {
+      min-width:0; width:100%; min-height:43px; height:100%;
+      display:inline-flex; align-items:center; justify-content:center;
+      gap:3px; padding:8px 9px; font-weight:600; line-height:1.25;
+      white-space:normal; text-align:center; border-radius:8px;
+    }
+    .skn-report-header { flex-wrap:wrap; gap:10px; }
+    .skn-report-desktop-actions > .btn { min-height:42px; }
+    .skn-report-scroll-top {
+      position:fixed; right:20px; bottom:20px; z-index:1090;
+      width:38px; height:38px; padding:0; border-radius:50%;
+      display:flex;align-items:center;justify-content:center;
+      color:#fff; background:#334155; border:1px solid #1e293b;
+      box-shadow:0 3px 12px rgba(15,23,42,.25); cursor:pointer;
+    }
+    .skn-report-scroll-top:hover,.skn-report-scroll-top:focus-visible {
+      color:#fff;background:#1d4ed8; outline-offset:3px;
+    }
+    .skn-mobile-report-actions { display:none; }
+    @media (min-width:768px) and (max-width:1199.98px) {
+      .skn-term-primary-actions { grid-template-columns:repeat(2,minmax(0,1fr)); }
+      .skn-term-primary-actions > .btn:last-child { grid-column:1/-1; }
+    }
+    @media (max-width:767.98px) {
+      .skn-term-header { align-items:stretch; gap:12px; }
+      .skn-term-header > h6 { flex:0 0 100%; }
+      .skn-term-primary-actions { grid-template-columns:1fr; flex:1 1 100%; gap:10px; }
+      .skn-term-primary-actions > .btn { min-height:45px; }
+      .skn-mobile-report-actions {
+        display:grid !important; grid-template-columns:repeat(6,minmax(0,1fr));
+        position:fixed; bottom:0; left:0; right:0;
+        z-index:1100; gap:3px; padding:7px 5px calc(7px + env(safe-area-inset-bottom,0px));
+        background:#fff; border-top:1px solid #cbd5e1;
+        box-shadow:0 -3px 16px rgba(15,23,42,.14);
+      }
+      .skn-mobile-report-actions button {
+        min-width:0; min-height:49px; display:flex; flex-direction:column;
+        justify-content:center; align-items:center; gap:4px; padding:4px 1px;
+        border:0; background:transparent; color:#1e293b; border-radius:8px;
+        font-family:inherit; font-weight:700; font-size:10px; line-height:1.15;
+      }
+      .skn-mobile-report-actions button i { font-size:17px; }
+      .skn-mobile-report-actions button:focus-visible,.skn-mobile-report-actions button:active { background:#e0e7ff;outline:2px solid #2563eb; }
+      .skn-mobile-report-actions button:disabled { opacity:.42; }
+      .skn-report-scroll-top { bottom:calc(86px + env(safe-area-inset-bottom,0px)); right:14px; width:36px; height:36px; }
+      .skn-report-header { margin-bottom:8px !important; }
+      .skn-report-page { padding-bottom:calc(82px + env(safe-area-inset-bottom,0px)) !important; }
+    }
+    @media print {
+      .skn-mobile-report-actions,.skn-report-scroll-top { display:none !important; }
+      .skn-report-page { padding-bottom:0 !important; }
+    }
   </style>
   <link rel="stylesheet" href="theme.css">
 </head>
@@ -1412,7 +1474,7 @@
             <option v-for="p in periods" :value="p.id" :key="p.id">{{p.semester}}/{{p.academicYear}}{{p.isCurrent?' ● ปัจจุบัน':''}}</option>
           </select>
 
-          <button class="btn btn-light btn-sm shadow-sm border" @click="refreshData" :disabled="loading">
+          <button class="btn btn-light btn-sm shadow-sm border skn-navbar-refresh" @click="refreshData" :disabled="loading" title="รีเฟรชข้อมูลล่าสุด">
       <i class="fas fa-sync-alt" :class="{'fa-spin': loading}"></i>
       <span class="ms-1 small d-none d-md-inline">{{ loading ? 'กำลังอัปเดต...' : 'รีเฟรช' }}</span>
     </button>
@@ -1984,16 +2046,16 @@
      ========================================== -->
 <transition name="fade">
   <div v-if="view === 'admin_settings'" class="container-xl no-print">
-    <div class="d-flex align-items-center justify-content-between mb-4 mt-3">
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4 mt-3">
       <div>
         <h4 class="fw-800 m-0 text-danger"><i class="fas fa-cogs me-2"></i>ตั้งค่าระบบขั้นสูง</h4>
         <p class="text-muted small m-0">กำหนดรูปแบบรายงาน วันเวลา และผู้ลงนาม</p>
       </div>
-      <div class="d-flex gap-2">
+      <div class="d-flex flex-wrap gap-2">
         <button @click="saveAdminSettingsData" class="btn btn-primary-fast shadow-sm px-4" :disabled="loading">
           <i class="fas fa-save me-2"></i>บันทึกการตั้งค่า
         </button>
-        <button @click="view = 'dashboard'" class="btn btn-white border shadow-sm rounded-pill px-4">
+        <button @click="view = 'dashboard'" class="btn btn-white border shadow-sm rounded-2 px-4">
           <i class="fas fa-arrow-left me-2"></i>กลับหน้าหลัก
         </button>
       </div>
@@ -2063,51 +2125,6 @@
         </div>
       </div>
 
-      <!-- V5.8: centrally-managed signatures, independent of semester and report media. -->
-      <div class="col-12">
-        <div class="card-clean p-4 bg-white border-0 shadow-sm">
-          <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
-            <h6 class="fw-bold m-0 text-primary"><i class="fas fa-signature me-2"></i>คลังลายเซ็นส่วนกลางสำหรับ Admin</h6>
-            <div class="d-flex flex-wrap align-items-center gap-2">
-              <button type="button" class="btn btn-sm btn-outline-success" v-if="user?.role==='admin'"
-                      @click="downloadAdminBulkReports" :disabled="adminBulkExportBusy || signatureLibraryWorking">
-                <i class="fas fa-file-archive me-1"></i>ดาวน์โหลด PDF ทุกชุมนุม
-              </button>
-              <button type="button" class="btn btn-sm btn-outline-primary" @click="loadSignatureLibrary" :disabled="signatureLibraryWorking">
-                <i class="fas fa-sync-alt me-1"></i>โหลดข้อมูลคลัง
-              </button>
-            </div>
-          </div>
-          <p class="small text-muted mb-3">Admin จัดเก็บและอนุญาตลายเซ็นได้ที่นี่ จากนั้นเลือก “ดาวน์โหลด PDF ทุกชุมนุม” เพื่อใส่ลายเซ็นที่อนุญาตแล้วลงในไฟล์ PDF ของทุกชุมนุมและรวมเป็น ZIP เฉพาะไฟล์ที่ส่งออก ไม่เปลี่ยนรายงานของครู และบันทึกประวัติการใช้งาน</p>
-          <div class="row g-3">
-            <div v-for="item in signatureLibrarySlots" :key="item.slot" class="col-md-6 col-xl-3">
-              <div class="border rounded-3 p-3 h-100 d-flex flex-column gap-2">
-                <div class="fw-bold">{{item.title}}</div>
-                <label class="small text-muted" :for="'skn-lib-name-'+item.slot">ชื่อเจ้าของลายเซ็น</label>
-                <input :id="'skn-lib-name-'+item.slot" type="text" v-model.trim="signatureLibraryDraftNames[item.slot]" class="form-control form-control-sm" maxlength="160" :disabled="signatureLibraryWorking" placeholder="ชื่อและนามสกุล">
-                <div class="skn-library-preview border rounded bg-light d-flex align-items-center justify-content-center">
-                  <img v-if="signatureLibraryImages[item.slot]" :src="signatureLibraryImages[item.slot]" :alt="'ลายเซ็น '+item.title" style="max-height:70px;max-width:100%;object-fit:contain">
-                  <span v-else class="text-muted small">ยังไม่มีภาพลายเซ็น</span>
-                </div>
-                <div v-if="signatureLibraryRecords[item.slot]" class="small">
-                  <span :class="signatureLibraryRecords[item.slot].is_enabled?'text-success':'text-secondary'" class="fw-bold">
-                    {{signatureLibraryRecords[item.slot].is_enabled?'อนุญาตให้ใช้งาน':'ยังไม่อนุญาต'}}
-                  </span>
-                  <span class="d-block text-muted" v-if="signatureLibraryRecords[item.slot].approved_at">อนุญาตเมื่อ {{new Date(signatureLibraryRecords[item.slot].approved_at).toLocaleDateString('th-TH')}}</span>
-                </div>
-                <div class="d-flex flex-wrap gap-1 mt-auto">
-                  <button type="button" class="btn btn-sm btn-outline-primary" @click="chooseSignatureLibraryFile(item.slot)" :disabled="signatureLibraryWorking">อัปโหลด/เปลี่ยน</button>
-                  <button v-if="signatureLibraryRecords[item.slot] && !signatureLibraryRecords[item.slot].is_enabled" type="button" class="btn btn-sm btn-success" @click="setSignatureLibraryApproval(item.slot,true)" :disabled="signatureLibraryWorking">อนุญาตใช้</button>
-                  <button v-if="signatureLibraryRecords[item.slot]?.is_enabled" type="button" class="btn btn-sm btn-warning" @click="setSignatureLibraryApproval(item.slot,false)" :disabled="signatureLibraryWorking">ปิดใช้งาน</button>
-                  <button v-if="signatureLibraryRecords[item.slot] && !signatureLibraryRecords[item.slot].is_enabled" type="button" class="btn btn-sm btn-outline-danger" @click="archiveSignatureLibrary(item.slot)" :disabled="signatureLibraryWorking">นำออก</button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="form-text mt-3">ไฟล์ต้นฉบับจัดเก็บใน Drive ส่วนกลาง ไม่เปิดให้ครูอ่านไฟล์คลังโดยตรง เมื่อ Admin ยืนยันใช้ในรายงาน ระบบจะบันทึกสำเนาลายเซ็นของรายงานนั้นเองและบันทึกประวัติการใช้</div>
-        </div>
-      </div>
-
       <!-- ตั้งค่า 20 สัปดาห์ -->
       <div class="col-md-7">
         <div class="card-clean p-4 bg-white border-0 shadow-sm h-100">
@@ -2152,18 +2169,18 @@
       <!-- ระบบขึ้นภาคเรียนใหม่ -->
       <div class="col-md-12">
         <div class="card-clean p-4 bg-white border-0 shadow-sm border-top border-danger border-4">
-          <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
+          <div class="skn-term-header mb-3 pb-3 border-bottom">
              <h6 class="fw-bold text-danger m-0"><i class="fas fa-exclamation-triangle me-2"></i>๕. เริ่มภาคเรียนใหม่ / ล้างข้อมูลระบบ</h6>
-             <div>
-               <button class="btn btn-sm btn-outline-success px-3 me-2" @click="createFullBackupNow" :disabled="loading||backupBusy||user?.role!=='admin'">
+             <div class="skn-term-primary-actions" role="group" aria-label="เครื่องมือเริ่มภาคเรียนใหม่และสำรองข้อมูล">
+               <button type="button" class="btn btn-sm btn-outline-success" @click="createFullBackupNow" :disabled="loading||backupBusy||user?.role!=='admin'">
                   <span v-if="backupBusy" class="spinner-border spinner-border-sm me-1"></span>
                   <i v-else class="fas fa-cloud-upload-alt me-1"></i> สำรองข้อมูลทั้งหมดตอนนี้
                </button>
-               <button class="btn btn-sm btn-outline-secondary px-3 me-2" @click="openBackupHistoryModal">
+               <button type="button" class="btn btn-sm btn-outline-secondary" @click="openBackupHistoryModal">
                   <i class="fas fa-history me-1"></i> ประวัติแบคอัป
                </button>
-               <button class="btn btn-sm btn-danger px-4" @click="openResetModal">
-                  <i class="fas fa-power-off me-2"></i>เริ่มสร้างภาคเรียนใหม่
+               <button type="button" class="btn btn-sm btn-danger" @click="openResetModal">
+                  <i class="fas fa-power-off me-1"></i>เริ่มสร้างภาคเรียนใหม่
                </button>
              </div>
           </div>
@@ -2187,6 +2204,51 @@
 
 
 
+
+      <!-- V5.8: centrally-managed signatures, independent of semester and report media. -->
+      <div class="col-12">
+        <div class="card-clean p-4 bg-white border-0 shadow-sm">
+          <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+            <h6 class="fw-bold m-0 text-primary"><i class="fas fa-signature me-2"></i>คลังลายเซ็นส่วนกลางสำหรับ Admin</h6>
+            <div class="d-flex flex-wrap align-items-center gap-2">
+              <button type="button" class="btn btn-sm btn-outline-success" v-if="user?.role==='admin'"
+                      @click="downloadAdminBulkReports" :disabled="adminBulkExportBusy || signatureLibraryWorking">
+                <i class="fas fa-file-archive me-1"></i>ดาวน์โหลด PDF ทุกชุมนุม
+              </button>
+              <button type="button" class="btn btn-sm btn-outline-primary" @click="loadSignatureLibrary" :disabled="signatureLibraryWorking">
+                <i class="fas fa-sync-alt me-1"></i>โหลดข้อมูลคลัง
+              </button>
+            </div>
+          </div>
+          <p class="small text-muted mb-3">Admin จัดเก็บและอนุญาตลายเซ็นได้ที่นี่ จากนั้นเลือก “ดาวน์โหลด PDF ทุกชุมนุม” เพื่อใส่ลายเซ็นที่อนุญาตแล้วลงในไฟล์ PDF ของทุกชุมนุมและรวมเป็น ZIP เฉพาะไฟล์ที่ส่งออก ไม่เปลี่ยนรายงานของครู และบันทึกประวัติการใช้งาน</p>
+          <div class="row g-3">
+            <div v-for="item in signatureLibrarySlots" :key="item.slot" class="col-md-6 col-xl-3">
+              <div class="border rounded-3 p-3 h-100 d-flex flex-column gap-2">
+                <div class="fw-bold">{{item.title}}</div>
+                <label class="small text-muted" :for="'skn-lib-name-'+item.slot">ชื่อเจ้าของลายเซ็น</label>
+                <input :id="'skn-lib-name-'+item.slot" type="text" v-model.trim="signatureLibraryDraftNames[item.slot]" class="form-control form-control-sm" maxlength="160" :disabled="signatureLibraryWorking" placeholder="ชื่อและนามสกุล">
+                <div class="skn-library-preview border rounded bg-light d-flex align-items-center justify-content-center">
+                  <img v-if="signatureLibraryImages[item.slot]" :src="signatureLibraryImages[item.slot]" :alt="'ลายเซ็น '+item.title" style="max-height:70px;max-width:100%;object-fit:contain">
+                  <span v-else class="text-muted small">ยังไม่มีภาพลายเซ็น</span>
+                </div>
+                <div v-if="signatureLibraryRecords[item.slot]" class="small">
+                  <span :class="signatureLibraryRecords[item.slot].is_enabled?'text-success':'text-secondary'" class="fw-bold">
+                    {{signatureLibraryRecords[item.slot].is_enabled?'อนุญาตให้ใช้งาน':'ยังไม่อนุญาต'}}
+                  </span>
+                  <span class="d-block text-muted" v-if="signatureLibraryRecords[item.slot].approved_at">อนุญาตเมื่อ {{new Date(signatureLibraryRecords[item.slot].approved_at).toLocaleDateString('th-TH')}}</span>
+                </div>
+                <div class="d-flex flex-wrap gap-1 mt-auto">
+                  <button type="button" class="btn btn-sm btn-outline-primary" @click="chooseSignatureLibraryFile(item.slot)" :disabled="signatureLibraryWorking">อัปโหลด/เปลี่ยน</button>
+                  <button v-if="signatureLibraryRecords[item.slot] && !signatureLibraryRecords[item.slot].is_enabled" type="button" class="btn btn-sm btn-success" @click="setSignatureLibraryApproval(item.slot,true)" :disabled="signatureLibraryWorking">อนุญาตใช้</button>
+                  <button v-if="signatureLibraryRecords[item.slot]?.is_enabled" type="button" class="btn btn-sm btn-warning" @click="setSignatureLibraryApproval(item.slot,false)" :disabled="signatureLibraryWorking">ปิดใช้งาน</button>
+                  <button v-if="signatureLibraryRecords[item.slot] && !signatureLibraryRecords[item.slot].is_enabled" type="button" class="btn btn-sm btn-outline-danger" @click="archiveSignatureLibrary(item.slot)" :disabled="signatureLibraryWorking">นำออก</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="form-text mt-3">ไฟล์ต้นฉบับจัดเก็บใน Drive ส่วนกลาง ไม่เปิดให้ครูอ่านไฟล์คลังโดยตรง เมื่อ Admin ยืนยันใช้ในรายงาน ระบบจะบันทึกสำเนาลายเซ็นของรายงานนั้นเองและบันทึกประวัติการใช้</div>
+        </div>
+      </div>
 
     </div>
   </div>
@@ -2562,11 +2624,11 @@
         </transition>
 
         <transition name="fade">
-          <div v-if="view === 'report'" class="container-fluid px-0">
-            <div class="d-flex justify-content-between align-items-center mb-4 container-xl no-print pt-3">
+          <div v-if="view === 'report'" class="container-fluid px-0 skn-report-page">
+            <div ref="reportScrollAnchor" class="d-flex justify-content-between align-items-center mb-4 container-xl no-print pt-3 skn-report-header">
               <div class="d-flex align-items-center gap-3">
-                <button @click="view = 'dashboard'" class="btn btn-white border shadow-sm rounded-circle p-0 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;"><i class="fas fa-arrow-left"></i></button>
-                <div>
+                <button @click="view = 'dashboard'" type="button" class="btn btn-white border shadow-sm rounded-circle p-0 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px; flex:0 0 40px" aria-label="กลับหน้าหลัก" title="กลับหน้าหลัก"><i class="fas fa-arrow-left"></i></button>
+                <div class="d-none d-md-block">
                   <h4 class="fw-800 m-0">เอกสารรายงานชุมนุม</h4>
                   <div class="text-muted small">แบบฟอร์มมาตรฐานพิมพ์ลง A4</div>
                 </div>
@@ -2577,7 +2639,7 @@
               <div v-if="reportImagesPending > 0" class="alert alert-info no-print py-2 px-3 mb-3 skn-report-image-loading">
                 <i class="fas fa-spinner fa-spin me-1"></i> เปิดหน้ารายงานแล้ว — กำลังโหลดรูปจาก Drive เบื้องหลัง {{reportImagesPending}} รูป
               </div>
-              <div class="d-flex justify-content-end gap-2 mb-4 no-print">
+              <div class="d-none d-md-flex justify-content-end flex-wrap gap-2 mb-4 no-print skn-report-desktop-actions">
                 <button @click="saveCurrentReport" class="btn btn-success btn-fast shadow-sm px-4 me-2 skn-writable" :disabled="loading || archiveReadonly">
                   <i v-if="!loading" class="fas fa-cloud-upload-alt me-2"></i>
                   <span v-if="loading" class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
@@ -2600,13 +2662,25 @@
                           :title="config.allow_report_email==='false' && user?.role!=='admin'?'ปิดการส่งเมลสำหรับครู':'เลือกระบบสร้าง PDF หรือแนบ PDF เอง'">
                   <i class="fas fa-envelope me-2"></i>{{config.allow_report_email==='false' && user?.role!=='admin'?'ปิดส่งอีเมล':'ส่งอีเมล'}}
                 </button>
-
-
+                <button type="button" @click="view = 'dashboard'" class="btn btn-white border shadow-sm px-4">
+                  <i class="fas fa-home me-2"></i>กลับหน้าหลัก
+                </button>
               </div>
 
 
 
             </div>
+
+            <!-- V5.9.2: compact mobile-only action bar; never appears in the A4 report/PDF. -->
+            <div class="skn-mobile-report-actions no-print d-md-none" role="toolbar" aria-label="เครื่องมือรายงานสำหรับมือถือ">
+              <button type="button" @click="view = 'dashboard'" title="กลับหน้าหลัก"><i class="fas fa-home"></i><span>หน้าหลัก</span></button>
+              <button type="button" @click="saveCurrentReport" :disabled="loading || archiveReadonly" title="บันทึกรายงาน"><i class="fas fa-save"></i><span>บันทึก</span></button>
+              <button type="button" @click="downloadWordReport" title="ดาวน์โหลด Word"><i class="fas fa-file-word"></i><span>Word</span></button>
+              <button type="button" @click="printReport" title="ดาวน์โหลด PDF"><i class="fas fa-file-pdf"></i><span>PDF</span></button>
+              <button type="button" @click="printReport" title="พิมพ์เอกสาร"><i class="fas fa-print"></i><span>พิมพ์</span></button>
+              <button type="button" @click="promptSendEmail" :disabled="archiveReadonly || loading || (config.allow_report_email==='false' && user?.role!=='admin')" title="ส่งอีเมล"><i class="fas fa-envelope"></i><span>ส่งเมล</span></button>
+            </div>
+            <button type="button" @click="scrollReportToTop" class="skn-report-scroll-top no-print" aria-label="กลับขึ้นด้านบนของรายงาน" title="ขึ้นด้านบนสุด"><i class="fas fa-arrow-up"></i></button>
 
             <div v-if="reportMediaErrors.length" class="alert alert-warning container-xl no-print d-flex flex-wrap justify-content-between align-items-center gap-2">
               <div class="flex-grow-1">
@@ -5816,6 +5890,15 @@ downloadCSVTemplate() {
 
         // ใช้ฟังก์ชัน saveCurrentReportSilently ชุดเดียว (ด้านบน) เพื่อป้องกันการบันทึกซ้อน
 
+        scrollReportToTop() {
+          const anchor = this.$refs.reportScrollAnchor;
+          const scroller = anchor?.closest('.overflow-auto');
+          if(scroller && typeof scroller.scrollTo === 'function') {
+            scroller.scrollTo({top:0,behavior:'smooth'});
+          } else {
+            window.scrollTo({top:0,behavior:'smooth'});
+          }
+        },
         printReport() { window.print(); },
         enroll(c) {
           const isTransfer = !!this.user.clubId;
