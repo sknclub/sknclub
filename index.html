@@ -255,6 +255,54 @@
       line-height: 1.65 !important;
     }
 
+
+    /* V5.5: all text rendered into the *emailed PDF* uses the same Thai typeface.
+       If TH Sarabun New is not installed on the user's machine, Google's Sarabun
+       web font is the predictable fallback. Do not include unlicensed font files. */
+    #skn-pdf-capture-root .skn-pdf-capture-page,
+    #skn-pdf-capture-root .skn-pdf-capture-page *:not(i):not(.fa):not(.fas):not(.far):not(.fab) {
+      font-family: 'TH Sarabun New', 'THSarabunNew', 'Sarabun', sans-serif !important;
+      font-style: normal;
+      letter-spacing: 0 !important;
+    }
+    /* Twenty activity sessions should share ONE A4 page when text fits.
+       Compact only the PDF clone, never the edit form or on-screen print view. */
+    #skn-pdf-capture-root .skn-activity-detail-section {
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+    #skn-pdf-capture-root .skn-activity-detail-section h4 {
+      font-size: 14pt !important;
+      line-height: 1.48 !important;
+      margin: 0 0 5px !important;
+      padding: 2px 0 5px !important;
+    }
+    #skn-pdf-capture-root .skn-activity-detail-section .table-report {
+      table-layout: fixed !important;
+      font-size: 11pt !important;
+      margin: 0 !important;
+      width: 100%;
+    }
+    #skn-pdf-capture-root .skn-activity-detail-section .table-report th,
+    #skn-pdf-capture-root .skn-activity-detail-section .table-report td {
+      height: auto !important;
+      min-height: 0 !important;
+      padding: 2px 5px !important;
+      font-size: 11pt !important;
+      line-height: 1.22 !important;
+      vertical-align: middle !important;
+      overflow-wrap: anywhere;
+    }
+    #skn-pdf-capture-root .skn-activity-detail-section .table-report tbody td span {
+      display: block !important;
+      font-size: 11pt !important;
+      white-space: pre-wrap;
+      line-height: 1.22 !important;
+      min-height: 1.1em !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+
     /* Report & Print */
     .a4-container {
       width: 210mm;
@@ -2200,7 +2248,7 @@
 
               </div>
 
-              <div class="mb-5">
+              <div class="mb-5 skn-activity-detail-section">
                 <h4 class="fw-bold mb-3 border-bottom border-dark pb-2 skn-report-heading-safe">2. แบบบันทึกรายละเอียดการจัดกิจกรรม</h4>
                 <table class="table-report">
                   <thead>
@@ -2707,12 +2755,20 @@
               <div class="col-4"><label class="form-label fw-bold">ภาคเรียนปลายทาง</label><select class="form-select" v-model.number="restoreSemester" :disabled="restoreBusy"><option :value="1">1</option><option :value="2">2</option><option :value="3">3</option></select></div>
               <div class="col-4 d-flex align-items-end"><label class="form-check mb-2"><input type="checkbox" class="form-check-input" v-model="restoreMakeCurrent" :disabled="restoreBusy" /><span class="form-check-label">ตั้งเป็นปัจจุบัน</span></label></div>
             </div>
-            <div class="form-check mt-3"><input type="checkbox" class="form-check-input" id="restoreOverwriteV49" v-model="restoreOverwrite" :disabled="restoreBusy"><label for="restoreOverwriteV49" class="form-check-label fw-bold text-danger">กู้คืนทับข้อมูลปี/ภาคเรียนปลายทางที่มีอยู่ (สำรองชุดปัจจุบันก่อนอัตโนมัติ)</label></div>
+            <div class="form-check mt-3"><input type="checkbox" class="form-check-input" id="restoreOverwriteV49" v-model="restoreOverwrite" @change="restoreConfirmEntry=''" :disabled="restoreBusy"><label for="restoreOverwriteV49" class="form-check-label fw-bold text-danger">กู้คืนทับข้อมูลปี/ภาคเรียนปลายทางที่มีอยู่ (สำรองชุดปัจจุบันก่อนอัตโนมัติ)</label></div>
+            <div v-if="restoreOverwrite" class="border border-danger rounded-3 p-3 mt-3 bg-light">
+              <label for="restoreConfirmEntry" class="form-label fw-bold text-danger">พิมพ์รหัสยืนยันเพื่อกู้ทับข้อมูล</label>
+              <div class="small mb-2">พิมพ์ <code>RESTORE {{restoreYear}}-{{restoreSemester}}</code> ให้ตรงตามตัวอย่างเพื่อเปิดปุ่มกู้ทับ</div>
+              <input id="restoreConfirmEntry" type="text" class="form-control" v-model="restoreConfirmEntry" :disabled="restoreBusy"
+                     :placeholder="'RESTORE '+restoreYear+'-'+restoreSemester" autocomplete="off" autocapitalize="characters" spellcheck="false" />
+              <div v-if="restoreConfirmEntry && restoreConfirmEntry.trim()!==('RESTORE '+restoreYear+'-'+restoreSemester)" class="text-danger small mt-2">รหัสยืนยันยังไม่ตรง</div>
+            </div>
             <div class="alert alert-warning small mt-2">โหมดทับข้อมูลใช้ Transaction ใน Supabase เฉพาะเทอมที่เลือก ไม่เปลี่ยน Period ID และไม่ลบภาพ Drive / Backup เดิม อาจเปลี่ยนรายชื่อ ชุมนุม การสมัคร เช็กชื่อ และรายงานในเทอมนั้น กรุณาทดสอบกับฐานข้อมูลสำรองก่อน</div>
-            <div v-if="restoreError" class="alert alert-danger small mt-3 mb-0">{{restoreError}}</div>
+            <div v-if="restoreError" class="alert alert-danger small mt-3 mb-0" role="alert">{{restoreError}}</div>
+            <div v-if="restoreBusy" class="alert alert-info small mt-3 mb-0" role="status" aria-live="polite"><span class="spinner-border spinner-border-sm me-2"></span>กำลังกู้ข้อมูล กรุณารอจนเสร็จและอย่าปิดหน้าต่าง</div>
           </div>
           <div class="modal-footer"><button class="btn btn-light" data-bs-dismiss="modal" :disabled="restoreBusy">ปิด</button>
-            <button class="btn btn-success" @click="executeRestoreBackup" :disabled="restoreBusy||!restorePreview"><span v-if="restoreBusy" class="spinner-border spinner-border-sm me-2"></span>{{restoreOverwrite?'ยืนยันกู้ทับข้อมูลเทอมนี้':'ยืนยันกู้คืนเป็นภาคเรียนใหม่'}}</button></div>
+            <button class="btn btn-success" @click="executeRestoreBackup" :disabled="restoreBusy||!restorePreview||(restoreOverwrite&&restoreConfirmEntry.trim()!==('RESTORE '+restoreYear+'-'+restoreSemester))"><span v-if="restoreBusy" class="spinner-border spinner-border-sm me-2"></span>{{restoreOverwrite?'ยืนยันกู้ทับข้อมูลเทอมนี้':'ยืนยันกู้คืนเป็นภาคเรียนใหม่'}}</button></div>
         </div>
       </div>
     </div>
@@ -2829,7 +2885,7 @@ data() {
     loadingBackup: false,
     managePeriodId: '', deleteScope: 'term', replacementPeriodId: '',
     periodImpact: null, periodImpactError: '', periodImpactLoading: false, periodBusy: false, periodDeleteConfirm: '',
-    selectedBackupFileId: '', restoreBusy: false, restorePreview: null, restoreSnapshot: null,
+    selectedBackupFileId: '', restoreBusy: false, restorePreview: null, restoreSnapshot: null, restoreConfirmEntry: '',
     restoreFileName: '', restoreOrigin: 'local', restoreError: '',
     restoreYear: 2569, restoreSemester: 1, restoreMakeCurrent: true, restoreOverwrite:false, trashPreview:null, trashBusy:false,
 
@@ -3132,7 +3188,7 @@ filteredClubs() {
         },
         async openRestoreBackupModal(){
           if(this.user?.role!=='admin')return;
-          this.restorePreview=null;this.restoreFileName='';this.restoreError='';this.restoreOverwrite=false;
+          this.restorePreview=null;this.restoreFileName='';this.restoreError='';this.restoreOverwrite=false;this.restoreConfirmEntry='';
           this.selectedBackupFileId='';this.restoreSnapshot=null;
           this.restoreHasPasswordVault=false;this.restoreVaultPassword='';
           bootstrap.Modal.getOrCreateInstance(document.getElementById('restoreBackupModal')).show();
@@ -3152,7 +3208,7 @@ filteredClubs() {
             students:parsed.tables.students.length,clubs:parsed.tables.clubs.length,
             registrations:parsed.tables.registrations.length,attendance:parsed.tables.attendance.length,
             reports:parsed.tables.club_reports.length};
-          this.restoreFileName=name;this.restoreOrigin=origin;
+          this.restoreFileName=name;this.restoreOrigin=origin;this.restoreConfirmEntry='';
           this.restoreYear=this.restorePreview.year;this.restoreSemester=this.restorePreview.semester;
           this.restoreError='';
         },
@@ -3181,24 +3237,27 @@ filteredClubs() {
           if(!existingPeriod&&this.restoreOverwrite)return Swal.fire('ไม่พบเทอมปลายทาง','ยกเลิกตัวเลือกกู้ทับเพื่อสร้างเทอมใหม่','warning');
           if(this.restoreHasPasswordVault&&this.restoreSnapshot?.credential_vault?.keyMode!=='GAS-SCRIPT-PROPERTIES-V1'&&!this.restoreVaultPassword)
             return this.restoreError='กรุณากรอกรหัสลับของไฟล์ Backup ก่อนกู้คืน';
-          const confirmText=this.restoreOverwrite?'RESTORE '+this.restoreYear+'-'+this.restoreSemester:'';
-          const yes=await Swal.fire({title:this.restoreOverwrite?'ยืนยันกู้ทับข้อมูลจริง?':'ยืนยันกู้คืนข้อมูล?',
-            text:this.restoreOverwrite?'ข้อมูลเทอมปลายทางจะถูกแทนที่ทั้งหมด (ไม่ลบรูป Drive) โดยระบบสำรองชุดปัจจุบันก่อน':'สร้างภาคเรียนใหม่โดยไม่ทับข้อมูลเดิม',
-            icon:'warning',showCancelButton:true,confirmButtonText:'เริ่มกู้คืน',cancelButtonText:'ยกเลิก',
-            input:this.restoreOverwrite?'text':undefined,inputPlaceholder:confirmText,
-            preConfirm:value=>!this.restoreOverwrite||value===confirmText||Swal.showValidationMessage('พิมพ์ '+confirmText+' เพื่อยืนยัน')});
-          if(!yes.isConfirmed)return;
+          // Confirmation stays INSIDE the Bootstrap modal. SweetAlert's external
+          // text input was blocked by Bootstrap's focus trap on restoreBackupModal.
+          const confirmText='RESTORE '+this.restoreYear+'-'+this.restoreSemester;
+          if(this.restoreOverwrite && this.restoreConfirmEntry.trim()!==confirmText){
+            this.restoreError='กรุณาพิมพ์ '+confirmText+' ในช่องยืนยันก่อนกู้ทับข้อมูล';
+            return;
+          }
+          this.restoreError='';
           this.restoreBusy=true;
-          Swal.fire({title:'กำลังกู้ข้อมูลแบบธุรกรรมเดียว...',html:'กำลังตรวจข้อมูลครู นักเรียน การลงทะเบียน รายงาน และความสัมพันธ์ใน Supabase',allowOutsideClick:false,allowEscapeKey:false,didOpen:()=>Swal.showLoading()});
           try{
             const res=await window.SKNBridge.invoke('restoreBackupSnapshot',[this.restoreSnapshot,Number(this.restoreYear),Number(this.restoreSemester),this.restoreMakeCurrent,this.restoreOrigin,this.restoreVaultPassword,this.restoreOverwrite]);
             if(!res?.success)throw Error('กู้คืนไม่สำเร็จ');
-            bootstrap.Modal.getOrCreateInstance(document.getElementById('restoreBackupModal')).hide();
+            const restoreModalEl=document.getElementById('restoreBackupModal');
+            // Never hide an ancestor of the element retaining keyboard focus.
+            if(restoreModalEl?.contains(document.activeElement))document.activeElement.blur();
+            bootstrap.Modal.getOrCreateInstance(restoreModalEl).hide();
             if(this.restoreMakeCurrent){window.SKNBridge.periodId=res.periodId;this.activePeriodId=res.periodId;}
             this.view='dashboard';await this.refreshData(true);
             Swal.fire('กู้ข้อมูลเรียบร้อย',this.restoreOverwrite?'กู้ทับข้อมูลเดิมแบบ Transaction สำเร็จแล้ว (ไฟล์เดิมถูกสำรองใน Drive ก่อน)':'สร้างภาคเรียนใหม่จาก Backup สำเร็จแล้ว','success');
-          }catch(err){Swal.fire('กู้คืนไม่สำเร็จ',err.message||String(err),'error');}
-          finally{this.restoreBusy=false;this.restoreVaultPassword='';}
+          }catch(err){this.restoreError='กู้คืนไม่สำเร็จ: '+(err.message||String(err));}
+          finally{this.restoreBusy=false;this.restoreVaultPassword='';this.restoreConfirmEntry='';}
         },
 
 
@@ -5331,7 +5390,7 @@ downloadCSVTemplate() {
           clone.classList.add('skn-pdf-capture-page');
           // The source page already has padding. Remove it on the PDF clone:
           // jsPDF provides official-document margins exactly once.
-          clone.style.cssText+=';font-family:Sarabun,TH Sarabun New,sans-serif!important;background:#fff!important;color:#111!important;'
+          clone.style.cssText+=';font-family:"TH Sarabun New",THSarabunNew,Sarabun,sans-serif!important;background:#fff!important;color:#111!important;'
             +'width:'+geom.contentWidthPx+'px!important;max-width:'+geom.contentWidthPx+'px!important;'
             +'padding:0!important;min-height:0!important;height:auto!important;'
             +'box-sizing:border-box!important;box-shadow:none!important;margin:0!important;'
@@ -5388,6 +5447,15 @@ downloadCSVTemplate() {
             }
             for(const section of sections){
               const table=section.querySelector?.('table.table-report');
+              if(table && section.classList.contains('skn-activity-detail-section')){
+                const onePage=add(mk(source,section.cloneNode(true)));
+                // Measure the actual PDF clone. If all 20 sessions fit within the
+                // printable A4 area, retain the entire section together.
+                if(onePage.scrollHeight<=maxHeight-8)continue;
+                // Long teacher-entered descriptions must NEVER be clipped just
+                // to meet a single-page requirement: split at complete rows.
+                onePage.remove();output.pop();
+              }
               if(!table){
                 const page=add(mk(source,section.cloneNode(true)));
                 if(page.scrollHeight>maxHeight+3)throw Error('ส่วนรายงานที่ไม่มีตารางยาวเกิน A4 กรุณาย่อข้อความ');
@@ -5429,7 +5497,7 @@ downloadCSVTemplate() {
             throw Error('ตัวสร้าง PDF แบบแยกหน้าโหลดไม่สำเร็จ: ตรวจ CDN html2canvas และ jsPDF');
           if(this._reportImageLoadPromise)await this._reportImageLoadPromise;
           if(this.reportMediaErrors?.length)throw Error('รูปภาพจาก Drive ยังโหลดไม่ครบ');
-          if(document.fonts?.load){await document.fonts.load('400 14px Sarabun');await document.fonts.load('700 16px Sarabun');}
+          if(document.fonts?.load){await Promise.allSettled([document.fonts.load('400 14px "TH Sarabun New"'),document.fonts.load('700 16px "TH Sarabun New"'),document.fonts.load('400 14px Sarabun'),document.fonts.load('700 16px Sarabun')]);}
           if(document.fonts?.ready)await document.fonts.ready;
           if(this.$nextTick)await this.$nextTick();
           const pages=this.sknReportPages();
@@ -5537,7 +5605,7 @@ downloadCSVTemplate() {
           target.id='skn-pdf-capture-root';
           target.className='skn-pdf-document';
           target.style.cssText='background:#fff;width:'+geom.contentWidthPx+'px;box-sizing:border-box;color:#000;'
-            +'font-family:Sarabun,TH Sarabun New,sans-serif;position:absolute;left:0;top:0;'
+            +'font-family:"TH Sarabun New",THSarabunNew,Sarabun,sans-serif;position:absolute;left:0;top:0;'
             +'z-index:1000;pointer-events:none;opacity:1';
           document.body.appendChild(target);
           try{
