@@ -161,7 +161,16 @@ function validateGrid(g) { assert(g && Array.isArray(g.dates) && g.dates.length 
     assert(Array.isArray(arr) && arr.length === 20, 'รายการเช็กชื่อต้องมี 20 ครั้ง');
     obj.records[sid] = arr.map(v => { const n = Number(v); assert(Number.isInteger(n) && n >= 0 && n <= 3, 'สถานะเช็กชื่อไม่ถูกต้อง'); return n; });
 } return obj; }
-function renderClub(c, regs, teachers) { return { id: c.id, name: c.name, max_capacity: c.max_capacity, current_count: regs.filter(r => r.club_id === c.id).length, level: c.level, owner_id: sknClubOwnerIds(c).join(','), teacher_name: sknClubOwnerIds(c).map((id) => teachers.find(t => String(t.id || '').trim().toUpperCase() === id.toUpperCase())?.name || '').filter(Boolean).join(', '), location: c.location, comment: c.comment }; }
+function renderClub(c, regs, teachers) {
+    const ids=sknClubOwnerIds(c);
+    const names=ids.map(id=>teachers instanceof Map
+        ? (teachers.get(id.toUpperCase())||'')
+        : (teachers.find(t=>String(t.id||'').trim().toUpperCase()===id.toUpperCase())?.name||''));
+    return {id:c.id,name:c.name,max_capacity:c.max_capacity,
+        current_count:regs.filter(r=>r.club_id===c.id).length,
+        level:c.level,owner_id:ids.join(','),teacher_name:names.filter(Boolean).join(', '),
+        location:c.location,comment:c.comment};
+}
 function studentView(s, regs) { return { ...s, password: '', club_id: regs.find(r => r.student_id === s.id)?.club_id || '' }; }
 async function gas(action, payload) { return window.SKNFile.invoke(action, payload); }
 async function cleanupOldDriveMedia(p, id) {
@@ -186,14 +195,19 @@ async function sknHeadCount(table,period){
     // Conservative fallback for older query adapters: correctness before speed.
     return (await all(table,period)).length;
 }
+// R4.3: shared pure summary. Dashboard can reuse its already-loaded club & teacher rows.
+function sknSummaryFromRows(tt,cc,studentTotal,registeredTotal){
+    const teachers=tt.filter(t=>!isPrimaryAdminId(t.teacher_id));
+    const owners=new Set(cc.flatMap(c=>sknClubOwnerIds(c).map(id=>id.toUpperCase())));
+    const withClub=teachers.filter(t=>owners.has(String(t.teacher_id).toUpperCase())).length;
+    return {student:{total:studentTotal,registered:registeredTotal,unregistered:studentTotal-registeredTotal},
+        teacher:{total:teachers.length,hasClub:withClub,noClub:teachers.length-withClub},clubsCount:cc.length};
+}
 async function sum(p) {
-    const [studentTotal, tt, cc, registeredTotal] = await Promise.all([
-        sknHeadCount('students',p), all('period_teachers', p), all('clubs', p), sknHeadCount('registrations',p)
+    const [studentTotal,tt,cc,registeredTotal]=await Promise.all([
+        sknHeadCount('students',p),all('period_teachers',p),all('clubs',p),sknHeadCount('registrations',p)
     ]);
-    const teachers = tt.filter(t => !isPrimaryAdminId(t.teacher_id));
-    const owners = new Set(cc.flatMap(c => sknClubOwnerIds(c).map(id => id.toUpperCase())));
-    return { student: { total: studentTotal, registered: registeredTotal, unregistered: studentTotal - registeredTotal },
-        teacher: { total: teachers.length, hasClub: teachers.filter(t => owners.has(String(t.teacher_id).toUpperCase())).length, noClub: teachers.filter(t => !owners.has(String(t.teacher_id).toUpperCase())).length }, clubsCount: cc.length };
+    return sknSummaryFromRows(tt,cc,studentTotal,registeredTotal);
 }
 const SKN_IMAGE_SLOTS = ['logo', 'photo_1', 'photo_2', 'photo_3', 'photo_4', 'sigTeacher', 'sigHeadClub', 'sigHeadDev', 'sigDeputy', 'sigDirector'];
 // From V4.0 image URL columns are TEXT. Drive file IDs remain in media JSON for
@@ -526,13 +540,15 @@ async function sknInvoke(method, args, periodId) {
             const studentViewOnly=u.type==='student';
             // One compact aggregate RPC replaces downloading every enrollment for each refresh.
             // Students still see only totals, never classmates' registration identities.
-            const [clubs, config, memberships, totalsResult, ownReg, summary] = await Promise.all([
+            // One set of club + teacher rows powers both dashboard and Admin summary.
+            // Previously sum() fetched the same tables again and independently counted registrations.
+            const [clubs, config, memberships, totalsResult, ownReg, adminStudentTotal] = await Promise.all([
                 all('clubs',p.id),cfg(p.id),all('period_teachers',p.id),
                 sknApplicantCounts(p.id).then(rows=>({rows,error:null}))
                     .catch(error=>({rows:null,error:sknCountFailureText(error)})),
                 studentViewOnly ? result(db.from('registrations').select('student_id,club_id')
                     .eq('period_id',p.id).eq('student_id',u.id)) : Promise.resolve([]),
-                isAdmin ? sum(p.id) : Promise.resolve(null)
+                isAdmin ? sknHeadCount('students',p.id) : Promise.resolve(null)
             ]);
             if(config.allow_report_email!=='false')config.allow_report_email='true';
             try{
@@ -545,15 +561,20 @@ async function sknInvoke(method, args, periodId) {
             const teacherProfiles=missingNames ? await all('teachers') : [];
             const teacherMap=new Map(teacherProfiles.map(t=>[t.id,t.name]));
             const selected=memberships.map(m=>({id:m.teacher_id,name:String(m.display_name||'').trim()||teacherMap.get(m.teacher_id)||''}));
+            // O(1) indexed advisor lookup per owner instead of scanning all teacher rows per club.
+            const advisorMap=new Map(selected.map(t=>[String(t.id).trim().toUpperCase(),t.name]));
             const validTotals=Array.isArray(totalsResult.rows) ? totalsResult.rows : null;
             const countMap=validTotals?new Map(validTotals.map(x=>[String(x.club_id),Number(x.member_count)])):null;
-            // Fallback for staff/admin only; a student must never infer totals from their own row.
-            const fallbackRegs=!countMap&&!studentViewOnly ? await all('registrations',p.id) : null;
+            const countMapComplete=!!countMap&&clubs.every(c=>{
+                const n=countMap.get(String(c.id));return Number.isSafeInteger(n)&&n>=0;
+            });
+            // Fail-safe: only staff/admin can read all registration rows when count RPC is unavailable/incomplete.
+            const fallbackRegs=!countMapComplete&&!studentViewOnly ? await all('registrations',p.id) : null;
             const fallbackCounts=new Map();
             for(const r of fallbackRegs||[])fallbackCounts.set(String(r.club_id),(fallbackCounts.get(String(r.club_id))||0)+1);
             let countProblem=studentViewOnly?totalsResult.error:null;
             const formattedClubs=clubs.map(c=>{
-                const item=renderClub(c,[],selected);
+                const item=renderClub(c,[],advisorMap);
                 const count=countMap?.get(String(c.id));
                 const verified=Number.isSafeInteger(count)&&count>=0;
                 if(studentViewOnly){
@@ -561,10 +582,17 @@ async function sknInvoke(method, args, periodId) {
                     item.current_count=verified?count:null;
                     if(!verified&&!countProblem)countProblem='ระบบไม่ส่งจำนวนสมาชิกของชุมนุม '+String(c.id);
                 }else{
-                    item.current_count=verified?count:(fallbackCounts.get(String(c.id))||0);
+                    item.current_count=countMapComplete?count:(fallbackCounts.get(String(c.id))||0);
                 }
                 return item;
             });
+            // Exact Admin numbers without an extra fetch of all clubs or teachers.
+            const adminRegisteredTotal=isAdmin
+                ? (countMapComplete
+                    ? clubs.reduce((n,c)=>n+countMap.get(String(c.id)),0)
+                    : fallbackRegs.length)
+                : 0;
+            const summary=isAdmin?sknSummaryFromRows(memberships,clubs,adminStudentTotal,adminRegisteredTotal):null;
             output={clubs:formattedClubs,
                 registrationCountStatus:studentViewOnly ? {ok:!countProblem,error:countProblem||'',source:'skn_club_registration_counts'} : null,
                 config,teachers:selected,summary,serverTime:Date.now(),
@@ -598,8 +626,8 @@ async function sknInvoke(method, args, periodId) {
                 // Student RLS shows only the student's own enrollment: never pretend it is the full count.
                 throw Error(totals.error?sknCountFailureText(totals.error):'ผลนับผู้สมัครจาก Supabase ไม่ครบทุกชุมนุม');
             }
-            const teachers=tt.map(t=>({id:t.teacher_id,name:t.display_name}));
-            output=clubs.map(c=>({...renderClub(c,[],teachers),current_count:counts.get(String(c.id))||0}));
+            const teacherMap=new Map(tt.map(t=>[String(t.teacher_id||'').trim().toUpperCase(),t.display_name]));
+            output=clubs.map(c=>({...renderClub(c,[],teacherMap),current_count:counts.get(String(c.id))||0}));
             break;
         }
         case 'registerClub': {
@@ -1343,5 +1371,5 @@ async function sknMeasuredInvoke(method,args,periodId){
         }catch{} // Diagnostics never influence an operation's result.
     }
 }
-window.SKNBackend = { version: 'R4.1', invoke: sknMeasuredInvoke, db,
+window.SKNBackend = { version: 'R4.3', invoke: sknMeasuredInvoke, db,
     getApplicantTotals: sknApplicantCounts, countErrorText: sknCountFailureText };
