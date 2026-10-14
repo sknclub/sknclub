@@ -3806,6 +3806,44 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       // R3.2: derive the complete advisor list from authoritative club owner IDs.
       // The API may send owner_id as comma-separated IDs, owner_ids as a text[],
       // or an array. Never use a saved report's obsolete "..." as an advisor name.
+      // R3.5: One canonical parser for all teacher/co-advisor ownership checks.
+      // Accept Supabase text[] (["T01","T02"]), legacy owner_id ("T01,T02"),
+      // and accidentally packed arrays (["T01,T02"]); never match substrings.
+      function sknClubAdvisorIds(club) {
+        if (!club) return [];
+        let source = club.owner_ids;
+        if (source == null || (Array.isArray(source) && !source.length) ||
+            (typeof source === 'string' && !source.trim())) {
+          source = club.owner_id ?? club.ownerId ?? [];
+        }
+        if (typeof source === 'string') {
+          const value = source.trim();
+          if (value.startsWith('[') && value.endsWith(']')) {
+            try { source = JSON.parse(value); } catch (_) { source = value; }
+          } else if (value.startsWith('{') && value.endsWith('}')) {
+            source = value.slice(1, -1);
+          }
+        }
+        const raw = Array.isArray(source) ? source : [source];
+        const cleaned = raw.flatMap(value => {
+          if (value && typeof value === 'object') value = value.id ?? value.teacher_id ?? '';
+          return String(value ?? '').split(',');
+        }).map(id => id.trim().replace(/^"|"$/g, '').trim()).filter(Boolean);
+        const seen = new Set();
+        return cleaned.filter(id => {
+          const key = id.toLocaleUpperCase('en-US');
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+      }
+      function sknIsClubAdvisor(club, user) {
+        if (!club || !user) return false;
+        if (user.role === 'admin') return true;
+        if (user.role !== 'teacher') return false;
+        const userId = String(user.id ?? '').trim().toLocaleUpperCase('en-US');
+        return !!userId && sknClubAdvisorIds(club).some(id => id.toLocaleUpperCase('en-US') === userId);
+      }
       function sknResolveClubAdvisors(club, teacherRows) {
         if (!club) return '';
         const clean = value => String(value ?? '').trim();
@@ -3814,17 +3852,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           if (!v || /^(?:\.{2,}|[-—–]|null|undefined|n\/a|ไม่ระบุ|กรุณาระบุ|กรุณาพิมพ์|ให้พิมพ์เอง)$/i.test(v)) return '';
           return v;
         };
-        let rawIds = club.owner_ids ?? club.owner_id ?? club.ownerId ?? [];
-        if (typeof rawIds === 'string') {
-          const v = rawIds.trim();
-          if (v.startsWith('[') && v.endsWith(']')) {
-            try { rawIds = JSON.parse(v); } catch (_) { rawIds = v; }
-          }
-        }
-        const members = (Array.isArray(rawIds) ? rawIds : String(rawIds || '').split(','))
-          .map(row => clean(row && typeof row === 'object' ? (row.id ?? row.teacher_id ?? '') : row))
-          .filter(Boolean);
-        const ids = [...new Set(members.map(id => id.toUpperCase()))];
+        const ids = sknClubAdvisorIds(club).map(id => id.toUpperCase());
         const rowMap = new Map((Array.isArray(teacherRows) ? teacherRows : [])
           .filter(row => row && row.id != null)
           .map(row => [clean(row.id).toUpperCase(), useful(row.name || row.display_name)]));
@@ -4084,11 +4112,8 @@ filteredClubs() {
   } else if (this.user.role === 'teacher') {
     if (this.archiveReadonly) result = [...this.clubs];
     else {
-    // ครูเห็นเฉพาะชุมนุมที่ตัวเองเป็นเจ้าของ
-    const myId = String(this.user.id || '');
-    result = this.clubs.filter(c => 
-      String(c.owner_id || '').split(',').map(id => id.trim()).includes(myId)
-    );
+    // Co-advisors have the same visibility as the primary advisor.
+    result = this.clubs.filter(c => sknIsClubAdvisor(c, this.user));
     }
   } else if (this.user.role === 'student') {
     // นักเรียน: แก้ปัญหาการดึงข้อมูล ม.ต้น / ม.ปลาย ให้ตรงกับห้อง
@@ -5371,18 +5396,14 @@ downloadNoClubTeachers() {
     // 1. รวบรวม ID ครูทุกคนที่มีชื่ออยู่ในคอลัมน์ owner_id ของทุกชุมนุม
     const activeOwnerIds = new Set();
     clubs.forEach(club => {
-      if (club.owner_id) {
-        club.owner_id.toString().split(',').forEach(id => {
-          activeOwnerIds.add(id.trim());
-        });
-      }
+      sknClubAdvisorIds(club).forEach(id => activeOwnerIds.add(id.toUpperCase()));
     });
 
     // 2. ยกเว้นเฉพาะรหัสขึ้นต้น A (Admin หลัก) ไม่ได้ยกเว้นจาก role
     //    ดังนั้น T01 ที่มีสิทธิ์ admin จะถูกนับเป็นครูตามปกติ
     const noClubList = teachers.filter(t =>
       !String(t.id ?? '').trim().toUpperCase().startsWith('A') &&
-      !activeOwnerIds.has(String(t.id).trim())
+      !activeOwnerIds.has(String(t.id).trim().toUpperCase())
     );
 
     if (noClubList.length === 0) {
@@ -5525,8 +5546,7 @@ recordPerf(key,started,ok=true){
                 }
                 if(this.user?.role==='teacher'){
                   const id=String(this.user.id);
-                  this.user.hasClub=this.clubs.some(c=>
-                    String(c.owner_id||'').split(',').map(s=>s.trim()).includes(id));
+                  this.user.hasClub=this.clubs.some(c=>sknIsClubAdvisor(c,this.user));
                 }
                 if(this.view==='report'&&this.currentClubId){
                   const club=this.clubs.find(c=>String(c.id)===String(this.currentClubId));
@@ -5575,6 +5595,7 @@ recordPerf(key,started,ok=true){
             }).updateConfig(this.config);
         },
        
+        sknCanManageClub(club) { return sknIsClubAdvisor(club, this.user); },
         goToAttendance(club) { this.loadClubData(club, 'attendance'); },
         goToReport(club) {
             if (club) this.reportData.teacher = this.resolveClubAdvisorNames(club);
@@ -5585,6 +5606,12 @@ recordPerf(key,started,ok=true){
 
           async loadClubData(club, viewName) {
             if(!club?.id)return;
+            if(!this.archiveReadonly && !sknIsClubAdvisor(club,this.user)) {
+              Swal.fire('ไม่มีสิทธิ์ในชุมนุมนี้',
+                'บัญชีนี้ไม่ได้อยู่ในรายชื่อครูที่ปรึกษาของชุมนุมที่โหลดมา กรุณาตรวจ owner_ids, period_teachers และ backend.js',
+                'warning');
+              return;
+            }
             const token=this._clubLoadSeq=(this._clubLoadSeq||0)+1;
             this.currentClubId=club.id;
             this.currentClubName=club.name;
@@ -5978,6 +6005,8 @@ downloadCSVTemplate() {
             Swal.fire({ title: 'กำลังบันทึก...', didOpen: () => Swal.showLoading() });
             google.script.run.withSuccessHandler(() => {
                 Swal.fire({ icon: 'success', title: 'บันทึกเรียบร้อย', timer: 1500, showConfirmButton: false });
+            }).withFailureHandler(err => {
+                Swal.fire('บันทึกเช็กชื่อไม่สำเร็จ', this.sknUserRequestMessage(err, 'บันทึกเช็กชื่อ'), 'error');
             }).saveAttendanceGrid(this.currentClubId, this.attData);
         },
         toggleColumn(index) {
@@ -6482,7 +6511,7 @@ downloadCSVTemplate() {
         openEditModal(c) { this.isEditMode=true; 
         this.clubForm={
           ...c, 
-          owner_ids: c.owner_id.toString().split(','),
+          owner_ids: sknClubAdvisorIds(c),
           location: c.location || '', // ดึงค่าจากตารางมาแสดง
           comment: c.comment || ''    // ดึงค่าจากตารางมาแสดง
           
@@ -6507,9 +6536,9 @@ downloadCSVTemplate() {
         bootstrap.Modal.getInstance(document.getElementById('clubModal')).hide();
         this.requestFastRefresh();
         Swal.fire('สำเร็จ', 'บันทึกข้อมูลชุมนุมเรียบร้อยแล้ว', 'success');
-    }).withFailureHandler(() => {
-        this.loading = false; // ปิดแอนิเมชันหากเกิดข้อผิดพลาด
-        Swal.fire('ข้อผิดพลาด', 'ไม่สามารถบันทึกข้อมูลได้', 'error');
+    }).withFailureHandler(err => {
+        this.loading = false;
+        Swal.fire('บันทึกชุมนุมไม่สำเร็จ', this.sknUserRequestMessage(err,'บันทึกชุมนุม'), 'error');
     })[func](this.clubForm, this.user);
 },
 
