@@ -24,6 +24,21 @@ async function all(table, period) { const output = []; for (let start = 0;; star
 async function getPeriod(periodId) { const rows = await all('periods'); const p = periodId ? rows.find(r => r.id === periodId) : rows.find(r => r.is_current); if (!p)
     throw Error('ไม่พบภาคเรียนที่เลือก'); return { period: p, periods: rows.sort((a, b) => b.academic_year - a.academic_year || b.semester - a.semester) }; }
 async function cfg(periodId) { const rows = await all('period_config', periodId); return Object.fromEntries(rows.map((r) => [r.key, r.value])); }
+// R3.8: read aggregate-only registration totals through an authorized DB RPC.
+// Supabase RLS deliberately hides other students' registration rows.
+async function sknApplicantCounts(periodId) {
+    try {
+        const rows = await result(db.rpc('skn_club_registration_counts', { p_period: periodId }));
+        if (!Array.isArray(rows)) throw Error('รูปแบบผลนับผู้สมัครจาก Supabase ไม่ถูกต้อง');
+        return rows;
+    } catch (err) {
+        const code = String(err?.code || '');
+        if (code === 'PGRST202' || code === '42883' || /skn_club_registration_counts.*(does not exist|schema cache|could not find)|could not find the function.*skn_club_registration_counts/i.test(String(err?.message || ''))) {
+            throw Error('ยังไม่ได้ติดตั้ง SQL R3.8 สำหรับนับผู้สมัครจริง: รัน supabase/01_INSTALL_CLUB_REGISTRATION_COUNTS_R38.sql แล้วรีโหลดหน้าเว็บ');
+        }
+        throw err;
+    }
+}
 async function getCurrentUser(sess, periodId) {
     if (sess.type === 'teacher') {
         const u = await result(db.from('teachers').select('id,name,role').eq('id', sess.sub).maybeSingle());
@@ -411,8 +426,26 @@ async function sknInvoke(method, args, periodId) {
         case 'getPeriods':
             output = { periods, periodId: p.id, isReadonly: !canEdit(u, p) };
             break;
+        case 'getClubRegistrationCounts': {
+            // Lightweight refresh for student club enrollment screen. This never
+            // exposes other students' names or registration details.
+            const rows = await sknApplicantCounts(p.id);
+            output = { periodId: p.id, counts: rows.map(r => ({clubId: String(r.club_id), count: Number(r.member_count)})) };
+            break;
+        }
         case 'getAppData': {
-            const [clubs, regs, config, teachers] = await Promise.all([all('clubs', p.id), all('registrations', p.id), cfg(p.id), all('teachers')]);
+            // R3.8: Student RLS shows only their own registration. That subset
+            // cannot be used to calculate the REAL number of applicants in a club.
+            // Fetch only the student's own registration + a safe aggregate RPC.
+            const studentViewOnly = u.type === 'student';
+            const [clubs, regs, config, teachers, memberships, totals] = await Promise.all([
+                all('clubs', p.id),
+                studentViewOnly
+                    ? result(db.from('registrations').select('student_id,club_id').eq('period_id', p.id).eq('student_id', u.id))
+                    : all('registrations', p.id),
+                cfg(p.id), all('teachers'), all('period_teachers', p.id),
+                studentViewOnly ? sknApplicantCounts(p.id) : Promise.resolve(null)
+            ]);
             // Missing flag in V4.9 data means email was enabled; preserve that on upgrade.
             if (config.allow_report_email !== 'false')
                 config.allow_report_email = 'true';
@@ -421,9 +454,14 @@ async function sknInvoke(method, args, periodId) {
                 config.adminSettings = JSON.stringify({ ...a, semester: String(p.semester), academicYear: String(p.academic_year) });
             }
             catch { }
-            const memberships = await all('period_teachers', p.id);
             const selected = memberships.map(m => ({ id: m.teacher_id, name: m.display_name || teachers.find(t => t.id === m.teacher_id)?.name || '' }));
-            output = { clubs: clubs.map(c => renderClub(c, regs, selected)), config, teachers: selected, summary: isAdmin ? await sum(p.id) : null,
+            const applicantByClub = studentViewOnly ? new Map(totals.map(r => [String(r.club_id), Number(r.member_count)])) : null;
+            const formattedClubs = clubs.map(c => {
+                const item = renderClub(c, regs, selected);
+                if (applicantByClub) item.current_count = applicantByClub.get(String(c.id)) ?? 0;
+                return item;
+            });
+            output = { clubs: formattedClubs, config, teachers: selected, summary: isAdmin ? await sum(p.id) : null,
                 serverTime: Date.now(), periods: periods.map(x => ({ id: x.id, periodCode: x.period_code || `${x.academic_year}-${x.semester}`, academicYear: x.academic_year, semester: x.semester, isCurrent: x.is_current })),
                 periodId: p.id, isReadonly: !canEdit(u, p), myClubId: u.type === 'student' ? regs.find(r => r.student_id === u.id)?.club_id || '' : '' };
             break;
@@ -1144,4 +1182,4 @@ async function sknInvoke(method, args, periodId) {
     }
     return output;
 }
-window.SKNBackend = { invoke: sknInvoke, db };
+window.SKNBackend = { invoke: sknInvoke, db, getApplicantTotals: sknApplicantCounts };

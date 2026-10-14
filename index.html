@@ -1584,7 +1584,7 @@
     overflow-wrap: anywhere;
   }
   #app .skn-r3-club-list tbody td:nth-child(2)::before {
-    content: 'จำนวนสมาชิก';
+    content: 'ยอดผู้สมัคร';
     display: block;
     margin-bottom: 5px;
     color: #64748b;
@@ -2064,7 +2064,7 @@
               <tr>
                 <th class="py-3 ps-4 border-0 text-secondary small fw-bold">ชื่อชุมนุม / ครูผู้สอน</th>
                 <th class="py-3 border-0 text-secondary small fw-bold d-none d-md-table-cell" >ระดับ</th>
-                <th class="py-3 border-0 text-secondary small fw-bold">จำนวนสมาชิก</th>
+                <th class="py-3 border-0 text-secondary small fw-bold" title="จำนวนผู้สมัครจริงจากฐานข้อมูล Supabase">ยอดผู้สมัคร / จำนวนที่รับ</th>
                 <th class="py-3 pe-4 text-end border-0 text-secondary small fw-bold">จัดการกิจกรรม</th>
                 <!-- <th class="border-0 py-3">สถานที่เรียน</th> 
                 <th class="text-center border-0 py-3">จำนวนที่รับ</th>
@@ -2088,9 +2088,10 @@
                 <td class="d-none d-md-table-cell"><span class="badge rounded-pill bg-light text-dark border px-3 fw-normal">{{ c.level }}</span></td>
                 <td>
                   <div class="progress mb-1" style="height: 6px; width: 100px;">
-                    <div class="progress-bar" :class="c.current_count >= c.max_capacity ? 'bg-danger':'bg-success'" :style="{width: (c.current_count/c.max_capacity*100)+'%'}"></div>
+                    <div class="progress-bar" :class="c.current_count >= c.max_capacity ? 'bg-danger':'bg-success'" :style="{width: (c.max_capacity > 0 ? Math.min(100, c.current_count / c.max_capacity * 100) : (c.current_count > 0 ? 100 : 0))+'%'}"></div>
                   </div>
                   <span class="small fw-bold text-dark">{{ c.current_count }}</span><span class="small text-muted"> / {{ c.max_capacity }} คน</span>
+                  <div v-if="user.role === 'student'" class="text-muted" style="font-size:.68rem" title="ระบบตรวจยอดผู้สมัครล่าสุดอัตโนมัติทุกประมาณ 10 วินาที">ยอดผู้สมัครจริง (อัปเดตอัตโนมัติ)</div>
                 </td>
                 <td class="pe-4 text-end">
                   <div class="d-flex flex-wrap justify-content-end gap-2">
@@ -3763,7 +3764,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
     <script src="config.js"></script>
     <script src="bridge.js"></script>
-    <script src="backend.js"></script>
+    <script src="backend.js?v=3.8.0"></script>
     <!-- R3.4: Vue 3.5.13 is embedded locally to avoid HTTP 403 / CDN access failures.
          Source: Vue.js global production build, MIT license, attribution below.
          Do not remove: this application uses Vue.createApp and in-browser templates. -->
@@ -4016,6 +4017,12 @@ data() {
         const interval=urgent?25000:90000;
         if(Date.now()-(this._lastRefresh||0)>=interval)this.refreshData(true);
       },5000);
+      // R3.8: lightweight aggregate only, rather than polling all dashboard data.
+      this._studentCountTimer=setInterval(()=>{
+        if(!this.isLoggedIn || this.user?.role!=='student' || document.hidden || this.view!=='dashboard' || !this.activePeriodId)return;
+        if(this._refreshInFlight || this._studentCountLoading)return;
+        if(Date.now()-(this._lastCountSync||0)>=10000)this.syncStudentApplicantCounts('poll');
+      },2500);
       this._onFocus=()=>{
         if(this.isLoggedIn && !document.hidden && Date.now()-(this._lastRefresh||0)>15000)
           this.requestFastRefresh('focus');
@@ -4031,7 +4038,7 @@ data() {
       }
     },
     beforeUnmount(){
-      clearInterval(this._pollTimer);clearTimeout(this._refreshTimer);
+      clearInterval(this._pollTimer);clearInterval(this._studentCountTimer);clearTimeout(this._refreshTimer);
       window.removeEventListener('focus',this._onFocus);
       document.removeEventListener('visibilitychange',this._onFocus);
       if(this._liveChannel&&window.SKN_DB)window.SKN_DB.removeChannel(this._liveChannel);
@@ -5439,6 +5446,44 @@ executeDownload(html, fileName) {
 
 
  
+async syncStudentApplicantCounts(reason='poll'){
+  if(!this.isLoggedIn || this.user?.role!=='student' || !this.activePeriodId || this.view!=='dashboard')return;
+  if(this._studentCountLoading)return;
+  const expectedPeriod=String(this.activePeriodId);
+  const startedAt=Date.now();
+  this._studentCountLoading=true;
+  try {
+    // Direct single authenticated RPC, without the generic backend's repeated
+    // actor/period/teacher lookups. SQL still verifies authorization.
+    const rows=await window.SKNBackend.getApplicantTotals(expectedPeriod);
+    if(!this.isLoggedIn || this.user?.role!=='student' || String(this.activePeriodId)!==expectedPeriod)return;
+    const map=new Map(rows.map(row=>[String(row.club_id),Number(row.member_count)]));
+    const current=this.clubs||[];
+    let changed=false;
+    const updated=current.map(c=>{
+      const count=map.get(String(c.id));
+      if(!Number.isSafeInteger(count) || count<0 || count===Number(c.current_count))return c;
+      changed=true;
+      return {...c,current_count:count};
+    });
+    if(changed){
+      this.clubs=updated;
+      const nextMap={...this.clubMap};
+      for(const c of updated)nextMap[String(c.id)]=c;
+      this.clubMap=nextMap;
+    }
+    this._lastCountSync=Date.now();
+    this._studentCountErrorAt=0;
+  }catch(err){
+    // Do not show a disruptive popup every 10 seconds on transient network errors.
+    this._lastCountSync=Date.now();
+    if(reason==='enroll')Swal.fire('อัปเดตจำนวนสมาชิกไม่สำเร็จ',String(err?.message||err),'warning');
+    else if(!this._studentCountErrorAt || Date.now()-this._studentCountErrorAt>60000){
+      this._studentCountErrorAt=Date.now();console.warn('SKN applicant count sync:',err);
+    }
+  }finally{this._studentCountLoading=false;}
+},
+
 requestFastRefresh(reason='local'){
   if(!this.isLoggedIn)return;
   // Remote Realtime events can arrive in bursts; local saves are never throttled.
@@ -5541,6 +5586,7 @@ recordPerf(key,started,ok=true){
                 this.archiveReadonly=!!data.isReadonly;
                 document.body.classList.toggle('archive-readonly',this.archiveReadonly);
                 if(this.user?.role==='student'){
+                  this._lastCountSync=Date.now();
                   const nextId=data.myClubId||'';
                   if(this.user.clubId!==nextId)this.user.clubId=nextId;
                 }
@@ -5606,12 +5652,8 @@ recordPerf(key,started,ok=true){
 
           async loadClubData(club, viewName) {
             if(!club?.id)return;
-            if(!this.archiveReadonly && !sknIsClubAdvisor(club,this.user)) {
-              Swal.fire('ไม่มีสิทธิ์ในชุมนุมนี้',
-                'บัญชีนี้ไม่ได้อยู่ในรายชื่อครูที่ปรึกษาของชุมนุมที่โหลดมา กรุณาตรวจ owner_ids, period_teachers และ backend.js',
-                'warning');
-              return;
-            }
+            // R3.6: never deny access based solely on incomplete frontend owner metadata.
+            // The backend/RPC/RLS remains authoritative for read and write permissions.
             const token=this._clubLoadSeq=(this._clubLoadSeq||0)+1;
             this.currentClubId=club.id;
             this.currentClubName=club.name;
@@ -5686,7 +5728,10 @@ recordPerf(key,started,ok=true){
               }
             }catch(error){
               if(token===this._clubLoadSeq){
-                Swal.fire('โหลดข้อมูลไม่สำเร็จ',String(error?.message||error),'error');
+                const detail=this.sknUserRequestMessage(error,viewName==='report'?'เปิดรายงาน':'เปิดเช็กชื่อ');
+                Swal.fire({icon:'error',title:'โหลดข้อมูลชุมนุมไม่สำเร็จ',text:detail,
+                  footer:'ทั้งเช็กชื่อ รายงาน และดาวน์โหลดรายชื่อ ใช้ getClubAttendanceGrid ร่วมกัน หากขึ้น 403 ต้องตรวจสิทธิ์ที่ backend.js / Supabase',
+                  confirmButtonText:'ปิด'});
               }
             }finally{
               if(token===this._clubLoadSeq&&Swal.isLoading())Swal.close();
@@ -5985,19 +6030,42 @@ downloadCSVTemplate() {
 
 
         downloadExcelList(club) {
-            Swal.fire({ title: 'กำลังโหลด...', didOpen: () => Swal.showLoading() });
-            google.script.run.withSuccessHandler(res => {
+            if(!club?.id)return;
+            Swal.fire({ title: 'กำลังโหลดรายชื่อ...', didOpen: () => Swal.showLoading() });
+            const failed=err=>{
+              Swal.close();
+              Swal.fire({icon:'error',title:'ดาวน์โหลดรายชื่อไม่สำเร็จ',
+                text:this.sknUserRequestMessage(err,'ดาวน์โหลดรายชื่อ'),
+                footer:'คำขอนี้ใช้ getClubAttendanceGrid เช่นเดียวกับหน้าเช็กชื่อและรายงาน',
+                confirmButtonText:'ปิด'});
+            };
+            try {
+              google.script.run.withSuccessHandler(res => {
+                if(!res || !Array.isArray(res.students)){
+                  failed({message:'ข้อมูลรายชื่อจาก getClubAttendanceGrid ไม่ถูกต้องหรือไม่มีสิทธิ์อ่าน'});
+                  return;
+                }
                 Swal.close();
-                const students = res.students.sort((a, b) => { const roomA = a.room.toString(); const roomB = b.room.toString(); if(roomA !== roomB) return roomA.localeCompare(roomB, undefined, {numeric: true, sensitivity: 'base'}); return Number(a.no) - Number(b.no); });
-                let table = `<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"></head><body><h3>รายชื่อสมาชิกชุมนุม: ${club.name}</h3><table border="1"><thead><tr style="background:#ddd;"><th>ลำดับ</th><th>รหัส</th><th>ชื่อ-นามสกุล</th><th>ชั้น</th><th>เลขที่</th></tr></thead><tbody>`;
-                students.forEach((s, idx) => { table += `<tr><td>${idx+1}</td><td>${s.id}</td><td>${s.name}</td><td>${s.room}</td><td>${s.no}</td></tr>`; });
-                table += `</tbody></table></body></html>`;
-                const blob = new Blob([table], { type: "application/vnd.ms-excel" });
-                const link = document.createElement("a");
-                link.href = URL.createObjectURL(blob);
-                link.download = `รายชื่อ_${club.name}.xls`;
-                link.click();
-            }).getClubAttendanceGrid(club.id);
+                const escapeHtml=value=>String(value??'').replace(/[&<>"']/g,char=>
+                  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+                const students=[...res.students].sort((a,b)=>{
+                  const roomA=String(a.room??'');const roomB=String(b.room??'');
+                  if(roomA!==roomB)return roomA.localeCompare(roomB,undefined,{numeric:true,sensitivity:'base'});
+                  return Number(a.no||0)-Number(b.no||0);
+                });
+                let table=`<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"></head><body><h3>รายชื่อสมาชิกชุมนุม: ${escapeHtml(club.name)}</h3><table border="1"><thead><tr style="background:#ddd;"><th>ลำดับ</th><th>รหัส</th><th>ชื่อ-นามสกุล</th><th>ชั้น</th><th>เลขที่</th></tr></thead><tbody>`;
+                students.forEach((student,idx)=>{
+                  table+=`<tr><td>${idx+1}</td><td>${escapeHtml(student.id)}</td><td>${escapeHtml(student.name)}</td><td>${escapeHtml(student.room)}</td><td>${escapeHtml(student.no)}</td></tr>`;
+                });
+                table+='</tbody></table></body></html>';
+                const blob=new Blob(['\uFEFF',table],{type:'application/vnd.ms-excel;charset=utf-8'});
+                const url=URL.createObjectURL(blob);
+                const link=document.createElement('a');
+                link.href=url;link.download=`รายชื่อ_${String(club.name||'ชุมนุม').replace(/[\\/:*?"<>|]/g,'_')}.xls`;
+                document.body.appendChild(link);link.click();link.remove();
+                setTimeout(()=>URL.revokeObjectURL(url),15000);
+              }).withFailureHandler(failed).getClubAttendanceGrid(club.id);
+            }catch(err){failed(err);}
         },
 
 
@@ -6484,7 +6552,7 @@ downloadCSVTemplate() {
           Swal.fire({ title: isTransfer ? 'ยืนยันย้าย?' : 'ยืนยันสมัคร?', text: c.name, icon: 'question', showCancelButton: true, confirmButtonColor: '#2563eb' }).then(r => {
             if(r.isConfirmed) {
               google.script.run.withSuccessHandler(res => {
-                if(res.success) { Swal.fire('สำเร็จ', res.message, 'success'); this.user.clubId = c.id; this.requestFastRefresh(); }
+                if(res.success) { Swal.fire('สำเร็จ', res.message, 'success'); this.user.clubId = c.id; this.syncStudentApplicantCounts('enroll'); this.requestFastRefresh(); }
                 else Swal.fire('Error', res.message, 'error');
               }).registerClub(this.user.id, c.id);
             }
