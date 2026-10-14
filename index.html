@@ -1375,6 +1375,17 @@
       .skn-mobile-report-actions,.skn-report-scroll-top { display:none !important; }
       .skn-report-page { padding-bottom:0 !important; }
     }
+    /* R3.2: long multi-advisor names wrap without overflowing the A4 cover. */
+    .skn-advisor-display {
+      display: inline-block;
+      max-width: 100%;
+      white-space: normal !important;
+      overflow-wrap: anywhere;
+      word-break: normal;
+      vertical-align: middle;
+    }
+    .skn-cover-advisor .skn-advisor-display { line-height: 1.35; }
+    .skn-signatory-name .skn-advisor-display { line-height: 1.25; }
   </style>
   <link rel="stylesheet" href="theme.css">
   <style id="skn-r3-responsive">
@@ -3036,7 +3047,7 @@
 
 
                 <div class="skn-cover-advisor" style="font-size: 16pt; margin-bottom: 20px;">ครูที่ปรึกษา:
-                  <span class="editable px-3" :contenteditable="!archiveReadonly" style="border-bottom: 1px dotted #000;">{{ reportData.teacher }}</span>
+                  <span class="editable px-3 skn-advisor-display" :contenteditable="!archiveReadonly" style="border-bottom: 1px dotted #000;">{{ reportData.teacher }}</span>
                 </div>
 
               </div>
@@ -3097,7 +3108,7 @@
                         <div class="skn-signature-line"></div>
                         <button v-if="reportData.signatures?.['sigTeacher'] === '__DELETE__'" class="btn btn-link text-warning skn-sig-restore no-print" type="button" @click="restoreSignature('sigTeacher')">ยกเลิกการลบลายเซ็น</button>
                       </div>
-                      <span class="small fw-bold skn-signatory-name">( <span class="editable" :contenteditable="!archiveReadonly">{{ reportData.teacher }}</span> )</span><br>
+                      <span class="small fw-bold skn-signatory-name">( <span class="editable skn-advisor-display" :contenteditable="!archiveReadonly">{{ reportData.teacher }}</span> )</span><br>
                       <span style="font-size: 9pt;">ครูที่ปรึกษาชุมนุม</span>
                     </div>
                     <div class="col-6">
@@ -3764,6 +3775,43 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+      // R3.2: derive the complete advisor list from authoritative club owner IDs.
+      // The API may send owner_id as comma-separated IDs, owner_ids as a text[],
+      // or an array. Never use a saved report's obsolete "..." as an advisor name.
+      function sknResolveClubAdvisors(club, teacherRows) {
+        if (!club) return '';
+        const clean = value => String(value ?? '').trim();
+        const useful = value => {
+          const v = clean(value);
+          if (!v || /^(?:\.{2,}|[-—–]|null|undefined|n\/a|ไม่ระบุ|กรุณาระบุ|กรุณาพิมพ์|ให้พิมพ์เอง)$/i.test(v)) return '';
+          return v;
+        };
+        let rawIds = club.owner_ids ?? club.owner_id ?? club.ownerId ?? [];
+        if (typeof rawIds === 'string') {
+          const v = rawIds.trim();
+          if (v.startsWith('[') && v.endsWith(']')) {
+            try { rawIds = JSON.parse(v); } catch (_) { rawIds = v; }
+          }
+        }
+        const members = (Array.isArray(rawIds) ? rawIds : String(rawIds || '').split(','))
+          .map(row => clean(row && typeof row === 'object' ? (row.id ?? row.teacher_id ?? '') : row))
+          .filter(Boolean);
+        const ids = [...new Set(members.map(id => id.toUpperCase()))];
+        const rowMap = new Map((Array.isArray(teacherRows) ? teacherRows : [])
+          .filter(row => row && row.id != null)
+          .map(row => [clean(row.id).toUpperCase(), useful(row.name || row.display_name)]));
+        const fallback = useful(club.teacher_name || club.teacher_names || club.advisor_name);
+        if (!ids.length) return fallback;
+        const names = ids.map(id => rowMap.get(id) || '');
+        if (names.every(Boolean)) return [...new Set(names)].join(' / ');
+        // Some deployments return the full pre-joined name but a restricted
+        // teacher list. Trust it only if it clearly contains each advisor.
+        if (fallback && (ids.length === 1 || fallback.split(/\s*[,;/]\s*|\s+และ\s+/).filter(Boolean).length >= ids.length)) {
+          return fallback;
+        }
+        // Never silently drop a second advisor; show which ID is not resolved.
+        return ids.map((id,i) => names[i] || ('ไม่พบชื่อครู (' + id + ')')).join(' / ');
+      }
       const { createApp } = Vue;
     createApp({
 data() {
@@ -4108,6 +4156,10 @@ filteredClubs() {
 
 
       methods: {
+        // Display all advisors (1, 2, or more), with the live term teacher list.
+        resolveClubAdvisorNames(club) {
+          return sknResolveClubAdvisors(club, this.teachersList);
+        },
         async openPeriodManagementModal(){
           if(this.user?.role!=='admin')return;
           this.managePeriodId=this.activePeriodId||this.periods[0]?.id||'';
@@ -4403,6 +4455,9 @@ syncAdvancedSettings() {
             same('photo_'+i,this.reportData.photos?.[i])?'':(this.reportData.photos?.[i]||'')]));
           const signatures=Object.fromEntries(Object.entries(this.reportData.signatures||{}).map(([k,v])=>
             [k,same(k,v)?'':v]));
+          const reportClub = this.clubs.find(c => String(c.id) === String(clubId));
+          const liveAdvisorNames = this.resolveClubAdvisorNames(reportClub);
+          if (liveAdvisorNames) this.reportData.teacher = liveAdvisorNames;
           const payload={teacher:this.reportData.teacher,actData:JSON.parse(JSON.stringify(this.reportActData)),
             logo:same('logo',this.reportData.logo)?'':this.reportData.logo,photos,signatures};
           // Capture submitted sources NOW; edits made during the async save are not yet saved.
@@ -5359,9 +5414,17 @@ refreshData(isSilent = false) {
                 this.refreshData(true);return;
               }
 
-              this.clubs = data.clubs || []; 
-              this.config = data.config || {}; 
+              this.config = data.config || {};
               this.teachersList = data.teachers || [];
+              // The server's teacher_name is sometimes "..." for a co-advised club.
+              // Build the display name from ALL owner IDs, preserving other fields.
+              this.clubs = (data.clubs || []).map(c => ({
+                ...c, teacher_name: this.resolveClubAdvisorNames(c) || c.teacher_name || ''
+              }));
+              if (this.view === 'report' && this.currentClubId) {
+                const activeClub = this.clubs.find(c => String(c.id) === String(this.currentClubId));
+                if (activeClub) this.reportData.teacher = this.resolveClubAdvisorNames(activeClub);
+              }
               this.periods = data.periods || [];
               this.activePeriodId = data.periodId || '';
               this.archiveReadonly = !!data.isReadonly;
@@ -5426,7 +5489,7 @@ refreshData(isSilent = false) {
        
         goToAttendance(club) { this.loadClubData(club, 'attendance'); },
         goToReport(club) {
-            this.reportData.teacher = club ? club.teacher_name : this.reportData.teacher;
+            if (club) this.reportData.teacher = this.resolveClubAdvisorNames(club);
             if(club){this.reportData.signatures = {};this.reportMediaErrors=[];this.reportMediaRefs={};this.reportOriginalSources={};this.reportPermissionDiagnostics=[];this.pendingPhotoUndo={};this.pendingSignatureUndo={};this.reportImagesPending=0;this._reportImageLoadPromise=null;}
             if(club) this.loadClubData(club, 'report');
             else this.view = 'report';
@@ -5449,7 +5512,7 @@ refreshData(isSilent = false) {
             this.reportData.photos = {};
             this.reportOriginalSources={};this.reportMediaRefs={};this.reportPermissionDiagnostics=[];
             this.reportData.logo = '';
-            this.reportData.teacher = club.teacher_name;
+            this.reportData.teacher = this.resolveClubAdvisorNames(club);
 
             Swal.fire({ title: 'กำลังโหลด...', didOpen: () => Swal.showLoading() });
             
@@ -5497,7 +5560,13 @@ refreshData(isSilent = false) {
                         if (reportRes && reportRes.found && reportRes.data) {
                             const savedData = reportRes.data;
                             if (savedData.actData) { this.reportActData = Object.assign(this.reportActData, savedData.actData); }
-                            if (savedData.teacher) this.reportData.teacher = savedData.teacher;
+                            // Current club advisors take precedence over an old/manual "..."
+                            // stored in earlier reports. Only use saved text if IDs cannot
+                            // be resolved and it is not a placeholder.
+                            const currentAdvisorNames = this.resolveClubAdvisorNames(club);
+                            const savedAdvisorNames = String(savedData.teacher || '').trim();
+                            this.reportData.teacher = currentAdvisorNames ||
+                              (/^(?:\.{2,}|[-—–]|กรุณาระบุ)$/i.test(savedAdvisorNames) ? '' : savedAdvisorNames);
                             // เพิ่มบรรทัดโหลดรูปลงไปตรงนี้
                             if (savedData.logo) this.reportData.logo = savedData.logo;
                             if (savedData.photos) this.reportData.photos = savedData.photos;
@@ -6144,7 +6213,8 @@ downloadCSVTemplate() {
                 remark:'ไม่มี',caption:'บรรยากาศการเรียนการสอนและการทำกิจกรรมร่วมกันของนักเรียน',signedNames:{}
               };
               this.reportActData={...baseAct,...(d.actData||{}),signedNames:{...(d.actData?.signedNames||{})}};
-              this.reportData={teacher:d.teacher||club.teacher_name||'',logo:d.logo||'',
+              this.reportData={teacher:this.resolveClubAdvisorNames(club) ||
+                (/^(?:\.{2,}|[-—–]|กรุณาระบุ)$/i.test(String(d.teacher||'').trim()) ? '' : (d.teacher||'')),logo:d.logo||'',
                 photos:{...(d.photos||{})},signatures:{...(d.signatures||{})}};
               this.reportMediaRefs=d.mediaRefs||{};
               this.reportMediaErrors=[...(d.mediaErrors||[])];
