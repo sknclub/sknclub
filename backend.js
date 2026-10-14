@@ -43,15 +43,67 @@ async function getCurrentUser(sess, periodId) {
 function canEdit(u, p) { return u.role === 'admin' || Boolean(p.is_current); }
 function mustWrite(u, p) { assert(canEdit(u, p), 'ภาคเรียนย้อนหลังเปิดอ่านอย่างเดียว (ยกเว้น Admin)'); }
 function mustAdmin(u) { assert(u.role === 'admin', 'เฉพาะผู้ดูแลระบบ'); }
-function owner(u, club) { return u.role === 'admin' || (u.role === 'teacher' && club.owner_ids?.includes(u.id)); }
+// Read legacy owner_id CSV AND Supabase owner_ids TEXT[] consistently.
+// IMPORTANT: this normalizer only improves display and error diagnostics.
+// PostgreSQL skn_owns() / RLS remain the final authority for permissions.
+function sknClubOwnerIds(club) {
+    const source = club?.owner_ids ?? club?.owner_id ?? [];
+    const list = Array.isArray(source) ? source : [source];
+    const ids = [];
+    for (const value of list) {
+        if (value == null) continue;
+        let parts;
+        if (Array.isArray(value)) parts = value;
+        else {
+            const text = String(value).trim();
+            if (text.startsWith('[') && text.endsWith(']')) {
+                try { const decoded = JSON.parse(text); parts = Array.isArray(decoded) ? decoded : [text]; }
+                catch { parts = [text]; }
+            } else parts = [text];
+        }
+        for (const part of parts) {
+            for (const token of String(part).replace(/[，、；|]/g, ',').split(/[,;]/g)) {
+                const id = token.trim();
+                if (id && !ids.some(x => x.toUpperCase() === id.toUpperCase())) ids.push(id);
+            }
+        }
+    }
+    return ids;
+}
+function owner(u, club) {
+    return u.role === 'admin' || (u.role === 'teacher' && sknClubOwnerIds(club)
+        .some(id => id.toUpperCase() === String(u.id || '').trim().toUpperCase()));
+}
 function visibleClub(u, club) { return u.role === 'admin' || owner(u, club) || Boolean(u.archiveRead && u.type === 'teacher'); }
+function sknClubPermissionMessage(u, club, isListed) {
+    const id = String(u?.id || '');
+    const clubId = String(club?.id || '');
+    if (!isListed) return `ครูรหัส ${id} ไม่มีชื่ออยู่ในผู้รับผิดชอบชุมนุม ${clubId} (clubs.owner_ids) กรุณาให้ Admin ตรวจรายชื่อครูที่ปรึกษา`;
+    return `พบครูรหัส ${id} ในรายชื่อชุมนุม ${clubId} แต่ Supabase ไม่ยืนยันสิทธิ์: ตรวจ clubs.owner_ids ว่าเป็นอาร์เรย์แยกรหัส เช่น {T01,T02} ไม่มีช่องว่าง และตรวจ period_teachers ของภาคเรียนปัจจุบัน`;
+}
+async function sknRequireOwnClub(u, period, club) {
+    if (u.role === 'admin') return;
+    assert(u.role === 'teacher', 'เฉพาะครูที่ปรึกษาชุมนุม');
+    const isListed = owner(u, club);
+    if (!isListed) throw Error(sknClubPermissionMessage(u, club, false));
+    // Correct TEXT[] membership is cheap. Only malformed/legacy owner IDs
+    // need the extra RPC. Never use a frontend-normalized match to bypass DB RLS.
+    if (!Array.isArray(club.owner_ids) || !club.owner_ids.includes(u.id)) {
+        const allowed = await result(db.rpc('skn_owns', { p_period: period.id, p_club: club.id }));
+        if (allowed !== true) throw Error(sknClubPermissionMessage(u, club, true));
+    }
+}
+async function sknRequireReadClub(u, period, club) {
+    if (u.role === 'admin' || Boolean(u.archiveRead && u.type === 'teacher')) return;
+    await sknRequireOwnClub(u, period, club);
+}
 async function clubById(p, id) { const c = await result(db.from('clubs').select('*').eq('period_id', p).eq('id', id).maybeSingle()); assert(c, 'ไม่พบชุมนุม'); return c; }
 const twenty = () => Array(20).fill(0);
 function validateGrid(g) { assert(g && Array.isArray(g.dates) && g.dates.length === 20, 'วันที่เช็กชื่อต้องมี 20 ครั้ง'); assert(g.records && typeof g.records === 'object', 'ข้อมูลเช็กชื่อผิดรูปแบบ'); const obj = { dates: g.dates.map((x) => typeof x === 'string' ? x.slice(0, 10) : ''), records: {} }; for (const [sid, arr] of Object.entries(g.records)) {
     assert(Array.isArray(arr) && arr.length === 20, 'รายการเช็กชื่อต้องมี 20 ครั้ง');
     obj.records[sid] = arr.map(v => { const n = Number(v); assert(Number.isInteger(n) && n >= 0 && n <= 3, 'สถานะเช็กชื่อไม่ถูกต้อง'); return n; });
 } return obj; }
-function renderClub(c, regs, teachers) { return { id: c.id, name: c.name, max_capacity: c.max_capacity, current_count: regs.filter(r => r.club_id === c.id).length, level: c.level, owner_id: c.owner_ids.join(','), teacher_name: c.owner_ids.map((id) => teachers.find(t => t.id === id)?.name || '').filter(Boolean).join(', '), location: c.location, comment: c.comment }; }
+function renderClub(c, regs, teachers) { return { id: c.id, name: c.name, max_capacity: c.max_capacity, current_count: regs.filter(r => r.club_id === c.id).length, level: c.level, owner_id: sknClubOwnerIds(c).join(','), teacher_name: sknClubOwnerIds(c).map((id) => teachers.find(t => String(t.id || '').trim().toUpperCase() === id.toUpperCase())?.name || '').filter(Boolean).join(', '), location: c.location, comment: c.comment }; }
 function studentView(s, regs) { return { ...s, password: '', club_id: regs.find(r => r.student_id === s.id)?.club_id || '' }; }
 async function gas(action, payload) { return window.SKNFile.invoke(action, payload); }
 async function cleanupOldDriveMedia(p, id) {
@@ -71,9 +123,9 @@ function isPrimaryAdminId(id) { return String(id ?? '').trim().toUpperCase().sta
 async function sum(p) {
     const [ss, tt, cc, rr] = await Promise.all([all('students', p), all('period_teachers', p), all('clubs', p), all('registrations', p)]);
     const teachers = tt.filter(t => !isPrimaryAdminId(t.teacher_id));
-    const owners = new Set(cc.flatMap(c => c.owner_ids));
+    const owners = new Set(cc.flatMap(c => sknClubOwnerIds(c).map(id => id.toUpperCase())));
     return { student: { total: ss.length, registered: rr.length, unregistered: ss.length - rr.length },
-        teacher: { total: teachers.length, hasClub: teachers.filter(t => owners.has(t.teacher_id)).length, noClub: teachers.filter(t => !owners.has(t.teacher_id)).length }, clubsCount: cc.length };
+        teacher: { total: teachers.length, hasClub: teachers.filter(t => owners.has(String(t.teacher_id).toUpperCase())).length, noClub: teachers.filter(t => !owners.has(String(t.teacher_id).toUpperCase())).length }, clubsCount: cc.length };
 }
 const SKN_IMAGE_SLOTS = ['logo', 'photo_1', 'photo_2', 'photo_3', 'photo_4', 'sigTeacher', 'sigHeadClub', 'sigHeadDev', 'sigDeputy', 'sigDirector'];
 // From V4.0 image URL columns are TEXT. Drive file IDs remain in media JSON for
@@ -328,7 +380,7 @@ async function checkLogin(username, password) {
     const u = await getCurrentUser({ sub: actorId, type }, period.id);
     const reg = type === 'student' ? await result(db.from('registrations').select('club_id').eq('period_id', period.id).eq('student_id', actorId).maybeSingle()) : null;
     const memberships = type === 'teacher' ? await result(db.from('clubs').select('owner_ids').eq('period_id', period.id)) : [];
-    return { success: true, user: { id: u.id, name: u.name, role: u.role, level: u.level || '', clubId: reg?.club_id || '', hasClub: memberships.some((c) => c.owner_ids.includes(actorId)) } };
+    return { success: true, user: { id: u.id, name: u.name, role: u.role, level: u.level || '', clubId: reg?.club_id || '', hasClub: memberships.some((c) => sknClubOwnerIds(c).some(id => id.toUpperCase() === String(actorId).toUpperCase())) } };
 }
 async function sknInvoke(method, args, periodId) {
     if (method === 'getWebAppUrl')
@@ -353,7 +405,7 @@ async function sknInvoke(method, args, periodId) {
             const reg = u.type === 'student' ? await result(db.from('registrations').select('club_id').eq('period_id', p.id).eq('student_id', u.id).maybeSingle()) : null;
             const owned = u.type === 'teacher' ? await result(db.from('clubs').select('owner_ids').eq('period_id', p.id)) : [];
             output = { success: true, user: { id: u.id, name: u.name, role: u.role, level: u.level || '',
-                    clubId: reg?.club_id || '', hasClub: owned.some((c) => c.owner_ids.includes(u.id)) } };
+                    clubId: reg?.club_id || '', hasClub: owned.some((c) => sknClubOwnerIds(c).some(id => id.toUpperCase() === String(u.id).toUpperCase())) } };
             break;
         }
         case 'getPeriods':
@@ -396,7 +448,7 @@ async function sknInvoke(method, args, periodId) {
         case 'getClubAttendanceGrid': {
             const id = String(args[0]);
             const club = await clubById(p.id, id);
-            assert(visibleClub(u, club));
+            await sknRequireReadClub(u, p, club);
             const [r, students, regs] = await Promise.all([
                 result(db.from('attendance').select('grid').eq('period_id', p.id).eq('club_id', id).maybeSingle()), all('students', p.id), all('registrations', p.id)
             ]);
@@ -415,7 +467,7 @@ async function sknInvoke(method, args, periodId) {
             mustWrite(u, p);
             const id = String(args[0]);
             const c = await clubById(p.id, id);
-            assert(owner(u, c));
+            await sknRequireOwnClub(u, p, c);
             const grid = validateGrid(args[1]);
             const regs = await result(db.from('registrations').select('student_id').eq('period_id', p.id).eq('club_id', id));
             const allowed = new Set(regs.map(r => r.student_id));
@@ -569,11 +621,11 @@ async function sknInvoke(method, args, periodId) {
                 assert(!(tt.find(t => t.id === id)?.role === 'admin' && tt.filter(t => t.role === 'admin').length === 1), 'ห้ามลบ Admin คนสุดท้าย');
                 const clubs = await all('clubs', p.id);
                 for (const c of clubs) {
-                    if (c.owner_ids.includes(id)) {
-                        if (c.owner_ids.length === 1)
+                    if (sknClubOwnerIds(c).some(x => x.toUpperCase() === id.toUpperCase())) {
+                        if (sknClubOwnerIds(c).length === 1)
                             await result(db.rpc('skn_delete_club', { p_period: p.id, p_club: c.id }));
                         else
-                            await result(db.from('clubs').update({ owner_ids: c.owner_ids.filter((x) => x !== id) }).eq('period_id', p.id).eq('id', c.id));
+                            await result(db.from('clubs').update({ owner_ids: sknClubOwnerIds(c).filter((x) => x.toUpperCase() !== id.toUpperCase()) }).eq('period_id', p.id).eq('id', c.id));
                     }
                 }
                 await result(db.rpc('skn_remove_teacher', { p_period: p.id, p_teacher: id })); // Historical memberships are preserved.
@@ -600,8 +652,8 @@ async function sknInvoke(method, args, periodId) {
             const isEdit = method === 'updateClub';
             const prev = isEdit ? await clubById(p.id, String(f.id)) : null;
             if (isEdit)
-                assert(owner(u, prev));
-            const owners = [...new Set((f.owner_ids || []).map((x) => String(x).trim()).filter(Boolean))];
+                await sknRequireOwnClub(u, p, prev);
+            const owners = sknClubOwnerIds({ owner_ids: f.owner_ids || [] });
             assert(owners.length > 0, 'กรุณาเลือกครูอย่างน้อย 1 คน');
             if (!isAdmin)
                 assert(owners.includes(u.id), 'ครูต้องเป็นเจ้าของชุมนุมที่สร้าง');
@@ -652,7 +704,7 @@ async function sknInvoke(method, args, periodId) {
         case 'saveClubReportData': {
             mustWrite(u, p);
             const id = String(args[0]), c = await clubById(p.id, id);
-            assert(owner(u, c));
+            await sknRequireOwnClub(u, p, c);
             const f = args[1] || {};
             const prior = await result(db.from('club_reports').select('media').eq('period_id', p.id).eq('club_id', id).maybeSingle());
             const original = sknImageSlots(prior);
@@ -693,7 +745,7 @@ async function sknInvoke(method, args, periodId) {
         }
         case 'getSavedClubReport': {
             const id = String(args[0]), c = await clubById(p.id, id);
-            assert(visibleClub(u, c));
+            await sknRequireReadClub(u, p, c);
             const r = await result(db.from('club_reports').select('*').eq('period_id', p.id).eq('club_id', id).maybeSingle());
             if (!r) {
                 output = { found: false, data: null };
@@ -715,7 +767,7 @@ async function sknInvoke(method, args, periodId) {
             mustWrite(u, p);
             const f = args[1] || {};
             const club = await clubById(p.id, String(f.clubId || args[2] || ''));
-            assert(owner(u, club));
+            await sknRequireOwnClub(u, p, club);
             const periodConfig = await cfg(p.id);
             assert(u.role === 'admin' || periodConfig.allow_report_email !== 'false', 'ปิดการส่งเมลสำหรับครู');
             const settings = JSON.parse(periodConfig.adminSettings || '{}');
