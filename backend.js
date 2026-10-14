@@ -450,6 +450,40 @@ async function checkLogin(username, password) {
     const memberships = type === 'teacher' ? await result(db.from('clubs').select('owner_ids').eq('period_id', period.id)) : [];
     return { success: true, user: { id: u.id, name: u.name, role: u.role, level: u.level || '', clubId: reg?.club_id || '', hasClub: memberships.some((c) => sknClubOwnerIds(c).some(id => id.toUpperCase() === String(actorId).toUpperCase())) } };
 }
+// R4.2: one authorized, paginated SQL join instead of fetching students and
+// all registration rows separately. Never cache results across edits.
+async function sknStudentsForUserManagement(periodId) {
+    const list=[];
+    let after='';
+    const pageSize=500;
+    for (;;) {
+        const response=await db.rpc('skn_list_students_v42',{
+            p_period:periodId,p_after:after,p_limit:pageSize
+        });
+        if (response.error) {
+            const code=String(response.error.code||'');
+            const message=String(response.error.message||'');
+            // Graceful upgrade: R4.1 database still works before new migration.
+            // Never hide 401/403 or an actual SQL error behind a fallback.
+            if((code==='PGRST202'||code==='42883'||/could not find the function.*skn_list_students_v42|skn_list_students_v42.*does not exist/i.test(message))&&after===''){
+                const [ss,rr]=await Promise.all([all('students',periodId),all('registrations',periodId)]);
+                const regById=new Map(rr.map(r=>[String(r.student_id),String(r.club_id)]));
+                return ss.map(s=>({...s,club_id:regById.get(String(s.id))||''}));
+            }
+            await result(Promise.resolve(response));
+        }
+        const page=response.data;
+        assert(Array.isArray(page),'ผลรายชื่อนักเรียนไม่ใช่อาร์เรย์');
+        if (!page.length) break;
+        const next=String(page[page.length-1].id);
+        assert(next && next!==after,'การอ่านรายชื่อนักเรียนไม่ก้าวหน้า');
+        list.push(...page);
+        after=next;
+        if (page.length<pageSize)break;
+    }
+    return list;
+}
+
 async function sknInvoke(method, args, periodId) {
     if (method === 'getWebAppUrl')
         return location.href;
@@ -636,15 +670,11 @@ async function sknInvoke(method, args, periodId) {
         case 'findStudentClub': {
             assert(u.role !== 'student');
             const query = String(args[0] || '').toLowerCase().trim();
-            const ss = await all('students', p.id);
-            const s = ss.find(x => x.id.toLowerCase().includes(query) || x.name.toLowerCase().includes(query));
-            if (!s) {
-                output = null;
-                break;
-            }
-            const reg = await result(db.from('registrations').select('club_id').eq('period_id', p.id).eq('student_id', s.id).maybeSingle());
-            const club = reg ? await clubById(p.id, reg.club_id) : null;
-            output = { id: s.id, name: s.name, level: s.level, room: s.room, club_name: club?.name || 'ยังไม่ได้สมัครชุมนุม' };
+            const ss=await sknStudentsForUserManagement(p.id);
+            const s=ss.find(x=>x.id.toLowerCase().includes(query)||x.name.toLowerCase().includes(query));
+            if(!s){output=null;break;}
+            const club=s.club_id?await clubById(p.id,s.club_id):null;
+            output={id:s.id,name:s.name,level:s.level,room:s.room,club_name:club?.name||'ยังไม่ได้สมัครชุมนุม'};
             break;
         }
         case 'getStudentsByRoom': {
@@ -652,16 +682,15 @@ async function sknInvoke(method, args, periodId) {
             // Backward compatible: old call(level,room) or new call(query). No level is required.
             const query = String(args.length > 1 ? args[1] : args[0] || '').trim().toLocaleLowerCase('th-TH');
             assert(query.length >= 1 && query.length <= 120, 'กรุณากรอกชื่อ รหัสนักเรียน หรือห้อง');
-            const [ss, rr, cc] = await Promise.all([all('students', p.id), all('registrations', p.id), all('clubs', p.id)]);
-            const clubNames = new Map(cc.map(c => [c.id, c.name]));
-            const regByStudent = new Map(rr.map(r => [r.student_id, r.club_id]));
+            const [ss,cc]=await Promise.all([sknStudentsForUserManagement(p.id),all('clubs',p.id)]);
+            const clubNames=new Map(cc.map(c=>[c.id,c.name]));
             const normalized = (x) => String(x || '').trim().toLocaleLowerCase('th-TH').replace(/\s+/g, '');
             const compactQuery = normalized(query);
             output = ss.filter(s => [s.id, s.name, s.room, `${s.level}/${s.room}`, `${s.level}${s.room}`].some(v => normalized(v).includes(compactQuery)))
                 .sort((a, b) => a.room.localeCompare(b.room, 'th', { numeric: true }) || Number(a.no) - Number(b.no))
                 .slice(0, 1000)
                 .map(s => ({ id: s.id, name: s.name, level: s.level, room: s.room, no: s.no,
-                club_name: clubNames.get(regByStudent.get(s.id)) || 'ยังไม่ได้สมัครชุมนุม' }));
+                club_name: clubNames.get(s.club_id) || 'ยังไม่ได้สมัครชุมนุม' }));
             break;
         }
         case 'getUsersByRole': {
@@ -670,12 +699,15 @@ async function sknInvoke(method, args, periodId) {
             assert(type === 'teacher' || type === 'student');
             if (type === 'teacher') {
                 const [tt, mm] = await Promise.all([all('teachers'), all('period_teachers', p.id)]);
-                output = tt.filter(t => mm.some(x => x.teacher_id === t.id)).map(t => ({ id: t.id, name: mm.find(x => x.teacher_id === t.id)?.display_name || t.name, username: t.username, password: '', role: t.role })).sort((a, b) => Number(isPrimaryAdminId(b.id)) - Number(isPrimaryAdminId(a.id)) || a.id.localeCompare(b.id, 'th', { numeric: true }));
+                const membershipById=new Map(mm.map(x=>[x.teacher_id,x.display_name]));
+                output = tt.filter(t=>membershipById.has(t.id)).map(t => ({ id:t.id, name:membershipById.get(t.id)||t.name, username:t.username, password:'', role:t.role })).sort((a,b)=>Number(isPrimaryAdminId(b.id))-Number(isPrimaryAdminId(a.id))||a.id.localeCompare(b.id,'th',{numeric:true}));
             }
             else {
-                const [ss, rr] = await Promise.all([all('students', p.id), all('registrations', p.id)]);
-                const registeredClub=new Map(rr.map(r=>[String(r.student_id),String(r.club_id)]));
-                output = ss.map(s => ({...s,password:'',club_id:registeredClub.get(String(s.id))||''})).sort((a, b) => a.level.localeCompare(b.level, 'th', { numeric: true }) || a.room.localeCompare(b.room, 'th', { numeric: true }) || Number(a.no) - Number(b.no));
+                const ss=await sknStudentsForUserManagement(p.id);
+                output=ss.map(s=>({...s,password:''})).sort((a,b)=>
+                    String(a.level||'').localeCompare(String(b.level||''),'th',{numeric:true})||
+                    String(a.room||'').localeCompare(String(b.room||''),'th',{numeric:true})||
+                    Number(a.no)-Number(b.no));
             }
             break;
         }
@@ -1257,12 +1289,22 @@ async function sknInvoke(method, args, periodId) {
         }
         case 'previewSafeTrash': {
             mustAdmin(u);
-            output = await result(db.rpc('skn_trash_preview_v49'));
+            try {
+                output=await result(db.rpc('skn_trash_preview_v42'));
+            } catch(err) {
+                if(!['PGRST202','42883'].includes(String(err?.code||'')))throw err;
+                output={...(await result(db.rpc('skn_trash_preview_v49'))),expiredLoginAttempts:null,sessionRows:0};
+            }
             break;
         }
         case 'purgeSafeTrash': {
             mustAdmin(u);
-            output = await result(db.rpc('skn_trash_purge_v49', { p_limit: 300 }));
+            try {
+                output=await result(db.rpc('skn_trash_purge_v42',{p_limit:300}));
+            } catch(err) {
+                if(!['PGRST202','42883'].includes(String(err?.code||'')))throw err;
+                output=await result(db.rpc('skn_trash_purge_v49',{p_limit:300}));
+            }
             break;
         }
         case 'getBackupFilesList': {

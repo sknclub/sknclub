@@ -2434,31 +2434,8 @@
      ========================================== -->
 <transition name="fade">
   <div v-if="view === 'admin_settings'" class="container-xl no-print">
-    <!-- Compact, actionable client-side timings (not database SQL execution timing). -->
-    <div class="skn-r40-perf card-clean bg-white mb-3 mt-2 no-print">
-      <div class="skn-r40-perf-head">
-        <span><i class="fas fa-gauge-high me-1" aria-hidden="true"></i>ความเร็วระบบ <small class="text-secondary fw-normal">(อุปกรณ์นี้)</small></span>
-        <button type="button" class="btn btn-sm btn-outline-secondary skn-r40-perf-action"
-                @click="refreshData(false)" :disabled="loading" title="วัดเวลาโหลดข้อมูลหลักใหม่">
-          <i class="fas fa-sync-alt me-1" aria-hidden="true"></i>วัดใหม่
-        </button>
-      </div>
-      <div class="skn-r40-perf-grid">
-        <div>ข้อมูลหลัก <strong>{{perfStats.dashboardMs===null?'—':perfStats.dashboardMs+' ms'}}</strong></div>
-        <div>รายชื่อ <strong>{{perfStats.usersMs===null?'—':perfStats.usersMs+' ms'}}</strong></div>
-        <div>เช็กชื่อ <strong>{{perfStats.attendanceMs===null?'—':perfStats.attendanceMs+' ms'}}</strong></div>
-        <div>รายงาน <strong>{{perfStats.reportMs===null?'—':perfStats.reportMs+' ms'}}</strong></div>
-        <div>อ่านข้อมูล <strong>{{perfBackend.readMs===null?'—':perfBackend.readMs+' ms'}}</strong></div>
-        <div>บันทึก <strong>{{perfBackend.writeMs===null?'—':perfBackend.writeMs+' ms'}}</strong></div>
-      </div>
-      <details class="skn-r40-perf-more">
-        <summary>รายละเอียดการวัด</summary>
-        <span>คำขอหน้าเว็บ {{perfStats.requests}} ครั้ง · ผิดพลาด {{perfStats.errors}} ครั้ง · ไม่วาดข้อมูลเดิมซ้ำ {{perfStats.unchanged}} ครั้ง</span>
-        <span> · Backend อ่าน {{perfBackend.readCalls}} / เขียน {{perfBackend.writeCalls}} ครั้ง · ล่าสุด {{perfStats.lastMeasured||'-'}}</span>
-        <div>วัดเวลารวมจากเบราว์เซอร์ถึงการตอบกลับ ไม่ใช่ SQL อย่างเดียว; เฉพาะคำขอที่ได้เรียกใช้งานจริง</div>
-      </details>
-    </div>
-    <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4 mt-3">
+
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4 mt-3">
       <div>
         <h4 class="fw-800 m-0 text-danger"><i class="fas fa-cogs me-2"></i>ตั้งค่าระบบขั้นสูง</h4>
         <p class="text-muted small m-0">กำหนดรูปแบบรายงาน วันเวลา และผู้ลงนาม</p>
@@ -2497,24 +2474,24 @@
             </div>
             <div class="col-6">
               <label class="small fw-bold text-muted">อีเมลผู้รับรายงานชุมนุมอัตโนมัติ</label>
-              <input type="email" v-model.trim="adminSettings.reportEmail" class="form-control form-fast" placeholder="report@school.ac.th"><div class="form-text">ปุ่มส่งอีเมลในหน้ารายงานจะส่ง PDF ไปยังที่อยู่นี้โดยอัตโนมัติ ไม่เกี่ยวข้องกับการล็อกอิน</div>
+              <input type="email" v-model.trim="adminSettings.reportEmail" class="form-control form-fast" placeholder="report@school.ac.th">
             </div>
-            <div class="col-12 col-xl-6">
-              <label class="small fw-bold text-muted" for="r41DriveFolder">Google Drive — โฟลเดอร์หลัก (Folder ID)</label>
-              <div class="input-group">
-                <input id="r41DriveFolder" type="text" :value="driveFolderInfo.id || adminSettings.driveFolderId || 'กำลังรอเชื่อมต่อ GAS'" class="form-control form-fast" readonly title="Folder ID จริงจาก GAS Script Properties">
-                <button type="button" class="btn btn-outline-primary" @click="loadDriveFolderInfo" title="อ่านรหัสจาก GAS อีกครั้ง"><i class="fas fa-sync-alt"></i></button>
-              </div>
-              <div class="form-text" v-if="driveFolderInfo.name">{{ driveFolderInfo.name }} — <a :href="driveFolderInfo.url" target="_blank" rel="noopener noreferrer">เปิด Drive</a></div>
-              <div class="form-text">แก้ Folder ID ที่ GAS Script Properties เท่านั้น</div>
-            </div>
-            <div class="col-12 col-xl-6">
+            <div class="col-12">
               <label class="small fw-bold text-muted" for="r41LoginNoticeTitle">ข้อความประกาศหน้าเข้าสู่ระบบ</label>
               <input id="r41LoginNoticeTitle" type="text" maxlength="120" v-model="adminSettings.loginNoticeTitle" class="form-control form-fast mb-2" placeholder="⚠️ กรุณาอ่านกำหนดการชุมนุม" aria-label="หัวข้อประกาศหน้าเข้าสู่ระบบ">
               <label class="small text-muted" for="r41LoginNoticeBody">รายละเอียดกำหนดการชุมนุม</label>
               <textarea id="r41LoginNoticeBody" rows="3" maxlength="800" v-model="adminSettings.loginNoticeBody" class="form-control skn-r41-settings-message" placeholder="กำหนดการรับสมัครและย้ายชุมนุม..." aria-label="รายละเอียดประกาศหน้าเข้าสู่ระบบ"></textarea>
-              <div class="form-text">แสดงให้ทุกคนเห็นก่อน Login · รองรับหลายบรรทัด · กดบันทึกการตั้งค่าด้านบนเพื่อเผยแพร่</div>
               <div v-if="loginNoticeError" class="small text-warning-emphasis mt-1" role="alert">{{ loginNoticeError }}</div>
+            </div>
+            <div class="col-12">
+              <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 rounded-3 border px-3 py-2 skn-r42-drive-row">
+                <div>
+                  <div class="small fw-bold text-muted"><i class="fab fa-google-drive me-1" aria-hidden="true"></i>Google Drive — โฟลเดอร์หลัก</div>
+                  <div class="small text-muted">แก้ Folder ID ที่ GAS Script Properties เท่านั้น</div>
+                </div>
+                <a v-if="driveFolderInfo.url" :href="driveFolderInfo.url" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-primary"><i class="fas fa-external-link-alt me-1" aria-hidden="true"></i>เปิด Drive</a>
+                <button v-else type="button" class="btn btn-sm btn-outline-secondary" @click="loadDriveFolderInfo" :disabled="loading" title="ตรวจสอบลิงก์ Google Drive จาก GAS">ตรวจลิงก์ Drive</button>
+              </div>
             </div>
           </div>
         </div>
@@ -2615,7 +2592,7 @@
               <i class="fas fa-file-import me-1"></i> นำเข้า / กู้คืนไฟล์สำรอง JSON จาก Drive หรือเครื่อง
             </button>
             <button class="btn btn-outline-secondary btn-sm" @click="previewDatabaseTrash" :disabled="trashBusy||user?.role!=='admin'">
-              <i class="fas fa-broom me-1"></i> ตรวจ / ล้างขยะฐานข้อมูลที่ปลอดภัย
+              <i class="fas fa-broom me-1"></i> ตรวจ / ล้างบันทึกที่หมดอายุ
             </button>
           </div>
           <p class="small text-muted mt-2 mb-0">การลบข้อมูลเทอม/ปีจะสำรอง JSON ไป Drive ก่อนเสมอ ไฟล์ภาพและบัญชีครูที่ใช้ร่วมกันจะไม่ถูกลบ</p>
@@ -2803,7 +2780,7 @@
               </tr>
             </thead>
             <tbody class="bg-white">
-              <tr v-for="u in filteredUsers" :key="u.id">
+              <tr v-for="u in pagedUsers" :key="u.id">
                 <td class="ps-4 fw-bold text-primary">{{ u.id }}</td>
                 <td class="fw-600">{{ u.name }}</td>
                 <td v-if="manageRole === 'teacher'" class="small text-muted">{{ u.username }}</td>
@@ -2831,6 +2808,14 @@
               </tr>
             </tbody>
           </table>
+        </div>
+      </div>
+      <div v-if="filteredUsers.length > 0" class="d-flex flex-wrap align-items-center justify-content-between gap-2 px-3 py-2 bg-white border-top small skn-r42-pagination">
+        <span class="text-muted">แสดง {{ ((usersPage-1)*usersPageSize)+1 }}–{{ Math.min(usersPage*usersPageSize,filteredUsers.length) }} จาก {{ filteredUsers.length }} รายการ</span>
+        <div v-if="usersPageCount > 1" class="d-flex align-items-center gap-2">
+          <button type="button" class="btn btn-sm btn-outline-secondary" @click="usersPage=Math.max(1,usersPage-1)" :disabled="usersPage<=1" aria-label="หน้าก่อนหน้า"><i class="fas fa-chevron-left"></i></button>
+          <span>หน้า {{ usersPage }} / {{ usersPageCount }}</span>
+          <button type="button" class="btn btn-sm btn-outline-secondary" @click="usersPage=Math.min(usersPageCount,usersPage+1)" :disabled="usersPage>=usersPageCount" aria-label="หน้าถัดไป"><i class="fas fa-chevron-right"></i></button>
         </div>
       </div>
     </div>
@@ -3866,7 +3851,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
     <script src="config.js"></script>
     <script src="bridge.js"></script>
-    <script src="backend.js?v=4.1.0"></script>
+    <script src="backend.js?v=4.2.0"></script>
     <!-- R3.4: Vue 3.5.13 is embedded locally to avoid HTTP 403 / CDN access failures.
          Source: Vue.js global production build, MIT license, attribution below.
          Do not remove: this application uses Vue.createApp and in-browser templates. -->
@@ -4042,6 +4027,8 @@ data() {
     adminBulkExportBusy: false, adminBulkExportProgress: '', 
     manageRole: 'student', 
     usersList: [],
+    usersPage: 1,
+    usersPageSize: 100,
     usersFetchSerial: 0,
     usersLoadError: '', 
     perfStats: {dashboardMs:null, attendanceMs:null, reportMs:null, usersMs:null, requests:0, errors:0, unchanged:0, lastMeasured:''},
@@ -4213,6 +4200,7 @@ data() {
     },
 
     watch: {
+      searchQuery(){this.usersPage=1;},
       // R3: bring mobile users to the top when signing in or changing views.
       isLoggedIn(next) {
         if (next && window.matchMedia('(max-width: 1199.98px)').matches) {
@@ -4324,6 +4312,11 @@ filteredClubs() {
 
 
 
+      usersPageCount(){return Math.max(1,Math.ceil(this.filteredUsers.length/this.usersPageSize));},
+      pagedUsers(){
+        const page=Math.min(Math.max(1,this.usersPage),this.usersPageCount);
+        return this.filteredUsers.slice((page-1)*this.usersPageSize,page*this.usersPageSize);
+      },
       filteredUsers() {
   const search = (this.searchQuery || '').toLowerCase().trim();
   
@@ -5993,8 +5986,8 @@ recordPerf(key,started,ok=true){
           },
 
 
-        goToManageUsers() { this.manageRole = 'student'; this.fetchUsers('student'); this.view = 'manage_users'; },
-        switchManageRole(role) { this.manageRole = role; this.fetchUsers(role); },
+        goToManageUsers() { this.manageRole = 'student'; this.usersPage=1; this.searchQuery=''; this.fetchUsers('student'); this.view = 'manage_users'; },
+        switchManageRole(role) { this.manageRole = role; this.usersPage=1; this.searchQuery=''; this.fetchUsers(role); },
         // fetchUsers(role) { Swal.fire({ title: 'กำลังโหลด...', didOpen: () => Swal.showLoading() }); google.script.run.withSuccessHandler(res => { Swal.close(); this.usersList = res; }).getUsersByRole(role); },
 
         //ทำเป็นกล่องขนาดเล็ก 260569
@@ -6012,6 +6005,7 @@ recordPerf(key,started,ok=true){
         },
         fetchUsers(role) {
           role = role === 'teacher' ? 'teacher' : 'student';
+          this.usersPage=1;
           const seq = ++this.usersFetchSerial;
           const started=performance.now();
           this.usersLoadError = '';
@@ -7007,12 +7001,23 @@ downloadCSVTemplate() {
           try{
             const data=await window.SKNBridge.invoke('previewSafeTrash',[]);
             const count=Number(data?.completedJobs||0),pending=Number(data?.pendingJobs||0);
-            const ask=await Swal.fire({title:'ตรวจขยะฐานข้อมูล',icon:'info',
-              html:`<div class="text-start">งานลบรูปที่ย้ายไฟล์ลงถังขยะ Drive เรียบร้อยและเก่ากว่า 30 วัน: <b>${count}</b> รายการ<br>งานที่ยังรอจัดการ: <b>${pending}</b> รายการ (จะไม่ลบ)<br><small>ไม่แตะข้อมูลครู นักเรียน ชุมนุม เช็กชื่อ รายงาน ประวัติ Backup และไฟล์ Drive</small></div>`,
-              showCancelButton:true,confirmButtonText:count?'ล้างเฉพาะงานเสร็จแล้ว':'ไม่มีขยะที่ล้างได้',confirmButtonColor:'#64748b',cancelButtonText:'ปิด'});
-            if(!ask.isConfirmed||!count)return;
+            const expired=data?.expiredLoginAttempts===null||data?.expiredLoginAttempts===undefined?null:Number(data.expiredLoginAttempts);
+            const active=Number(data?.sessionRows||0);
+            const allSafe=count+Math.max(0,expired||0);
+            const html=`<div class="text-start small lh-lg">`+
+              `บันทึกงานจัดการรูปที่เสร็จแล้วและเก่ากว่า 30 วัน: <b>${count}</b> รายการ<br>`+
+              `งานรูปที่รอดำเนินการ (ไม่ลบ): <b>${pending}</b> รายการ<br>`+
+              `บันทึกความพยายามเข้าสู่ระบบที่เก่ากว่า 24 ชั่วโมง: <b>${expired===null?'ยังไม่ได้ติดตั้ง SQL R4.2':expired}</b> รายการ<br>`+
+              `ข้อมูลผูกเซสชันแอป (เก็บไว้ ไม่ลบ): <b>${active}</b> รายการ<br>`+
+              `<hr class="my-2"><span class="text-muted">ไม่ลบเซสชันที่ใช้งานได้, บัญชี, ประวัติรายงาน, ข้อมูลชุมนุม, Backup หรือไฟล์ Drive และไม่ได้สแกนหาไฟล์กำพร้าใน Drive</span></div>`;
+            const ask=await Swal.fire({title:'ตรวจบันทึกที่หมดอายุ',icon:'info',html,
+              showCancelButton:allSafe>0,showConfirmButton:allSafe>0,
+              confirmButtonText:'ลบเฉพาะบันทึกที่เข้าเกณฑ์',confirmButtonColor:'#64748b',cancelButtonText:'ปิด'});
+            if(!ask.isConfirmed||!allSafe)return;
             const res=await window.SKNBridge.invoke('purgeSafeTrash',[]);
-            await Swal.fire('ล้างข้อมูลขยะสำเร็จ',`ลบเฉพาะบันทึกงานขยะเก่า ${res.deleted||0} รายการ (ไม่ลบไฟล์ Drive)`,'success');
+            const removedJobs=Number(res?.completedJobsDeleted??res?.deleted??0);
+            const removedAttempts=Number(res?.expiredLoginAttemptsDeleted||0);
+            await Swal.fire('ล้างบันทึกสำเร็จ',`ลบบันทึกงานเก่า ${removedJobs} และรายการเข้าสู่ระบบผิดที่หมดอายุ ${removedAttempts} รายการ (ไม่ลบไฟล์ Drive/เซสชัน)`,'success');
           }catch(err){await Swal.fire('ตรวจ/ล้างขยะไม่สำเร็จ',err.message||String(err),'error');}
           finally{this.trashBusy=false;}
         },
