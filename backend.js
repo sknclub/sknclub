@@ -37,7 +37,7 @@ async function getPeriod(periodId) { const rows = await all('periods'); const p 
 async function cfg(periodId) { const rows = await all('period_config', periodId); return Object.fromEntries(rows.map((r) => [r.key, r.value])); }
 // R3.8: read aggregate-only registration totals through an authorized DB RPC.
 // Supabase RLS deliberately hides other students' registration rows.
-async function sknApplicantCounts(periodId) {
+async function sknApplicantCountsUnshared(periodId) {
     try {
         const rows = await result(db.rpc('skn_club_registration_counts', { p_period: periodId }));
         if (!Array.isArray(rows)) throw Error('รูปแบบผลนับผู้สมัครจาก Supabase ไม่ถูกต้อง');
@@ -48,6 +48,18 @@ async function sknApplicantCounts(periodId) {
             throw Object.assign(new Error('ยังไม่ได้ติดตั้ง SQL R3.8 สำหรับนับผู้สมัครจริง: รัน supabase/01_INSTALL_CLUB_REGISTRATION_COUNTS_R38.sql แล้วรีโหลดหน้าเว็บ'), {code: code || 'PGRST202'});
         }
         throw err;
+    }
+}
+// R4.4: merge simultaneous count requests, but never retain completed values.
+// Refresh after a registration therefore asks the server for a new total.
+const sknPendingCountRequests=new Map();
+async function sknApplicantCounts(periodId){
+    const key=String(periodId);
+    if(sknPendingCountRequests.has(key))return sknPendingCountRequests.get(key);
+    const task=sknApplicantCountsUnshared(periodId);
+    sknPendingCountRequests.set(key,task);
+    try{return await task;}finally{
+        if(sknPendingCountRequests.get(key)===task)sknPendingCountRequests.delete(key);
     }
 }
 function sknCountFailureText(error) {
@@ -140,6 +152,22 @@ async function sknRequireReadClub(u, period, club) {
     if (u.role === 'admin' || Boolean(u.archiveRead && u.type === 'teacher')) return;
     await sknRequireOwnClub(u, period, club);
 }
+// Compact projection with all pages: PostgREST defaults to 1,000 rows.
+// Never lose a club/attendance row just because the dataset exceeds one page.
+async function sknProjectedRows(table,period,fields,sortKey){
+    const items=[];
+    for(let start=0;;start+=1000){
+        const batch=await result(db.from(table).select(fields)
+            .eq('period_id',period).order(sortKey,{ascending:true}).range(start,start+999));
+        items.push(...batch);
+        if(batch.length<1000)break;
+    }
+    return items;
+}
+// Dashboard-only projection: smaller Supabase payload; exports/backups keep complete data.
+async function sknDashboardClubs(periodId){
+    return sknProjectedRows('clubs',periodId,'id,name,max_capacity,level,owner_ids,location,comment','id');
+}
 async function clubById(p, id) { const c = await result(db.from('clubs').select('*').eq('period_id', p).eq('id', id).maybeSingle()); assert(c, 'ไม่พบชุมนุม'); return c; }
 // Read only the students of the requested club. Query chunks avoid oversized GET URLs.
 // Teachers/admin still rely on existing RLS; no broadened student table privileges.
@@ -155,6 +183,19 @@ async function sknStudentsForClub(periodId, registrations) {
     // Fail rather than silently drop names if RLS or data association changes.
     assert(students.length===ids.length,'ข้อมูลรายชื่อนักเรียนในชุมนุมไม่ครบ: ตรวจสิทธิ์อ่าน students_public และทะเบียนสมัคร');
     return students;
+}
+// Pure attendance evaluation reused by Admin tools; do not change grading rules.
+function sknScanFailedEntries(grids){
+    const entries=[];
+    for(const row of grids){
+        for(const [studentId,values] of Object.entries(row.grid?.records||{})){
+            if(!Array.isArray(values))continue;
+            let present=0,absent=0;
+            for(const item of values){const n=Number(item);if(n===1)present++;else if(n===3)absent++;}
+            if(present===0||absent>3)entries.push({clubId:row.club_id,studentId,present,absent});
+        }
+    }
+    return entries;
 }
 const twenty = () => Array(20).fill(0);
 function validateGrid(g) { assert(g && Array.isArray(g.dates) && g.dates.length === 20, 'วันที่เช็กชื่อต้องมี 20 ครั้ง'); assert(g.records && typeof g.records === 'object', 'ข้อมูลเช็กชื่อผิดรูปแบบ'); const obj = { dates: g.dates.map((x) => typeof x === 'string' ? x.slice(0, 10) : ''), records: {} }; for (const [sid, arr] of Object.entries(g.records)) {
@@ -543,7 +584,7 @@ async function sknInvoke(method, args, periodId) {
             // One set of club + teacher rows powers both dashboard and Admin summary.
             // Previously sum() fetched the same tables again and independently counted registrations.
             const [clubs, config, memberships, totalsResult, ownReg, adminStudentTotal] = await Promise.all([
-                all('clubs',p.id),cfg(p.id),all('period_teachers',p.id),
+                sknDashboardClubs(p.id),cfg(p.id),all('period_teachers',p.id),
                 sknApplicantCounts(p.id).then(rows=>({rows,error:null}))
                     .catch(error=>({rows:null,error:sknCountFailureText(error)})),
                 studentViewOnly ? result(db.from('registrations').select('student_id,club_id')
@@ -608,7 +649,7 @@ async function sknInvoke(method, args, periodId) {
         case 'getClubs': {
             // Totals do not require downloading every registration. Use the RLS-safe count RPC.
             const [clubs, tt, totals] = await Promise.all([
-                all('clubs', p.id), all('period_teachers', p.id),
+                sknDashboardClubs(p.id), all('period_teachers', p.id),
                 sknApplicantCounts(p.id).then(rows=>({rows,error:null})).catch(error=>({rows:null,error}))
             ]);
             const counts=new Map();
@@ -673,26 +714,41 @@ async function sknInvoke(method, args, periodId) {
         }
         case 'getGlobalFailedSummary': {
             mustAdmin(u);
-            const [grids, ss, cc] = await Promise.all([all('attendance', p.id), all('students', p.id), all('clubs', p.id)]);
-            const map = new Map(ss.map(s => [s.id, s]));
-            const clubs = new Map(cc.map(c => [c.id, c.name]));
-            const failed = [];
-            // Exact old-sheet behavior: only students whose Attendance_Data JSON includes a record
-            // are evaluated. A newly reset term without attendance records has no failed list yet.
-            for (const row of grids) {
-                for (const [stdId, vals] of Object.entries(row.grid?.records || {})) {
-                    if (!Array.isArray(vals))
-                        continue;
-                    const present = vals.filter(x => Number(x) === 1).length;
-                    const absent = vals.filter(x => Number(x) === 3).length;
-                    if (present === 0 || absent > 3) {
-                        const st = map.get(stdId);
-                        if (st)
-                            failed.push({ id: st.id, name: st.name, level: st.level, room: st.room, no: st.no, clubName: clubs.get(row.club_id) || 'ไม่ระบุ', present, absent });
+            // Grids and club names are independent, keep concurrent requests.
+            const [grids, cc]=await Promise.all([
+                sknProjectedRows('attendance',p.id,'club_id,grid','club_id'),
+                sknProjectedRows('clubs',p.id,'id,name','id')
+            ]);
+            const entries=sknScanFailedEntries(grids);
+            if(!entries.length){output=[];break;}
+            const ids=[...new Set(entries.map(row=>row.studentId))];
+            let students;
+            if(ids.length>600){
+                students=await all('students',p.id);
+            }else{
+                // Fetch profiles of failed students only, 100 IDs per query.
+                // Do not discard records if old grids refer to already deleted IDs.
+                const groups=[];
+                for(let start=0;start<ids.length;start+=400){
+                    const batch=ids.slice(start,start+400);
+                    const parts=[];
+                    for(let i=0;i<batch.length;i+=100){
+                        parts.push(result(db.from('students_public')
+                            .select('id,name,level,room,no').eq('period_id',p.id).in('id',batch.slice(i,i+100))));
                     }
+                    groups.push(...(await Promise.all(parts)).flat());
                 }
+                // If RLS or legacy/deleted IDs yield incomplete rows, use the
+                // original full-list path to preserve the old report behavior.
+                students=groups.length===ids.length?groups:await all('students',p.id);
             }
-            output = failed;
+            const studentsById=new Map(students.map(s=>[s.id,s]));
+            const clubNames=new Map(cc.map(c=>[c.id,c.name]));
+            output=entries.flatMap(entry=>{
+                const s=studentsById.get(entry.studentId);
+                return s?[{id:s.id,name:s.name,level:s.level,room:s.room,no:s.no,
+                    clubName:clubNames.get(entry.clubId)||'ไม่ระบุ',present:entry.present,absent:entry.absent}]:[];
+            });
             break;
         }
         case 'findStudentClub': {
@@ -1363,6 +1419,9 @@ async function sknMeasuredInvoke(method,args,periodId){
     const t=clock();let ok=false;
     try{const value=await sknInvoke(method,args,periodId);ok=true;return value;}
     finally{
+        // A successful mutation invalidates in-flight aggregate sharing.
+        // A new read after a write must never reuse an older count request.
+        if(ok && sknWrites.has(method))sknPendingCountRequests.clear();
         try{
             const ms=Math.max(0,Math.round(clock()-t));
             window.dispatchEvent(new CustomEvent('skn-backend-perf',{
@@ -1371,5 +1430,5 @@ async function sknMeasuredInvoke(method,args,periodId){
         }catch{} // Diagnostics never influence an operation's result.
     }
 }
-window.SKNBackend = { version: 'R4.3', invoke: sknMeasuredInvoke, db,
+window.SKNBackend = { version: 'R4.4', invoke: sknMeasuredInvoke, db,
     getApplicantTotals: sknApplicantCounts, countErrorText: sknCountFailureText };

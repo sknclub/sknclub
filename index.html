@@ -1387,7 +1387,7 @@
     .skn-cover-advisor .skn-advisor-display { line-height: 1.35; }
     .skn-signatory-name .skn-advisor-display { line-height: 1.25; }
   
-/* R4.3 — compact user-page size selector (display only). */
+/* R4.4 — user-page size 100/500/1000/all (display only). */
 .skn-r43-page-size {width: 88px;min-width: 88px; padding-top: .2rem; padding-bottom: .2rem; font-size: .78rem; border-radius: 9px;}
 .skn-r42-pagination {min-height: 44px;}
 </style>
@@ -2320,8 +2320,8 @@
                 
                 <div class="mt-3">
                   <!-- ปุ่มดึงข้อมูล/อัปเดต -->
-                  <button class="btn btn-outline-danger btn-sm w-100 rounded-pill shadow-sm" @click="loadFailedData" :disabled="loading">
-                    <i class="fas fa-sync-alt me-1" :class="{'fa-spin': loading}"></i> อัปเดตข้อมูล
+                  <button class="btn btn-outline-danger btn-sm w-100 rounded-pill shadow-sm" @click="loadFailedData" :disabled="failedLoading">
+                    <i class="fas fa-sync-alt me-1" :class="{'fa-spin': failedLoading}"></i> อัปเดตข้อมูล
                   </button>
                   
                   <!-- ปุ่มดาวน์โหลด (จะโชว์เมื่อมีคนไม่ผ่าน) -->
@@ -2816,14 +2816,13 @@
       </div>
       <div v-if="filteredUsers.length > 0" class="d-flex flex-wrap align-items-center justify-content-between gap-2 px-3 py-2 bg-white border-top small skn-r42-pagination">
         <div class="d-flex flex-wrap align-items-center gap-2">
-          <span class="text-muted">แสดง {{ ((usersPage-1)*usersPageSize)+1 }}–{{ Math.min(usersPage*usersPageSize,filteredUsers.length) }} จาก {{ filteredUsers.length }} รายการ</span>
+          <span class="text-muted">แสดง {{ (usersPageSize==='all'?1:(usersPage-1)*Number(usersPageSize)+1) }}–{{ Math.min(usersPageSize==='all'?filteredUsers.length:usersPage*Number(usersPageSize),filteredUsers.length) }} จาก {{ filteredUsers.length }} รายการ</span>
           <label for="skn-users-page-size" class="text-muted ms-1">แสดงต่อหน้า</label>
-          <select id="skn-users-page-size" v-model.number="usersPageSize" class="form-select form-select-sm skn-r43-page-size" aria-label="จำนวนรายชื่อผู้ใช้ที่แสดงต่อหน้า">
-            <option :value="50">50</option>
-            <option :value="100">100</option>
-            <option :value="250">250</option>
-            <option :value="500">500</option>
-            <option :value="1000">1,000</option>
+          <select id="skn-users-page-size" v-model="usersPageSize" class="form-select form-select-sm skn-r43-page-size" aria-label="จำนวนรายชื่อผู้ใช้ที่แสดงต่อหน้า">
+            <option value="100">100</option>
+            <option value="500">500</option>
+            <option value="1000">1,000</option>
+            <option value="all">ทั้งหมด</option>
           </select>
         </div>
         <div v-if="usersPageCount > 1" class="d-flex align-items-center gap-2">
@@ -4042,9 +4041,10 @@ data() {
     manageRole: 'student', 
     usersList: [],
     usersPage: 1,
-    usersPageSize: 100,
+    usersPageSize: '100',
     usersFetchSerial: 0,
-    usersLoadError: '', 
+    usersLoadError: '',
+    failedLoading: false, 
     perfStats: {dashboardMs:null, attendanceMs:null, reportMs:null, usersMs:null, requests:0, errors:0, unchanged:0, lastMeasured:''},
     perfBackend: {readMs:null,writeMs:null,readCalls:0,writeCalls:0},
     searchClubQuery: '',
@@ -4217,7 +4217,7 @@ data() {
       searchQuery(){this.usersPage=1;},
       usersPageSize(value){
         // Display-only control; CSV import and full-list export never depend on page size.
-        if(![50,100,250,500,1000].includes(Number(value)))this.usersPageSize=100;
+        if(!['100','500','1000','all'].includes(String(value)))this.usersPageSize='100';
         this.usersPage=1;
       },
       // R3: bring mobile users to the top when signing in or changing views.
@@ -4331,10 +4331,17 @@ filteredClubs() {
 
 
 
-      usersPageCount(){return Math.max(1,Math.ceil(this.filteredUsers.length/this.usersPageSize));},
+      failedCountByClub(){
+        const counts=new Map();
+        for(const s of this.globalFailedList||[])counts.set(s.clubName,(counts.get(s.clubName)||0)+1);
+        return counts;
+      },
+      usersPageCount(){return this.usersPageSize==='all'?1:Math.max(1,Math.ceil(this.filteredUsers.length/(Number(this.usersPageSize)||100)));},
       pagedUsers(){
+        if(this.usersPageSize==='all')return this.filteredUsers;
         const page=Math.min(Math.max(1,this.usersPage),this.usersPageCount);
-        return this.filteredUsers.slice((page-1)*this.usersPageSize,page*this.usersPageSize);
+        const size=Number(this.usersPageSize)||100;
+        return this.filteredUsers.slice((page-1)*size,page*size);
       },
       filteredUsers() {
   const search = (this.searchQuery || '').toLowerCase().trim();
@@ -5056,11 +5063,11 @@ handleBulkDelete() {
         try {
         const blob = new Blob(['\ufeff' + tableHtml], { type: "application/vnd.ms-excel" });
         const link = document.createElement("a");
-        link.href = URL.createObjectURL(blob);
-        link.download = `รายงานสรุปข้อมูลกิจกรรมชุมนุมและสถานที่เรียน_${new Date().toISOString().slice(0,10)}.xls`;
+        const url=URL.createObjectURL(blob);
+        link.href=url;
+        link.download=`รายงานสรุปข้อมูลกิจกรรมชุมนุมและสถานที่เรียน_${new Date().toISOString().slice(0,10)}.xls`;
         document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        try{link.click();}finally{link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);}
         
         Swal.close();
         const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 2000 });
@@ -5079,14 +5086,14 @@ openAdminPrintReport() {
     this.globalFailedList = res || [];
     Swal.close();
     this.view = 'admin_report'; // เปลี่ยนหน้าเมื่อโหลดเสร็จ
+  }).withFailureHandler(err=>{
+    Swal.fire('โหลดรายงานไม่สำเร็จ',String(err?.message||err),'error');
   }).getGlobalFailedSummary();
 },
 
 // เพิ่มฟังก์ชันใหม่ สำหรับนับคนไม่ผ่านของแต่ละชุมนุม (เอาไว้นับในตาราง)
 getClubFailCount(clubName) {
-  if (!this.globalFailedList || this.globalFailedList.length === 0) return 0;
-  // กรองหาคนที่ชื่อชุมนุมตรงกัน และนับจำนวน
-  return this.globalFailedList.filter(s => s.clubName === clubName).length;
+  return this.failedCountByClub.get(clubName)||0;
 },
 
 // ฟังก์ชันดาวน์โหลดรายงานภาพรวมเป็น Word สำหรับ Admin
@@ -5148,8 +5155,7 @@ downloadAdminWordReport() {
   link.download = `สรุปผลการจัดกิจกรรมชุมนุม_ภาพรวม.doc`;
   
   document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
+  try{link.click();}finally{link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);}
   
   Swal.close();
   const Toast = Swal.mixin({toast: true, position: 'top-end', showConfirmButton: false, timer: 2000});
@@ -5280,15 +5286,27 @@ downloadAdminWordReport() {
         //เพิ่มการดึงข้อมูลไม่ผ่านชุมนุม 15/05/69
         //จัดการการดึงข้อมูลและดาวน์โหลดนักเรียนที่ไม่ผ่านชุมนุม 15/05/69
 loadFailedData() {
-  this.loading = true;
-  google.script.run.withSuccessHandler(res => {
-    this.globalFailedList = res || [];
-    this.loading = false;
-    if (res.length === 0) {
-      const Toast = Swal.mixin({toast: true, position: 'top-end', showConfirmButton: false, timer: 2000});
-      Toast.fire({ icon: 'success', title: 'ทุกคนผ่านกิจกรรมครบถ้วน' });
-    }
-  }).getGlobalFailedSummary();
+  if(this.failedLoading)return;
+  this.failedLoading=true;
+  const started=performance.now();
+  google.script.run
+    .withFailureHandler(err=>{
+      this.failedLoading=false;
+      this.recordPerf('failedListMs',started,false);
+      Swal.fire('อัปเดตรายชื่อไม่สำเร็จ',String(err?.message||err),'error');
+    })
+    .withSuccessHandler(res=>{
+      this.failedLoading=false;
+      if(!Array.isArray(res)){
+        this.recordPerf('failedListMs',started,false);
+        Swal.fire('โหลดข้อมูลไม่สำเร็จ','ข้อมูลผู้ไม่ผ่านจากระบบไม่ใช่รายการที่ถูกต้อง','error');return;
+      }
+      this.globalFailedList=res;
+      this.recordPerf('failedListMs',started,true);
+      if(res.length===0){
+        Swal.fire({toast:true,position:'top-end',icon:'success',title:'ทุกคนผ่านกิจกรรมครบถ้วน',timer:2000,showConfirmButton:false});
+      }
+    }).getGlobalFailedSummary();
 },
 
 downloadGlobalFailed() {
@@ -5393,9 +5411,11 @@ downloadRoomExcel() {
 
         const blob = new Blob([table], { type: "application/vnd.ms-excel" });
         const link = document.createElement("a");
-        link.href = URL.createObjectURL(blob);
-        link.download = `สถานะชุมนุม_ห้อง_${this.lookup.room}.xls`;
-        link.click();
+        const url=URL.createObjectURL(blob);
+        link.href=url;
+        link.download=`สถานะชุมนุม_ห้อง_${this.lookup.room}.xls`;
+        document.body.appendChild(link);
+        try{link.click();}finally{link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);}
     },
 
 
@@ -5458,8 +5478,7 @@ downloadWordReport() {
     link.href = url;
     link.download = `รายงานชุมนุม_${this.currentClubName}.doc`;
     document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    try{link.click();}finally{link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);}
     
     Swal.close();
     const Toast = Swal.mixin({toast: true, position: 'top-end', showConfirmButton: false, timer: 2000});
@@ -5629,6 +5648,8 @@ downloadUnregisteredStudents() {
 
     table += `</tbody></table></body></html>`;
     this.executeDownload(table, "นักเรียนที่ยังไม่สมัครชุมนุม.xls");
+  }).withFailureHandler(err=>{
+    Swal.fire('ดาวน์โหลดรายชื่อไม่สำเร็จ',String(err?.message||err),'error');
   }).getUsersByRole('student');
 },
 
@@ -5642,8 +5663,8 @@ downloadNoClubTeachers() {
   });
 
   Promise.all([
-    new Promise(res => google.script.run.withSuccessHandler(res).getUsersByRole('teacher')),
-    new Promise(res => google.script.run.withSuccessHandler(res).getClubs())
+    window.SKNBridge.invoke('getUsersByRole',['teacher']),
+    window.SKNBridge.invoke('getClubs',[])
   ]).then(([teachers, clubs]) => {
     Swal.close();
 
@@ -5679,6 +5700,8 @@ downloadNoClubTeachers() {
     });
     table += `</tbody></table></body></html>`;
     this.executeDownload(table, "ครูที่ยังไม่มีชุมนุม.xls");
+  }).catch(err=>{
+    Swal.fire('ดาวน์โหลดรายชื่อครูไม่สำเร็จ',String(err?.message||err),'error');
   });
 },
 
@@ -5686,9 +5709,12 @@ downloadNoClubTeachers() {
 executeDownload(html, fileName) {
   const blob = new Blob([html], { type: "application/vnd.ms-excel" });
   const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = fileName;
-  link.click();
+  const blobUrl=URL.createObjectURL(blob);
+  link.href=blobUrl;
+  link.download=fileName;
+  document.body.appendChild(link);
+  try {link.click();}
+  finally {link.remove();setTimeout(()=>URL.revokeObjectURL(blobUrl),60000);}
 },
 
 
@@ -5702,8 +5728,8 @@ async syncStudentApplicantCounts(reason='poll'){
   if(this.studentCountsState!=='ok')this.studentCountsState='loading';
   try {
     const api=window.SKNBackend;
-    if(!api || typeof api.getApplicantTotals!=='function' || api.version!=='R4.3')
-      throw Error('ไฟล์ backend.js ไม่ใช่รุ่น R4.3: ตรวจไฟล์ใน GitHub Pages และล้างแคชเบราว์เซอร์');
+    if(!api || typeof api.getApplicantTotals!=='function' || api.version!=='R4.4')
+      throw Error('ไฟล์ backend.js ไม่ใช่รุ่น R4.4: ตรวจไฟล์ใน GitHub Pages และล้างแคชเบราว์เซอร์');
     const rows=await api.getApplicantTotals(expectedPeriod);
     if(!this.isLoggedIn || this.user?.role!=='student' || String(this.activePeriodId)!==expectedPeriod)return;
     if(!Array.isArray(rows))throw Error('ผลตรวจยอดจาก Supabase ไม่ใช่รายการข้อมูล');
