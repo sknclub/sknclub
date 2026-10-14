@@ -34,10 +34,22 @@ async function sknApplicantCounts(periodId) {
     } catch (err) {
         const code = String(err?.code || '');
         if (code === 'PGRST202' || code === '42883' || /skn_club_registration_counts.*(does not exist|schema cache|could not find)|could not find the function.*skn_club_registration_counts/i.test(String(err?.message || ''))) {
-            throw Error('ยังไม่ได้ติดตั้ง SQL R3.8 สำหรับนับผู้สมัครจริง: รัน supabase/01_INSTALL_CLUB_REGISTRATION_COUNTS_R38.sql แล้วรีโหลดหน้าเว็บ');
+            throw Object.assign(new Error('ยังไม่ได้ติดตั้ง SQL R3.8 สำหรับนับผู้สมัครจริง: รัน supabase/01_INSTALL_CLUB_REGISTRATION_COUNTS_R38.sql แล้วรีโหลดหน้าเว็บ'), {code: code || 'PGRST202'});
         }
         throw err;
     }
+}
+function sknCountFailureText(error) {
+    const code = String(error?.code || '');
+    const status = Number(error?.status || 0);
+    const detail = String(error?.message || error || 'ไม่ทราบสาเหตุ');
+    if (code === 'PGRST202' || code === '42883' || /skn_club_registration_counts.*(does not exist|schema cache|could not find)/i.test(detail))
+        return 'ไม่พบฟังก์ชันนับยอดใน Supabase: ติดตั้ง SQL R3.8/R3.9 และรีโหลด schema cache (' + (code || 'PGRST202') + ')';
+    if (code === '42501' || status === 401 || status === 403)
+        return 'Supabase ปฏิเสธสิทธิ์นับยอด (' + (code || status) + '): ตรวจเซสชันนักเรียน ภาคเรียน และ GRANT EXECUTE ของฟังก์ชัน';
+    if (/failed to fetch|network|load failed/i.test(detail))
+        return 'ติดต่อ Supabase ไม่สำเร็จ: ตรวจอินเทอร์เน็ต/เครือข่ายและ Project URL';
+    return 'โหลดจำนวนผู้สมัครจาก Supabase ไม่สำเร็จ' + (code ? ' [' + code + ']' : '') + ': ' + detail.slice(0, 200);
 }
 async function getCurrentUser(sess, periodId) {
     if (sess.type === 'teacher') {
@@ -438,13 +450,18 @@ async function sknInvoke(method, args, periodId) {
             // cannot be used to calculate the REAL number of applicants in a club.
             // Fetch only the student's own registration + a safe aggregate RPC.
             const studentViewOnly = u.type === 'student';
-            const [clubs, regs, config, teachers, memberships, totals] = await Promise.all([
+            // R3.9: failure of the aggregate endpoint must not hide the entire
+            // registration page. A missing count is UNKNOWN, never silently 0 or 1.
+            const [clubs, regs, config, teachers, memberships, totalsResult] = await Promise.all([
                 all('clubs', p.id),
                 studentViewOnly
                     ? result(db.from('registrations').select('student_id,club_id').eq('period_id', p.id).eq('student_id', u.id))
                     : all('registrations', p.id),
                 cfg(p.id), all('teachers'), all('period_teachers', p.id),
-                studentViewOnly ? sknApplicantCounts(p.id) : Promise.resolve(null)
+                studentViewOnly
+                    ? sknApplicantCounts(p.id).then(rows => ({rows, error: null}))
+                        .catch(error => ({rows: null, error: sknCountFailureText(error)}))
+                    : Promise.resolve({rows: null, error: null})
             ]);
             // Missing flag in V4.9 data means email was enabled; preserve that on upgrade.
             if (config.allow_report_email !== 'false')
@@ -455,13 +472,25 @@ async function sknInvoke(method, args, periodId) {
             }
             catch { }
             const selected = memberships.map(m => ({ id: m.teacher_id, name: m.display_name || teachers.find(t => t.id === m.teacher_id)?.name || '' }));
-            const applicantByClub = studentViewOnly ? new Map(totals.map(r => [String(r.club_id), Number(r.member_count)])) : null;
+            const applicantByClub = studentViewOnly && Array.isArray(totalsResult.rows)
+                ? new Map(totalsResult.rows.map(r => [String(r.club_id), Number(r.member_count)])) : null;
+            let countProblem = studentViewOnly ? totalsResult.error : null;
             const formattedClubs = clubs.map(c => {
                 const item = renderClub(c, regs, selected);
-                if (applicantByClub) item.current_count = applicantByClub.get(String(c.id)) ?? 0;
+                if (studentViewOnly) {
+                    const count = applicantByClub?.get(String(c.id));
+                    item.count_verified = Number.isSafeInteger(count) && count >= 0;
+                    item.current_count = item.count_verified ? count : null;
+                    if (!item.count_verified && !countProblem)
+                        countProblem = 'Supabase ไม่ส่งยอดผู้สมัครของชุมนุม ' + String(c.id) + ' กลับมา';
+                }
                 return item;
             });
-            output = { clubs: formattedClubs, config, teachers: selected, summary: isAdmin ? await sum(p.id) : null,
+            output = { clubs: formattedClubs,
+                registrationCountStatus: studentViewOnly
+                    ? {ok: !countProblem, error: countProblem || '', source: 'skn_club_registration_counts'}
+                    : null,
+                config, teachers: selected, summary: isAdmin ? await sum(p.id) : null,
                 serverTime: Date.now(), periods: periods.map(x => ({ id: x.id, periodCode: x.period_code || `${x.academic_year}-${x.semester}`, academicYear: x.academic_year, semester: x.semester, isCurrent: x.is_current })),
                 periodId: p.id, isReadonly: !canEdit(u, p), myClubId: u.type === 'student' ? regs.find(r => r.student_id === u.id)?.club_id || '' : '' };
             break;
@@ -1182,4 +1211,4 @@ async function sknInvoke(method, args, periodId) {
     }
     return output;
 }
-window.SKNBackend = { invoke: sknInvoke, db, getApplicantTotals: sknApplicantCounts };
+window.SKNBackend = { version: 'R3.9', invoke: sknInvoke, db, getApplicantTotals: sknApplicantCounts, countErrorText: sknCountFailureText };
