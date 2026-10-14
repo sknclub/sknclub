@@ -544,8 +544,28 @@ async function sknInvoke(method, args, periodId) {
             output = await sum(p.id);
             break;
         case 'getClubs': {
-            const [clubs, regs, tt] = await Promise.all([all('clubs', p.id), all('registrations', p.id), all('period_teachers', p.id)]);
-            output = clubs.map(c => renderClub(c, regs, tt.map(t => ({ id: t.teacher_id, name: t.display_name }))));
+            // Totals do not require downloading every registration. Use the RLS-safe count RPC.
+            const [clubs, tt, totals] = await Promise.all([
+                all('clubs', p.id), all('period_teachers', p.id),
+                sknApplicantCounts(p.id).then(rows=>({rows,error:null})).catch(error=>({rows:null,error}))
+            ]);
+            const counts=new Map();
+            if(Array.isArray(totals.rows)){
+                for(const item of totals.rows)counts.set(String(item.club_id),Number(item.member_count));
+            }
+            const complete=Array.isArray(totals.rows) && clubs.every(c=>
+                Number.isSafeInteger(counts.get(String(c.id))) && counts.get(String(c.id))>=0);
+            if(!complete && u.type!=='student'){
+                // Backwards-compatible for staff if RPC is missing or its response incomplete.
+                counts.clear();
+                const regs=await all('registrations',p.id);
+                for(const reg of regs)counts.set(String(reg.club_id),(counts.get(String(reg.club_id))||0)+1);
+            }else if(!complete){
+                // Student RLS shows only the student's own enrollment: never pretend it is the full count.
+                throw Error(totals.error?sknCountFailureText(totals.error):'ผลนับผู้สมัครจาก Supabase ไม่ครบทุกชุมนุม');
+            }
+            const teachers=tt.map(t=>({id:t.teacher_id,name:t.display_name}));
+            output=clubs.map(c=>({...renderClub(c,[],teachers),current_count:counts.get(String(c.id))||0}));
             break;
         }
         case 'registerClub': {
@@ -654,7 +674,8 @@ async function sknInvoke(method, args, periodId) {
             }
             else {
                 const [ss, rr] = await Promise.all([all('students', p.id), all('registrations', p.id)]);
-                output = ss.map(s => studentView(s, rr)).sort((a, b) => a.level.localeCompare(b.level, 'th', { numeric: true }) || a.room.localeCompare(b.room, 'th', { numeric: true }) || Number(a.no) - Number(b.no));
+                const registeredClub=new Map(rr.map(r=>[String(r.student_id),String(r.club_id)]));
+                output = ss.map(s => ({...s,password:'',club_id:registeredClub.get(String(s.id))||''})).sort((a, b) => a.level.localeCompare(b.level, 'th', { numeric: true }) || a.room.localeCompare(b.room, 'th', { numeric: true }) || Number(a.no) - Number(b.no));
             }
             break;
         }
@@ -797,6 +818,8 @@ async function sknInvoke(method, args, periodId) {
                 assert(Number.isSafeInteger(year) && year >= 2500 && year <= 2800, 'ปีการศึกษาไม่ถูกต้อง');
                 assert(Number.isSafeInteger(sem) && sem >= 1 && sem <= 3, 'ภาคเรียนต้องเป็น 1, 2 หรือ 3');
                 const email = String(settings.reportEmail || '').trim();
+                assert(String(settings.loginNoticeTitle??'').length<=120 && String(settings.loginNoticeBody??'').length<=800,
+                    'ข้อความประกาศหน้าเข้าสู่ระบบยาวเกินกำหนด');
                 assert(!email || (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && email.length <= 254), 'อีเมลรับรายงานไม่ถูกต้อง');
                 if (year !== Number(p.academic_year) || sem !== Number(p.semester))
                     assert(p.is_current, 'เปลี่ยนปี/ภาคเรียนได้เฉพาะภาคเรียนปัจจุบัน');
@@ -1278,5 +1301,5 @@ async function sknMeasuredInvoke(method,args,periodId){
         }catch{} // Diagnostics never influence an operation's result.
     }
 }
-window.SKNBackend = { version: 'R4.0', invoke: sknMeasuredInvoke, db,
+window.SKNBackend = { version: 'R4.1', invoke: sknMeasuredInvoke, db,
     getApplicantTotals: sknApplicantCounts, countErrorText: sknCountFailureText };

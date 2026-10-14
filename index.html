@@ -1711,6 +1711,37 @@
   @media screen and (max-width:570px) {#app .skn-r40-perf-grid {grid-template-columns:repeat(2,minmax(0,1fr));}#app .skn-r40-welcome-row h3 {font-size:1.25rem;}#app .skn-r40-count-badge {font-size:11px;}#app .skn-r40-dash-header .skn-r3-actions {align-self:stretch;}}
 
   </style>
+<style id="skn-r41-stability">
+  /* R4.1: restored school navy/navy-blue navigation with the original gold underline. */
+  @media screen {
+    #app .skn-r3-nav {
+      background:linear-gradient(100deg,#112e69 0%,#16418c 52%,#2356ae 100%)!important;
+      border-bottom:3px solid #f2c94c!important;
+      box-shadow:0 3px 14px rgba(15,34,75,.12)!important;
+    }
+    #app .skn-r3-nav .fw-800.text-primary,
+    #app .skn-r3-nav .fw-bold.text-dark,
+    #app .skn-r3-nav label {color:#fff!important;}
+    #app .skn-r3-nav .skn-term-picker,
+    #app .skn-r3-nav .skn-navbar-refresh {
+      color:#fff!important;background:rgba(255,255,255,.06)!important;
+      border:1px solid rgba(255,255,255,.72)!important;
+    }
+    #app .skn-r3-nav .skn-term-picker option {background:#fff;color:#182b47;}
+    #app .skn-r41-notice { margin:16px 0 0; text-align:left; padding:12px 13px;
+      background:#fffbeb;border:1px solid #fde68a;border-radius:10px; }
+    #app .skn-r41-notice-title {font-size:12px;font-weight:800;color:#92400e;margin:0 0 4px;}
+    #app .skn-r41-notice-body {font-size:12px;color:#61481f;white-space:pre-line;
+      overflow-wrap:anywhere;margin:0;line-height:1.55;}
+    #app .skn-r41-settings-message {resize:vertical;min-height:82px;font-size:13px;}
+    #app .skn-r41-idle-warning {position:fixed;z-index:2147482901;right:18px;bottom:18px;
+      max-width:min(365px,calc(100vw - 36px));background:#fff;border:1px solid #e6bf52;
+      padding:13px 15px;border-radius:12px;box-shadow:0 9px 28px #10234833;
+      font-size:13px;color:#1e293b;}
+    #app .skn-r41-idle-warning strong {display:block;margin-bottom:5px;}
+    @media (max-width:520px) {#app .skn-r41-idle-warning {right:10px;bottom:10px;max-width:calc(100vw - 20px);}}
+  }
+</style>
 </head>
 
 <body>
@@ -1778,19 +1809,20 @@
           เข้าสู่ระบบ
         </button>
 
-<p class="text-start">
-  <label class="small text-secondary mb-1 ms-1 mt-3 fw-bold">⚠️ กรุณาอ่านกำหนดการชุมนุม </label>
-
-
-
-  <!-- <label class="small text-secondary mb-1 ms-1">    🔸 ระบบรองรับครูหลายคนใน 1 ชุมนุม ช่วยกันเช็กชื่อได้   </label> -->
-  <label class="small text-secondary mb-1 ms-1">กำหนดการรับสมัครและย้ายชุมนุมโปรดตรวจสอบประกาศของโรงเรียนในภาคเรียนปัจจุบัน</label>
-</p>
+<section v-if="loginNotice.title || loginNotice.body" class="skn-r41-notice" aria-label="ประกาศการสมัครชุมนุม">
+  <p v-if="loginNotice.title" class="skn-r41-notice-title">{{ loginNotice.title }}</p>
+  <p v-if="loginNotice.body" class="skn-r41-notice-body">{{ loginNotice.body }}</p>
+</section>
 
       </div>
     </div>
 
     <div v-else class="d-flex flex-column vh-100 skn-r3-shell">
+      <div v-if="idleWarningSeconds > 0" class="skn-r41-idle-warning no-print" role="alertdialog" aria-live="polite" aria-label="แจ้งเตือนออกจากระบบอัตโนมัติ">
+        <strong><i class="fas fa-shield-alt me-1"></i> ระบบจะออกจากระบบอัตโนมัติ</strong>
+        <p class="mb-2">ไม่มีการใช้งานเป็นเวลานาน เหลือเวลา {{ idleWarningSeconds }} วินาที หากมีข้อมูลที่ยังไม่บันทึก โปรดกดใช้งานต่อแล้วบันทึกข้อมูล</p>
+        <button class="btn btn-primary btn-sm" type="button" @click="markUserActivity(true)">ใช้งานต่อ</button>
+      </div>
       <nav class="bg-white border-bottom px-4 d-flex justify-content-between align-items-center flex-shrink-0 no-print skn-r3-nav"
         style="height: 70px;">
 
@@ -2467,14 +2499,22 @@
               <label class="small fw-bold text-muted">อีเมลผู้รับรายงานชุมนุมอัตโนมัติ</label>
               <input type="email" v-model.trim="adminSettings.reportEmail" class="form-control form-fast" placeholder="report@school.ac.th"><div class="form-text">ปุ่มส่งอีเมลในหน้ารายงานจะส่ง PDF ไปยังที่อยู่นี้โดยอัตโนมัติ ไม่เกี่ยวข้องกับการล็อกอิน</div>
             </div>
-            <div class="col-12">
-              <label class="small fw-bold text-muted">Google Drive — โฟลเดอร์หลักที่ GAS ใช้งานจริง (Folder ID)</label>
+            <div class="col-12 col-xl-6">
+              <label class="small fw-bold text-muted" for="r41DriveFolder">Google Drive — โฟลเดอร์หลัก (Folder ID)</label>
               <div class="input-group">
-                <input type="text" :value="driveFolderInfo.id || adminSettings.driveFolderId || 'กำลังรอเชื่อมต่อ GAS'" class="form-control form-fast" readonly title="Folder ID จริงจาก GAS Script Properties">
+                <input id="r41DriveFolder" type="text" :value="driveFolderInfo.id || adminSettings.driveFolderId || 'กำลังรอเชื่อมต่อ GAS'" class="form-control form-fast" readonly title="Folder ID จริงจาก GAS Script Properties">
                 <button type="button" class="btn btn-outline-primary" @click="loadDriveFolderInfo" title="อ่านรหัสจาก GAS อีกครั้ง"><i class="fas fa-sync-alt"></i></button>
               </div>
-              <div class="form-text" v-if="driveFolderInfo.name">ชื่อโฟลเดอร์: {{ driveFolderInfo.name }} — <a :href="driveFolderInfo.url" target="_blank" rel="noopener noreferrer">เปิด Google Drive</a></div>
-              <div class="form-text">ปรับโฟลเดอร์ต้นทางได้ที่ GAS → Script Properties → SKN_DRIVE_FOLDER_ID เท่านั้น (ป้องกันการเปลี่ยนผิด)</div>
+              <div class="form-text" v-if="driveFolderInfo.name">{{ driveFolderInfo.name }} — <a :href="driveFolderInfo.url" target="_blank" rel="noopener noreferrer">เปิด Drive</a></div>
+              <div class="form-text">แก้ Folder ID ที่ GAS Script Properties เท่านั้น</div>
+            </div>
+            <div class="col-12 col-xl-6">
+              <label class="small fw-bold text-muted" for="r41LoginNoticeTitle">ข้อความประกาศหน้าเข้าสู่ระบบ</label>
+              <input id="r41LoginNoticeTitle" type="text" maxlength="120" v-model="adminSettings.loginNoticeTitle" class="form-control form-fast mb-2" placeholder="⚠️ กรุณาอ่านกำหนดการชุมนุม" aria-label="หัวข้อประกาศหน้าเข้าสู่ระบบ">
+              <label class="small text-muted" for="r41LoginNoticeBody">รายละเอียดกำหนดการชุมนุม</label>
+              <textarea id="r41LoginNoticeBody" rows="3" maxlength="800" v-model="adminSettings.loginNoticeBody" class="form-control skn-r41-settings-message" placeholder="กำหนดการรับสมัครและย้ายชุมนุม..." aria-label="รายละเอียดประกาศหน้าเข้าสู่ระบบ"></textarea>
+              <div class="form-text">แสดงให้ทุกคนเห็นก่อน Login · รองรับหลายบรรทัด · กดบันทึกการตั้งค่าด้านบนเพื่อเผยแพร่</div>
+              <div v-if="loginNoticeError" class="small text-warning-emphasis mt-1" role="alert">{{ loginNoticeError }}</div>
             </div>
           </div>
         </div>
@@ -3826,7 +3866,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
     <script src="config.js"></script>
     <script src="bridge.js"></script>
-    <script src="backend.js?v=4.0.0"></script>
+    <script src="backend.js?v=4.1.0"></script>
     <!-- R3.4: Vue 3.5.13 is embedded locally to avoid HTTP 403 / CDN access failures.
          Source: Vue.js global production build, MIT license, attribution below.
          Do not remove: this application uses Vue.createApp and in-browser templates. -->
@@ -3949,7 +3989,10 @@ data() {
     bulkAction: { target: 'ม.ต้น', room: '' },
     view: 'dashboard', 
     isLoggedIn: false,
-    sessionBooting: true, 
+    sessionBooting: true,
+    idleWarningSeconds: 0,
+    loginNotice: { title:'⚠️ กรุณาอ่านกำหนดการชุมนุม', body:'กำหนดการรับสมัครและย้ายชุมนุมโปรดตรวจสอบประกาศของโรงเรียนในภาคเรียนปัจจุบัน' },
+    loginNoticeError: '',
     user: null, 
     loading: false, // ประกาศแค่ที่เดียวพอครับ
     form: { user: '', pass: '' },
@@ -4024,6 +4067,8 @@ data() {
       studentQuota: 20, // โควตาต่อครู 1 คน
       reportEmail: '',
       driveFolderId: '',
+      loginNoticeTitle: '⚠️ กรุณาอ่านกำหนดการชุมนุม',
+      loginNoticeBody: 'กำหนดการรับสมัครและย้ายชุมนุมโปรดตรวจสอบประกาศของโรงเรียนในภาคเรียนปัจจุบัน',
       sigDirector: 'ดร.อรรณพ ชุ่มเพ็งพันธ์',
       sigDeputy: '(ชื่อรองผู้อำนวยการ)',
       sigHeadDev: '(ชื่อหัวหน้ากิจกรรมพัฒนาผู้เรียน)',
@@ -4075,6 +4120,28 @@ data() {
 },
 
     mounted() {
+      // R4.1 idle policy: 30 min inactivity, warning for last minute.
+      // Shared timestamp prevents stale sessions staying active in another tab.
+      this._idleStorageKey='skn_r41_activity:'+location.pathname;
+      this._idleLogoutKey='skn_r41_logout:'+location.pathname;
+      this._idleLimitMs=30*60*1000;
+      this._idleLastWrite=0;
+      this._idleEnding=false;
+      this._idleEvents=['pointerdown','keydown','touchstart','scroll'];
+      this._onIdleActivity=()=>this.markUserActivity(false);
+      for(const name of this._idleEvents)document.addEventListener(name,this._onIdleActivity,{capture:true,passive:true});
+      this._onIdleStorage=e=>{
+        if(e.key===this._idleLogoutKey && e.newValue && this.isLoggedIn){
+          this.logout(false).catch(err=>console.warn('SKN other-tab logout:',err?.message||err));
+          return;
+        }
+        if(e.key===this._idleStorageKey && this.isLoggedIn)this.idleCheck();
+      };
+      window.addEventListener('storage',this._onIdleStorage);
+      this._idleTimer=setInterval(()=>this.idleCheck(),5000);
+      this._onIdleVisibility=()=>{if(!document.hidden)this.idleCheck();};
+      document.addEventListener('visibilitychange',this._onIdleVisibility);
+      this.fetchPublicLoginNotice();
       this._lastRefresh=0;this._refreshTimer=null;this._liveChannel=null;
       this._backendPerfListener=ev=>{
         const item=ev?.detail||{};
@@ -4112,10 +4179,17 @@ data() {
           if(!window.SKN_DB || !window.SKNBridge) return;
           const {data,error}=await window.SKN_DB.auth.getSession();
           if(error || !data?.session?.access_token) return;
+          const previous=this.idleLastActivity();
+          if(previous && Date.now()-previous>=this._idleLimitMs){
+            await window.SKNBridge.logout();
+            this.idleClearActivity();
+            return;
+          }
           const res=await window.SKNBridge.invoke('resumeSession',[]);
           if(res?.success && !this.isLoggedIn){
             this.user=res.user;
             this.isLoggedIn=true;
+            if(!previous)this.markUserActivity(true);
             this.refreshData(true);
           }
         }catch(err){
@@ -4127,6 +4201,10 @@ data() {
       })();
     },
     beforeUnmount(){
+      clearInterval(this._idleTimer);
+      for(const name of this._idleEvents||[])document.removeEventListener(name,this._onIdleActivity,true);
+      window.removeEventListener('storage',this._onIdleStorage);
+      document.removeEventListener('visibilitychange',this._onIdleVisibility);
       clearInterval(this._pollTimer);clearInterval(this._studentCountTimer);clearTimeout(this._refreshTimer);
       window.removeEventListener('skn-backend-perf',this._backendPerfListener);
       window.removeEventListener('focus',this._onFocus);
@@ -4321,6 +4399,64 @@ filteredClubs() {
 
 
       methods: {
+      // Public information only; this RPC never returns other admin settings.
+      async fetchPublicLoginNotice(showError=false){
+        if(!window.SKN_DB){if(showError)this.loginNoticeError='ยังไม่ได้เชื่อมต่อฐานข้อมูล';return false;}
+        try{
+          const {data,error}=await window.SKN_DB.rpc('skn_public_login_notice');
+          if(error)throw error;
+          if(!data || typeof data!=='object')throw Error('ผลประกาศไม่ถูกต้อง');
+          const title=String(data.title??'').slice(0,120);
+          const body=String(data.body??'').slice(0,800);
+          this.loginNotice={title,body};
+          this.loginNoticeError='';
+          return true;
+        }catch(err){
+          if(showError)this.loginNoticeError='โหลดประกาศสาธารณะไม่ได้: ตรวจว่ารัน SQL R4.1 แล้ว ('+String(err?.code||err?.message||err).slice(0,100)+')';
+          return false;
+        }
+      },
+      idleLastActivity(){
+        try{const n=Number(localStorage.getItem(this._idleStorageKey)||0);return Number.isFinite(n)&&n>0?n:0;}
+        catch(_){return this._idleMemoryActivity||0;}
+      },
+      idleClearActivity(){
+        this._idleMemoryActivity=0;
+        try{localStorage.removeItem(this._idleStorageKey);}catch(_){}
+      },
+      markUserActivity(force=false){
+        if(!this.isLoggedIn||this._idleEnding)return;
+        const now=Date.now();
+        this.idleWarningSeconds=0;
+        if(!force && now-(this._idleLastWrite||0)<1200)return;
+        this._idleLastWrite=now;
+        this._idleMemoryActivity=now;
+        try{localStorage.setItem(this._idleStorageKey,String(now));}catch(_){}
+      },
+      async idleCheck(){
+        if(!this.isLoggedIn||this._idleEnding)return;
+        const last=this.idleLastActivity();
+        if(!last){this.markUserActivity(true);return;}
+        let elapsed=Math.max(0,Date.now()-last);
+        const busy=!!(this.loading||this.adminBulkExportBusy||this.backupBusy||this.restoreBusy||this.periodBusy);
+        if(busy){
+          // Avoid interrupting a Drive/PDF/database transaction. Maximum deferral 5 minutes.
+          if(!this._idleBusySince)this._idleBusySince=Date.now();
+          if(elapsed>=this._idleLimitMs && Date.now()-this._idleBusySince<5*60*1000)return;
+        }else this._idleBusySince=0;
+        if(elapsed>=this._idleLimitMs){
+          this._idleEnding=true;
+          try{await this.logout();}
+          catch(err){console.warn('SKN idle logout:',err?.message||String(err));
+            this.isLoggedIn=false;this.user=null;this.sessionBooting=false;}
+          finally{this.idleClearActivity();this.idleWarningSeconds=0;this._idleEnding=false;
+            window.Swal?.fire({toast:true,position:'top-end',icon:'info',title:'ออกจากระบบอัตโนมัติ เนื่องจากไม่มีการใช้งาน',timer:3500,showConfirmButton:false});}
+        } else {
+          const remaining=this._idleLimitMs-elapsed;
+          this.idleWarningSeconds=!busy && remaining<=60000?Math.max(1,Math.ceil(remaining/1000)):0;
+        }
+      },
+
         // Display all advisors (1, 2, or more), with the live term teacher list.
         resolveClubAdvisorNames(club) {
           return sknResolveClubAdvisors(club, this.teachersList);
@@ -4576,6 +4712,10 @@ syncAdvancedSettings() {
             return Swal.fire('ตรวจสอบภาคเรียน','ภาคเรียนต้องเป็น 1, 2 หรือ 3','warning');
           if(settings.reportEmail&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(settings.reportEmail))
             return Swal.fire('ตรวจสอบอีเมล','กรุณาระบุอีเมลผู้รับรายงานที่ถูกต้อง','warning');
+          settings.loginNoticeTitle=String(settings.loginNoticeTitle??'');
+          settings.loginNoticeBody=String(settings.loginNoticeBody??'');
+          if(settings.loginNoticeTitle.length>120 || settings.loginNoticeBody.length>800)
+            return Swal.fire('ประกาศยาวเกินไป','หัวข้อไม่เกิน 120 ตัวอักษร และรายละเอียดไม่เกิน 800 ตัวอักษร','warning');
           this.loading=true;
           try{
             const payload={adminSettings:settings,systemDates:this.systemDates,
@@ -4584,6 +4724,11 @@ syncAdvancedSettings() {
             if(!result?.success)throw Error(result?.message||'บันทึกไม่สำเร็จ');
             this.adminSettings=settings;
             await this.refreshData(true);
+            const publicOk=await this.fetchPublicLoginNotice(true);
+            if(!publicOk){
+              await Swal.fire('บันทึกแล้ว แต่ประกาศยังไม่เผยแพร่',this.loginNoticeError,'warning');
+              return;
+            }
             Swal.fire({toast:true,position:'top-end',icon:'success',title:'บันทึกการตั้งค่าและปีการศึกษาเรียบร้อย',
               showConfirmButton:false,timer:2300});
           }catch(err){Swal.fire('บันทึกไม่สำเร็จ',err.message||String(err),'error');}
@@ -5545,8 +5690,8 @@ async syncStudentApplicantCounts(reason='poll'){
   if(this.studentCountsState!=='ok')this.studentCountsState='loading';
   try {
     const api=window.SKNBackend;
-    if(!api || typeof api.getApplicantTotals!=='function' || api.version!=='R4.0')
-      throw Error('ไฟล์ backend.js ไม่ใช่รุ่น R4.0: ตรวจไฟล์ใน GitHub Pages และล้างแคชเบราว์เซอร์');
+    if(!api || typeof api.getApplicantTotals!=='function' || api.version!=='R4.1')
+      throw Error('ไฟล์ backend.js ไม่ใช่รุ่น R4.1: ตรวจไฟล์ใน GitHub Pages และล้างแคชเบราว์เซอร์');
     const rows=await api.getApplicantTotals(expectedPeriod);
     if(!this.isLoggedIn || this.user?.role!=='student' || String(this.activePeriodId)!==expectedPeriod)return;
     if(!Array.isArray(rows))throw Error('ผลตรวจยอดจาก Supabase ไม่ใช่รายการข้อมูล');
@@ -5725,10 +5870,14 @@ recordPerf(key,started,ok=true){
         this.loading = false;
         if(res.success) { 
           this.user = res.user; 
-          this.isLoggedIn = true; 
+          this.isLoggedIn = true;
+          this.markUserActivity(true);
           this.refreshData(); // เรียกข้อมูลล่าสุดทันทีหลังล็อกอิน
         }
-        else Swal.fire('Error', res.message, 'error');
+        else Swal.fire('เข้าสู่ระบบไม่สำเร็จ', res.message, 'error');
+      }).withFailureHandler(err=>{
+        this.loading=false;
+        Swal.fire('เข้าสู่ระบบไม่สำเร็จ',String(err?.message||err),'error');
       }).checkLogin(this.form.user, this.form.pass);
     },
 
@@ -7705,7 +7854,21 @@ downloadCSVTemplate() {
           }finally{this.sknEmailProgressClose();this.loading=false;}
         },
 
-        async logout() { await window.SKNBridge.logout(); this.periods=[]; this.activePeriodId=""; this.archiveReadonly=false; this.isLoggedIn = false; this.user = null; this.form = {user:'', pass:''}; this.view = 'dashboard'; }
+        async logout(broadcast=true) {
+          try{await window.SKNBridge.logout();}
+          finally{
+            this.idleClearActivity();this.idleWarningSeconds=0;
+            if(broadcast!==false){
+              try{localStorage.setItem(this._idleLogoutKey,String(Date.now()));}catch(_){}
+            }
+            if(this._refreshTimer)clearTimeout(this._refreshTimer);
+            if(this._liveChannel&&window.SKN_DB){window.SKN_DB.removeChannel(this._liveChannel);this._liveChannel=null;}
+            this._subscribedPeriod='';this.periods=[];this.activePeriodId='';this.archiveReadonly=false;
+            this.isLoggedIn=false;this.user=null;this.clubs=[];this.teachersList=[];this.attStudents=[];
+            this.form={user:'',pass:''};this.view='dashboard';this.sessionBooting=false;
+            this.fetchPublicLoginNotice();
+          }
+        }
       }
     }).mount('#app');
     </script>
