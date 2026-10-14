@@ -1675,6 +1675,41 @@
   #app .skn-r3-main .a4-container { padding: 9px !important; }
 }
 
+
+  /* R4.0: compact status/metrics and consistent translucent navbar button. Screen only. */
+  @media screen {
+    #app .skn-r40-boot {min-height:100vh;display:grid;place-items:center;background:#f8fafc;}
+    #app .skn-r40-boot-content {display:flex;align-items:center;gap:12px;color:#475569;font-weight:600;font-size:14px;}
+    #app .skn-r40-boot-content i {font-size:19px;color:#2563eb;}
+    #app .skn-r40-welcome-row {display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;width:100%;}
+    #app .skn-r40-welcome-row h3 {flex:1 1 auto;min-width:0;}
+    #app .skn-r40-count-badge {display:inline-flex;align-items:center;max-width:100%;min-height:32px;gap:9px;border:1px solid #e2e8f0;border-radius:9px;padding:3px 4px 3px 10px;background:#fff;color:#334155;box-shadow:0 1px 3px rgba(15,23,42,.035);font-size:12px;line-height:1.35;}
+    #app .skn-r40-count-badge .skn-r40-count-label {display:inline-flex;align-items:center;gap:5px;white-space:nowrap;}
+    #app .skn-r40-count-badge.skn-r40-count-ok {border-color:#bbefd0;color:#166534;}
+    #app .skn-r40-count-badge.skn-r40-count-error {border-color:#fed7aa;color:#9a3412;}
+    #app .skn-r40-count-refresh {border:0;border-left:1px solid currentColor;background:transparent;color:inherit;opacity:.9;min-width:32px;min-height:26px;cursor:pointer;}
+    #app .skn-r40-count-refresh:disabled {opacity:.4;cursor:wait;}
+    #app .skn-r40-dash-header .skn-r3-actions {align-self:flex-end;justify-content:flex-end;}
+    #app .skn-r3-nav {background:linear-gradient(90deg,#17409e,#2563eb)!important;border-bottom-color:rgba(255,255,255,.14)!important;}
+    #app .skn-r3-nav .fw-800.text-primary,#app .skn-r3-nav .fw-bold.text-dark,#app .skn-r3-nav label {color:white!important;}
+    #app .skn-r3-nav .skn-term-picker {background:rgba(255,255,255,.08)!important;color:#fff!important;border:1px solid rgba(255,255,255,.82)!important;border-radius:8px;}
+    #app .skn-r3-nav .skn-term-picker option {color:#111827;background:#fff;}
+    #app .skn-r3-nav .skn-navbar-refresh {background:transparent!important;border:1px solid rgba(255,255,255,.82)!important;color:#fff!important;box-shadow:none!important;border-radius:8px!important;min-height:34px;padding:5px 12px;font-size:13px;font-weight:600!important;}
+    #app .skn-r3-nav .skn-navbar-refresh i,#app .skn-r3-nav .skn-navbar-refresh span {color:inherit!important;font-weight:inherit!important;}
+    #app .skn-r3-nav .skn-navbar-refresh:hover {background:rgba(255,255,255,.16)!important;}
+    #app .skn-r3-nav .skn-navbar-refresh:focus-visible {outline:2px solid #fff;outline-offset:2px;}
+    #app .skn-r40-perf {padding:11px 14px;border:1px solid #e8edf3!important;border-radius:11px;box-shadow:0 1px 8px rgba(15,23,42,.035);}
+    #app .skn-r40-perf-head {display:flex;justify-content:space-between;align-items:center;gap:12px;color:#334155;font-size:13px;font-weight:700;margin-bottom:9px;}
+    #app .skn-r40-perf-action {font-size:11px;padding:3px 9px;}
+    #app .skn-r40-perf-grid {display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px;}
+    #app .skn-r40-perf-grid>div {display:flex;flex-direction:column;gap:1px;background:#f8fafc;border-radius:6px;padding:5px 8px;line-height:1.4;color:#64748b;font-size:11px;}
+    #app .skn-r40-perf-grid strong {color:#0f172a;font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;}
+    #app .skn-r40-perf-more {font-size:11px;color:#64748b;margin-top:7px;}
+    #app .skn-r40-perf-more summary {cursor:pointer;}
+  }
+  @media screen and (max-width:1000px) {#app .skn-r40-perf-grid {grid-template-columns:repeat(3,minmax(0,1fr));}}
+  @media screen and (max-width:570px) {#app .skn-r40-perf-grid {grid-template-columns:repeat(2,minmax(0,1fr));}#app .skn-r40-welcome-row h3 {font-size:1.25rem;}#app .skn-r40-count-badge {font-size:11px;}#app .skn-r40-dash-header .skn-r3-actions {align-self:stretch;}}
+
   </style>
 </head>
 
@@ -1684,7 +1719,11 @@
     <input class="d-none" type="file" ref="adminSignatureInput" accept="image/png,image/jpeg,image/webp" @change="onAdminSignatureFile">
     <input class="d-none" type="file" ref="signatureLibraryInput" accept="image/png,image/jpeg,image/webp" @change="onSignatureLibraryFile">
 
-    <div v-if="!isLoggedIn" class="d-flex align-items-center justify-content-center min-vh-100 p-3 no-print skn-r3-login"
+    <!-- Do not reveal the login form before resumeSession determines the previous session. -->
+    <div v-if="sessionBooting" class="skn-r40-boot no-print" role="status" aria-live="polite">
+      <div class="skn-r40-boot-content"><i class="fas fa-circle-notch fa-spin" aria-hidden="true"></i><span>กำลังเปิดระบบชุมนุม...</span></div>
+    </div>
+    <div v-else-if="!isLoggedIn" class="d-flex align-items-center justify-content-center min-vh-100 p-3 no-print skn-r3-login"
       style="background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);">
       <div class="card-clean p-4 p-md-5 text-center shadow-lg border-0 skn-r3-login-card"
         style="width: 100%; max-width: 400px; border-radius: 20px;">
@@ -1776,7 +1815,7 @@
             <option v-for="p in periods" :value="p.id" :key="p.id">{{p.semester}}/{{p.academicYear}}{{p.isCurrent?' ● ปัจจุบัน':''}}</option>
           </select>
 
-          <button class="btn btn-light btn-sm shadow-sm border skn-navbar-refresh" @click="refreshData" :disabled="loading" title="รีเฟรชข้อมูลล่าสุด">
+          <button class="btn btn-sm skn-navbar-refresh" @click="refreshData" :disabled="loading" title="รีเฟรชข้อมูลล่าสุด">
       <i class="fas fa-sync-alt" :class="{'fa-spin': loading}"></i>
       <span class="ms-1 small d-none d-md-inline">{{ loading ? 'กำลังอัปเดต...' : 'รีเฟรช' }}</span>
     </button>
@@ -1951,10 +1990,24 @@
 
   <transition name="fade">
     <div v-if="view === 'dashboard'" class="container-xl no-print">
-      <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-end mb-4 gap-3">
+      <div class="d-flex flex-column justify-content-between mb-3 gap-2 skn-r40-dash-header">
 
-<div>
-  <h3 class="fw-800 m-0 text-dark">ยินดีต้อนรับ, {{ user.name }}</h3>
+<div class="skn-r40-dash-intro">
+  <div class="skn-r40-welcome-row">
+    <h3 class="fw-800 m-0 text-dark">ยินดีต้อนรับ, {{ user.name }}</h3>
+    <div v-if="user?.role === 'student'" class="skn-r40-count-badge no-print"
+         :class="'skn-r40-count-'+studentCountsState" role="status" aria-live="polite"
+         :title="studentCountsState==='error' ? studentCountsError : studentCountsUpdatedAt ? 'ตรวจสอบล่าสุด '+studentCountsUpdatedAt : 'กำลังตรวจสอบยอดผู้สมัคร'">
+      <span class="skn-r40-count-label">
+        <i class="fas" :class="studentCountsState==='ok'?'fa-check-circle':studentCountsState==='error'?'fa-exclamation-circle':'fa-clock'" aria-hidden="true"></i>
+        {{ studentCountsState==='ok' ? 'ยืนยันยอดผู้สมัครแล้ว' : studentCountsState==='error' ? 'ตรวจยอดไม่ได้' : 'กำลังตรวจยอด' }}
+      </span>
+      <button type="button" class="skn-r40-count-refresh" :disabled="studentCountsLoading || !activePeriodId"
+              @click="syncStudentApplicantCounts('manual')" title="ตรวจยอดผู้สมัครอีกครั้ง" aria-label="ตรวจยอดผู้สมัครอีกครั้ง">
+        <i class="fas fa-sync-alt" :class="{'fa-spin':studentCountsLoading}" aria-hidden="true"></i>
+      </button>
+    </div>
+  </div>
   <p class="m-0 d-flex align-items-center flex-wrap">
     
     <span v-if="user.role === 'student'"
@@ -2057,22 +2110,6 @@
         </div>
       </div>
 
-      <!-- R3.9: show count health even when the rest of the dashboard works. -->
-      <div v-if="user?.role === 'student'" class="skn-r39-count-status mb-3 p-3 rounded-3 border" :class="studentCountsState === 'ok' ? 'border-success bg-success bg-opacity-10' : studentCountsState === 'error' ? 'border-warning bg-warning bg-opacity-10' : 'border-info bg-info bg-opacity-10'" role="status" aria-live="polite">
-        <div class="d-flex gap-2 align-items-center justify-content-between flex-wrap">
-          <div>
-            <span v-if="studentCountsState === 'ok'" class="fw-semibold text-success"><i class="fas fa-check-circle me-1"></i> ยอดผู้สมัครจาก Supabase ยืนยันแล้ว</span>
-            <span v-else-if="studentCountsState === 'error'" class="fw-semibold text-danger"><i class="fas fa-exclamation-circle me-1"></i> ยังตรวจสอบยอดผู้สมัครไม่ได้</span>
-            <span v-else class="fw-semibold text-primary"><i class="fas fa-sync-alt me-1"></i> กำลังตรวจสอบยอดผู้สมัคร...</span>
-            <div v-if="studentCountsState === 'error'" class="small mt-1" style="overflow-wrap:anywhere">{{ studentCountsError }}</div>
-            <div v-if="studentCountsState === 'ok' && studentCountsUpdatedAt" class="small text-muted mt-1">ตรวจสอบล่าสุด {{ studentCountsUpdatedAt }}</div>
-          </div>
-          <button type="button" class="btn btn-sm btn-outline-primary" :disabled="studentCountsLoading || !activePeriodId" @click="syncStudentApplicantCounts('manual')">
-            <i class="fas fa-redo-alt me-1"></i> ตรวจยอดใหม่
-          </button>
-        </div>
-      </div>
-
       <div class="card-clean overflow-hidden border-0 shadow-sm skn-r3-club-list">
         <div class="table-responsive">
           <table class="table table-hover align-middle mb-0">
@@ -2080,7 +2117,7 @@
               <tr>
                 <th class="py-3 ps-4 border-0 text-secondary small fw-bold">ชื่อชุมนุม / ครูผู้สอน</th>
                 <th class="py-3 border-0 text-secondary small fw-bold d-none d-md-table-cell" >ระดับ</th>
-                <th class="py-3 border-0 text-secondary small fw-bold" title="จำนวนผู้สมัครจริงจากฐานข้อมูล Supabase">ยอดผู้สมัคร / จำนวนที่รับ</th>
+                <th class="py-3 border-0 text-secondary small fw-bold" title="จำนวนผู้สมัครจริง">ยอดผู้สมัคร / จำนวนที่รับ</th>
                 <th class="py-3 pe-4 text-end border-0 text-secondary small fw-bold">จัดการกิจกรรม</th>
                 <!-- <th class="border-0 py-3">สถานที่เรียน</th> 
                 <th class="text-center border-0 py-3">จำนวนที่รับ</th>
@@ -2107,7 +2144,7 @@
                     <div class="progress-bar" :class="user.role==='student' && !(studentCountsState==='ok' && c.count_verified) ? 'bg-secondary' : c.current_count >= c.max_capacity ? 'bg-danger':'bg-success'" :style="{width: (user.role==='student' && !(studentCountsState==='ok' && c.count_verified) ? 0 : c.max_capacity > 0 ? Math.min(100, Number(c.current_count||0) / c.max_capacity * 100) : (c.current_count > 0 ? 100 : 0))+'%'}"></div>
                   </div>
                   <span class="small fw-bold text-dark" :class="user.role==='student' && !(studentCountsState==='ok' && c.count_verified) ? 'text-danger' : ''">{{ user.role==='student' && !(studentCountsState==='ok' && c.count_verified) ? '—' : c.current_count }}</span><span class="small text-muted"> / {{ c.max_capacity }} คน</span>
-                  <div v-if="user.role === 'student'" class="text-muted" style="font-size:.68rem">{{ studentCountsState==='ok' && c.count_verified ? 'ยอดผู้สมัครจริง (อัปเดตอัตโนมัติ)' : 'รอข้อมูลยอดรวมจาก Supabase' }}</div>
+                  <div v-if="user.role === 'student'" class="text-muted" style="font-size:.68rem">{{ studentCountsState==='ok' && c.count_verified ? 'ยอดผู้สมัครจริง' : 'รอตรวจยอดผู้สมัคร' }}</div>
                 </td>
                 <td class="pe-4 text-end">
                   <div class="d-flex flex-wrap justify-content-end gap-2">
@@ -2365,20 +2402,29 @@
      ========================================== -->
 <transition name="fade">
   <div v-if="view === 'admin_settings'" class="container-xl no-print">
-    <!-- R3.4: client-side timings, no usernames/passwords/payload data are recorded. -->
-    <div class="card-clean bg-white border-0 shadow-sm p-3 p-md-4 mb-3 mt-2 no-print">
-      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
-        <h6 class="fw-bold text-primary mb-0"><i class="fas fa-tachometer-alt me-2"></i>ความเร็วระบบ (วัดบนอุปกรณ์นี้)</h6>
-        <button type="button" class="btn btn-sm btn-outline-primary" @click="refreshData(false)" :disabled="loading"><i class="fas fa-sync-alt me-1"></i>วัดการโหลด Dashboard ใหม่</button>
+    <!-- Compact, actionable client-side timings (not database SQL execution timing). -->
+    <div class="skn-r40-perf card-clean bg-white mb-3 mt-2 no-print">
+      <div class="skn-r40-perf-head">
+        <span><i class="fas fa-gauge-high me-1" aria-hidden="true"></i>ความเร็วระบบ <small class="text-secondary fw-normal">(อุปกรณ์นี้)</small></span>
+        <button type="button" class="btn btn-sm btn-outline-secondary skn-r40-perf-action"
+                @click="refreshData(false)" :disabled="loading" title="วัดเวลาโหลดข้อมูลหลักใหม่">
+          <i class="fas fa-sync-alt me-1" aria-hidden="true"></i>วัดใหม่
+        </button>
       </div>
-      <div class="row g-2 small">
-        <div class="col-6 col-lg-3"><div class="bg-light rounded p-2">ข้อมูลหลัก <strong class="d-block">{{perfStats.dashboardMs===null?'ยังไม่วัด':perfStats.dashboardMs+' ms'}}</strong></div></div>
-        <div class="col-6 col-lg-3"><div class="bg-light rounded p-2">รายชื่อครู/นักเรียน <strong class="d-block">{{perfStats.usersMs===null?'ยังไม่วัด':perfStats.usersMs+' ms'}}</strong></div></div>
-        <div class="col-6 col-lg-3"><div class="bg-light rounded p-2">ข้อมูลเช็กชื่อ <strong class="d-block">{{perfStats.attendanceMs===null?'ยังไม่วัด':perfStats.attendanceMs+' ms'}}</strong></div></div>
-        <div class="col-6 col-lg-3"><div class="bg-light rounded p-2">ข้อมูลรายงาน <strong class="d-block">{{perfStats.reportMs===null?'ยังไม่วัด':perfStats.reportMs+' ms'}}</strong></div></div>
+      <div class="skn-r40-perf-grid">
+        <div>ข้อมูลหลัก <strong>{{perfStats.dashboardMs===null?'—':perfStats.dashboardMs+' ms'}}</strong></div>
+        <div>รายชื่อ <strong>{{perfStats.usersMs===null?'—':perfStats.usersMs+' ms'}}</strong></div>
+        <div>เช็กชื่อ <strong>{{perfStats.attendanceMs===null?'—':perfStats.attendanceMs+' ms'}}</strong></div>
+        <div>รายงาน <strong>{{perfStats.reportMs===null?'—':perfStats.reportMs+' ms'}}</strong></div>
+        <div>อ่านข้อมูล <strong>{{perfBackend.readMs===null?'—':perfBackend.readMs+' ms'}}</strong></div>
+        <div>บันทึก <strong>{{perfBackend.writeMs===null?'—':perfBackend.writeMs+' ms'}}</strong></div>
       </div>
-      <div class="small text-secondary mt-2">คำขอ {{perfStats.requests}} ครั้ง · ผิดพลาด {{perfStats.errors}} ครั้ง · ข้ามการวาดตารางเดิม {{perfStats.unchanged}} ครั้ง · ล่าสุด {{perfStats.lastMeasured||'-'}}</div>
-      <div class="small text-secondary mt-1">ตัวเลขคือเวลาตั้งแต่เบราว์เซอร์ส่งคำขอจนได้รับคำตอบ รวมเครือข่ายและเซิร์ฟเวอร์ ไม่ใช่เวลา SQL อย่างเดียว</div>
+      <details class="skn-r40-perf-more">
+        <summary>รายละเอียดการวัด</summary>
+        <span>คำขอหน้าเว็บ {{perfStats.requests}} ครั้ง · ผิดพลาด {{perfStats.errors}} ครั้ง · ไม่วาดข้อมูลเดิมซ้ำ {{perfStats.unchanged}} ครั้ง</span>
+        <span> · Backend อ่าน {{perfBackend.readCalls}} / เขียน {{perfBackend.writeCalls}} ครั้ง · ล่าสุด {{perfStats.lastMeasured||'-'}}</span>
+        <div>วัดเวลารวมจากเบราว์เซอร์ถึงการตอบกลับ ไม่ใช่ SQL อย่างเดียว; เฉพาะคำขอที่ได้เรียกใช้งานจริง</div>
+      </details>
     </div>
     <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4 mt-3">
       <div>
@@ -3780,7 +3826,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
     <script src="config.js"></script>
     <script src="bridge.js"></script>
-    <script src="backend.js?v=3.9.1"></script>
+    <script src="backend.js?v=4.0.0"></script>
     <!-- R3.4: Vue 3.5.13 is embedded locally to avoid HTTP 403 / CDN access failures.
          Source: Vue.js global production build, MIT license, attribution below.
          Do not remove: this application uses Vue.createApp and in-browser templates. -->
@@ -3902,7 +3948,8 @@ data() {
     showPassword: false, // <--- เพิ่มบรรทัดนี้
     bulkAction: { target: 'ม.ต้น', room: '' },
     view: 'dashboard', 
-    isLoggedIn: false, 
+    isLoggedIn: false,
+    sessionBooting: true, 
     user: null, 
     loading: false, // ประกาศแค่ที่เดียวพอครับ
     form: { user: '', pass: '' },
@@ -3955,6 +4002,7 @@ data() {
     usersFetchSerial: 0,
     usersLoadError: '', 
     perfStats: {dashboardMs:null, attendanceMs:null, reportMs:null, usersMs:null, requests:0, errors:0, unchanged:0, lastMeasured:''},
+    perfBackend: {readMs:null,writeMs:null,readCalls:0,writeCalls:0},
     searchClubQuery: '',
     searchQuery: '', // ประกาศแค่ที่เดียวพอครับ
     searchResult: null,
@@ -4028,6 +4076,14 @@ data() {
 
     mounted() {
       this._lastRefresh=0;this._refreshTimer=null;this._liveChannel=null;
+      this._backendPerfListener=ev=>{
+        const item=ev?.detail||{};
+        if(item.kind!=='read'&&item.kind!=='write')return;
+        this.perfBackend={...this.perfBackend,
+          [item.kind==='read'?'readMs':'writeMs']:Number(item.ms)||0,
+          [item.kind==='read'?'readCalls':'writeCalls']:this.perfBackend[item.kind==='read'?'readCalls':'writeCalls']+1};
+      };
+      window.addEventListener('skn-backend-perf',this._backendPerfListener);
       // Works even if Realtime publication is not enabled: low-cost periodic fallback.
       // R3.4: adaptive fallback polling. Realtime/local edits already trigger an early refresh.
       // Avoid repeatedly fetching the full dashboard while the user is editing a report.
@@ -4049,16 +4105,30 @@ data() {
       };
       window.addEventListener('focus',this._onFocus);
       document.addEventListener('visibilitychange',this._onFocus);
-      if(this.isLoggedIn)this.refreshData();
-      else if(window.SKN_DB){
-        // Restore the existing signed Supabase session, without storing user passwords.
-        window.SKNBridge.invoke('resumeSession',[]).then(res=>{
-          if(res?.success&&!this.isLoggedIn){this.user=res.user;this.isLoggedIn=true;this.refreshData();}
-        }).catch(()=>{/* no previous login, keep the login screen */});
-      }
+      // Restore the existing signed session without briefly drawing the login form.
+      // No password is persisted and a missing/expired session goes straight to login.
+      (async()=>{
+        try {
+          if(!window.SKN_DB || !window.SKNBridge) return;
+          const {data,error}=await window.SKN_DB.auth.getSession();
+          if(error || !data?.session?.access_token) return;
+          const res=await window.SKNBridge.invoke('resumeSession',[]);
+          if(res?.success && !this.isLoggedIn){
+            this.user=res.user;
+            this.isLoggedIn=true;
+            this.refreshData(true);
+          }
+        }catch(err){
+          // A stale credential may fail: do not loop reload or display a false login error.
+          console.warn('SKN session restore:',String(err?.message||err));
+        }finally{
+          this.sessionBooting=false;
+        }
+      })();
     },
     beforeUnmount(){
       clearInterval(this._pollTimer);clearInterval(this._studentCountTimer);clearTimeout(this._refreshTimer);
+      window.removeEventListener('skn-backend-perf',this._backendPerfListener);
       window.removeEventListener('focus',this._onFocus);
       document.removeEventListener('visibilitychange',this._onFocus);
       if(this._liveChannel&&window.SKN_DB)window.SKN_DB.removeChannel(this._liveChannel);
@@ -5475,8 +5545,8 @@ async syncStudentApplicantCounts(reason='poll'){
   if(this.studentCountsState!=='ok')this.studentCountsState='loading';
   try {
     const api=window.SKNBackend;
-    if(!api || typeof api.getApplicantTotals!=='function' || api.version!=='R3.9')
-      throw Error('ไฟล์ backend.js ไม่ใช่รุ่น R3.9: ตรวจไฟล์ใน GitHub Pages และล้างแคชเบราว์เซอร์');
+    if(!api || typeof api.getApplicantTotals!=='function' || api.version!=='R4.0')
+      throw Error('ไฟล์ backend.js ไม่ใช่รุ่น R4.0: ตรวจไฟล์ใน GitHub Pages และล้างแคชเบราว์เซอร์');
     const rows=await api.getApplicantTotals(expectedPeriod);
     if(!this.isLoggedIn || this.user?.role!=='student' || String(this.activePeriodId)!==expectedPeriod)return;
     if(!Array.isArray(rows))throw Error('ผลตรวจยอดจาก Supabase ไม่ใช่รายการข้อมูล');

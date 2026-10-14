@@ -12,15 +12,26 @@ async function result(q) {
     }
     return r.data;
 }
-async function all(table, period) { const output = []; for (let start = 0;; start += 1000) {
-    let q = db.from(table === 'teachers' ? 'teachers_public' : table === 'students' ? 'students_public' : table).select('*').range(start, start + 999);
-    if (period)
-        q = q.eq('period_id', period);
-    const chunk = await result(q);
-    output.push(...chunk);
-    if (chunk.length < 1000)
-        break;
-} return output; }
+// Deduplicate identical concurrent read operations only; never cache completed data.
+// All writes and refreshes still read the authoritative database immediately.
+const sknPendingReads = new Map();
+async function all(table, period) {
+    const key=table+'|'+String(period||'');
+    if(sknPendingReads.has(key)) return sknPendingReads.get(key);
+    const request=(async()=>{
+        const output=[];
+        for(let start=0;;start+=1000){
+            let q=db.from(table==='teachers'?'teachers_public':table==='students'?'students_public':table).select('*').range(start,start+999);
+            if(period)q=q.eq('period_id',period);
+            const chunk=await result(q);
+            output.push(...chunk);
+            if(chunk.length<1000)break;
+        }
+        return output;
+    })();
+    sknPendingReads.set(key,request);
+    try{return await request;}finally{if(sknPendingReads.get(key)===request)sknPendingReads.delete(key);}
+}
 async function getPeriod(periodId) { const rows = await all('periods'); const p = periodId ? rows.find(r => r.id === periodId) : rows.find(r => r.is_current); if (!p)
     throw Error('ไม่พบภาคเรียนที่เลือก'); return { period: p, periods: rows.sort((a, b) => b.academic_year - a.academic_year || b.semester - a.semester) }; }
 async function cfg(periodId) { const rows = await all('period_config', periodId); return Object.fromEntries(rows.map((r) => [r.key, r.value])); }
@@ -51,21 +62,26 @@ function sknCountFailureText(error) {
         return 'ติดต่อ Supabase ไม่สำเร็จ: ตรวจอินเทอร์เน็ต/เครือข่ายและ Project URL';
     return 'โหลดจำนวนผู้สมัครจาก Supabase ไม่สำเร็จ' + (code ? ' [' + code + ']' : '') + ': ' + detail.slice(0, 200);
 }
-async function getCurrentUser(sess, periodId) {
+async function getCurrentUser(sess, periodId, currentPeriodId) {
     if (sess.type === 'teacher') {
-        const u = await result(db.from('teachers').select('id,name,role').eq('id', sess.sub).maybeSingle());
+        // A teacher's profile and selected-term membership are independent reads.
+        const [u,m] = await Promise.all([
+            result(db.from('teachers').select('id,name,role').eq('id', sess.sub).maybeSingle()),
+            result(db.from('period_teachers').select('teacher_id').eq('period_id',periodId).eq('teacher_id',sess.sub).maybeSingle())
+        ]);
         assert(u, 'บัญชีผู้ใช้งานไม่ถูกต้อง');
         if (u.role !== 'admin') {
-            const current = await result(db.from('periods').select('id').eq('is_current', true).maybeSingle());
-            const access = current ? await result(db.from('period_teachers').select('teacher_id').eq('period_id', current.id).eq('teacher_id', u.id).maybeSingle()) : null;
+            const currentId=currentPeriodId || (await result(db.from('periods').select('id').eq('is_current',true).maybeSingle()))?.id;
+            const access=currentId===periodId ? m : currentId
+                ? await result(db.from('period_teachers').select('teacher_id').eq('period_id',currentId).eq('teacher_id',u.id).maybeSingle())
+                : null;
             assert(access, 'บัญชีครูไม่ได้รับสิทธิ์ในภาคเรียนปัจจุบัน');
         }
-        const m = await result(db.from('period_teachers').select('teacher_id').eq('period_id', periodId).eq('teacher_id', sess.sub).maybeSingle());
-        return { ...u, type: 'teacher', isMember: !!m };
+        return {...u,type:'teacher',isMember:!!m};
     }
-    const s = await result(db.from('students').select('id,name,level,room,no').eq('period_id', periodId).eq('id', sess.sub).maybeSingle());
-    assert(s, 'ไม่พบข้อมูลนักเรียนในภาคเรียนนี้');
-    return { ...s, role: 'student', type: 'student', isMember: true };
+    const s=await result(db.from('students').select('id,name,level,room,no').eq('period_id',periodId).eq('id',sess.sub).maybeSingle());
+    assert(s,'ไม่พบข้อมูลนักเรียนในภาคเรียนนี้');
+    return {...s,role:'student',type:'student',isMember:true};
 }
 function canEdit(u, p) { return u.role === 'admin' || Boolean(p.is_current); }
 function mustWrite(u, p) { assert(canEdit(u, p), 'ภาคเรียนย้อนหลังเปิดอ่านอย่างเดียว (ยกเว้น Admin)'); }
@@ -125,6 +141,21 @@ async function sknRequireReadClub(u, period, club) {
     await sknRequireOwnClub(u, period, club);
 }
 async function clubById(p, id) { const c = await result(db.from('clubs').select('*').eq('period_id', p).eq('id', id).maybeSingle()); assert(c, 'ไม่พบชุมนุม'); return c; }
+// Read only the students of the requested club. Query chunks avoid oversized GET URLs.
+// Teachers/admin still rely on existing RLS; no broadened student table privileges.
+async function sknStudentsForClub(periodId, registrations) {
+    const ids=[...new Set(registrations.map(r=>String(r.student_id)).filter(Boolean))];
+    if(!ids.length)return [];
+    const batches=[];
+    for(let start=0;start<ids.length;start+=100)
+        batches.push(ids.slice(start,start+100));
+    const groups=await Promise.all(batches.map(async batch => result(db.from('students_public')
+        .select('id,name,level,room,no').eq('period_id',periodId).in('id',batch))));
+    const students=groups.flat();
+    // Fail rather than silently drop names if RLS or data association changes.
+    assert(students.length===ids.length,'ข้อมูลรายชื่อนักเรียนในชุมนุมไม่ครบ: ตรวจสิทธิ์อ่าน students_public และทะเบียนสมัคร');
+    return students;
+}
 const twenty = () => Array(20).fill(0);
 function validateGrid(g) { assert(g && Array.isArray(g.dates) && g.dates.length === 20, 'วันที่เช็กชื่อต้องมี 20 ครั้ง'); assert(g.records && typeof g.records === 'object', 'ข้อมูลเช็กชื่อผิดรูปแบบ'); const obj = { dates: g.dates.map((x) => typeof x === 'string' ? x.slice(0, 10) : ''), records: {} }; for (const [sid, arr] of Object.entries(g.records)) {
     assert(Array.isArray(arr) && arr.length === 20, 'รายการเช็กชื่อต้องมี 20 ครั้ง');
@@ -147,11 +178,21 @@ function sknHex(bytes) { return Array.from(bytes, b => b.toString(16).padStart(2
 // Only account IDs beginning with A are primary admin accounts excluded from teacher statistics.
 // Roles are permission flags, not statistical categories: T01 with role=admin still counts.
 function isPrimaryAdminId(id) { return String(id ?? '').trim().toUpperCase().startsWith('A'); }
+async function sknHeadCount(table,period){
+    const view=table==='students'?'students_public':table;
+    const response=await db.from(view).select(table==='registrations'?'student_id':'id',{count:'exact',head:true}).eq('period_id',period);
+    if(response.error)throw Object.assign(Error(response.error.message||'นับจำนวนไม่สำเร็จ'),{code:response.error.code});
+    if(Number.isSafeInteger(response.count))return response.count;
+    // Conservative fallback for older query adapters: correctness before speed.
+    return (await all(table,period)).length;
+}
 async function sum(p) {
-    const [ss, tt, cc, rr] = await Promise.all([all('students', p), all('period_teachers', p), all('clubs', p), all('registrations', p)]);
+    const [studentTotal, tt, cc, registeredTotal] = await Promise.all([
+        sknHeadCount('students',p), all('period_teachers', p), all('clubs', p), sknHeadCount('registrations',p)
+    ]);
     const teachers = tt.filter(t => !isPrimaryAdminId(t.teacher_id));
     const owners = new Set(cc.flatMap(c => sknClubOwnerIds(c).map(id => id.toUpperCase())));
-    return { student: { total: ss.length, registered: rr.length, unregistered: ss.length - rr.length },
+    return { student: { total: studentTotal, registered: registeredTotal, unregistered: studentTotal - registeredTotal },
         teacher: { total: teachers.length, hasClub: teachers.filter(t => owners.has(String(t.teacher_id).toUpperCase())).length, noClub: teachers.filter(t => !owners.has(String(t.teacher_id).toUpperCase())).length }, clubsCount: cc.length };
 }
 const SKN_IMAGE_SLOTS = ['logo', 'photo_1', 'photo_2', 'photo_3', 'photo_4', 'sigTeacher', 'sigHeadClub', 'sigHeadDev', 'sigDeputy', 'sigDirector'];
@@ -404,7 +445,7 @@ async function checkLogin(username, password) {
     }
     else
         window.SKNBridge.periodId = '';
-    const u = await getCurrentUser({ sub: actorId, type }, period.id);
+    const u = await getCurrentUser({ sub: actorId, type }, period.id, current.id);
     const reg = type === 'student' ? await result(db.from('registrations').select('club_id').eq('period_id', period.id).eq('student_id', actorId).maybeSingle()) : null;
     const memberships = type === 'teacher' ? await result(db.from('clubs').select('owner_ids').eq('period_id', period.id)) : [];
     return { success: true, user: { id: u.id, name: u.name, role: u.role, level: u.level || '', clubId: reg?.club_id || '', hasClub: memberships.some((c) => sknClubOwnerIds(c).some(id => id.toUpperCase() === String(actorId).toUpperCase())) } };
@@ -417,13 +458,15 @@ async function sknInvoke(method, args, periodId) {
     const { data: { session } } = await db.auth.getSession();
     if (!session)
         throw Error('เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่');
-    const actorId = await result(db.rpc('skn_actor_id'));
-    const actorRole = await result(db.rpc('skn_actor_role'));
+    // Profile permission RPCs and period lookup are independent: run concurrently.
+    const [actorId,actorRole,periodData] = await Promise.all([
+        result(db.rpc('skn_actor_id')),result(db.rpc('skn_actor_role')),getPeriod(periodId)
+    ]);
     if (!actorId || !actorRole)
         throw Error('ไม่มีสิทธิ์ใช้ระบบ');
     const sess = { sub: actorId, type: actorRole === 'student' ? 'student' : 'teacher' };
-    const { period: p, periods } = await getPeriod(periodId);
-    const u = await getCurrentUser(sess, p.id);
+    const {period:p,periods} = periodData;
+    const u = await getCurrentUser(sess,p.id,periods.find(x=>x.is_current)?.id);
     u.archiveRead = !p.is_current;
     const isAdmin = u.role === 'admin';
     let output;
@@ -446,53 +489,54 @@ async function sknInvoke(method, args, periodId) {
             break;
         }
         case 'getAppData': {
-            // R3.8: Student RLS shows only their own registration. That subset
-            // cannot be used to calculate the REAL number of applicants in a club.
-            // Fetch only the student's own registration + a safe aggregate RPC.
-            const studentViewOnly = u.type === 'student';
-            // R3.9: failure of the aggregate endpoint must not hide the entire
-            // registration page. A missing count is UNKNOWN, never silently 0 or 1.
-            const [clubs, regs, config, teachers, memberships, totalsResult] = await Promise.all([
-                all('clubs', p.id),
-                studentViewOnly
-                    ? result(db.from('registrations').select('student_id,club_id').eq('period_id', p.id).eq('student_id', u.id))
-                    : all('registrations', p.id),
-                cfg(p.id), all('teachers'), all('period_teachers', p.id),
-                studentViewOnly
-                    ? sknApplicantCounts(p.id).then(rows => ({rows, error: null}))
-                        .catch(error => ({rows: null, error: sknCountFailureText(error)}))
-                    : Promise.resolve({rows: null, error: null})
+            const studentViewOnly=u.type==='student';
+            // One compact aggregate RPC replaces downloading every enrollment for each refresh.
+            // Students still see only totals, never classmates' registration identities.
+            const [clubs, config, memberships, totalsResult, ownReg, summary] = await Promise.all([
+                all('clubs',p.id),cfg(p.id),all('period_teachers',p.id),
+                sknApplicantCounts(p.id).then(rows=>({rows,error:null}))
+                    .catch(error=>({rows:null,error:sknCountFailureText(error)})),
+                studentViewOnly ? result(db.from('registrations').select('student_id,club_id')
+                    .eq('period_id',p.id).eq('student_id',u.id)) : Promise.resolve([]),
+                isAdmin ? sum(p.id) : Promise.resolve(null)
             ]);
-            // Missing flag in V4.9 data means email was enabled; preserve that on upgrade.
-            if (config.allow_report_email !== 'false')
-                config.allow_report_email = 'true';
-            try {
-                const a = JSON.parse(config.adminSettings || '{}');
-                config.adminSettings = JSON.stringify({ ...a, semester: String(p.semester), academicYear: String(p.academic_year) });
-            }
-            catch { }
-            const selected = memberships.map(m => ({ id: m.teacher_id, name: m.display_name || teachers.find(t => t.id === m.teacher_id)?.name || '' }));
-            const applicantByClub = studentViewOnly && Array.isArray(totalsResult.rows)
-                ? new Map(totalsResult.rows.map(r => [String(r.club_id), Number(r.member_count)])) : null;
-            let countProblem = studentViewOnly ? totalsResult.error : null;
-            const formattedClubs = clubs.map(c => {
-                const item = renderClub(c, regs, selected);
-                if (studentViewOnly) {
-                    const count = applicantByClub?.get(String(c.id));
-                    item.count_verified = Number.isSafeInteger(count) && count >= 0;
-                    item.current_count = item.count_verified ? count : null;
-                    if (!item.count_verified && !countProblem)
-                        countProblem = 'Supabase ไม่ส่งยอดผู้สมัครของชุมนุม ' + String(c.id) + ' กลับมา';
+            if(config.allow_report_email!=='false')config.allow_report_email='true';
+            try{
+                const a=JSON.parse(config.adminSettings||'{}');
+                config.adminSettings=JSON.stringify({...a,semester:String(p.semester),academicYear:String(p.academic_year)});
+            }catch{}
+            // Membership display_name is usually sufficient. Fetch teacher profiles only
+            // if legacy membership rows have missing names (never show blank advisors).
+            const missingNames=memberships.some(m=>!String(m.display_name||'').trim());
+            const teacherProfiles=missingNames ? await all('teachers') : [];
+            const teacherMap=new Map(teacherProfiles.map(t=>[t.id,t.name]));
+            const selected=memberships.map(m=>({id:m.teacher_id,name:String(m.display_name||'').trim()||teacherMap.get(m.teacher_id)||''}));
+            const validTotals=Array.isArray(totalsResult.rows) ? totalsResult.rows : null;
+            const countMap=validTotals?new Map(validTotals.map(x=>[String(x.club_id),Number(x.member_count)])):null;
+            // Fallback for staff/admin only; a student must never infer totals from their own row.
+            const fallbackRegs=!countMap&&!studentViewOnly ? await all('registrations',p.id) : null;
+            const fallbackCounts=new Map();
+            for(const r of fallbackRegs||[])fallbackCounts.set(String(r.club_id),(fallbackCounts.get(String(r.club_id))||0)+1);
+            let countProblem=studentViewOnly?totalsResult.error:null;
+            const formattedClubs=clubs.map(c=>{
+                const item=renderClub(c,[],selected);
+                const count=countMap?.get(String(c.id));
+                const verified=Number.isSafeInteger(count)&&count>=0;
+                if(studentViewOnly){
+                    item.count_verified=verified;
+                    item.current_count=verified?count:null;
+                    if(!verified&&!countProblem)countProblem='ระบบไม่ส่งจำนวนสมาชิกของชุมนุม '+String(c.id);
+                }else{
+                    item.current_count=verified?count:(fallbackCounts.get(String(c.id))||0);
                 }
                 return item;
             });
-            output = { clubs: formattedClubs,
-                registrationCountStatus: studentViewOnly
-                    ? {ok: !countProblem, error: countProblem || '', source: 'skn_club_registration_counts'}
-                    : null,
-                config, teachers: selected, summary: isAdmin ? await sum(p.id) : null,
-                serverTime: Date.now(), periods: periods.map(x => ({ id: x.id, periodCode: x.period_code || `${x.academic_year}-${x.semester}`, academicYear: x.academic_year, semester: x.semester, isCurrent: x.is_current })),
-                periodId: p.id, isReadonly: !canEdit(u, p), myClubId: u.type === 'student' ? regs.find(r => r.student_id === u.id)?.club_id || '' : '' };
+            output={clubs:formattedClubs,
+                registrationCountStatus:studentViewOnly ? {ok:!countProblem,error:countProblem||'',source:'skn_club_registration_counts'} : null,
+                config,teachers:selected,summary,serverTime:Date.now(),
+                periods:periods.map(x=>({id:x.id,periodCode:x.period_code||`${x.academic_year}-${x.semester}`,academicYear:x.academic_year,semester:x.semester,isCurrent:x.is_current})),
+                periodId:p.id,isReadonly:!canEdit(u,p),
+                myClubId:studentViewOnly ? ownReg.find(r=>r.student_id===u.id)?.club_id||'' : ''};
             break;
         }
         case 'getAdminSummary':
@@ -516,11 +560,12 @@ async function sknInvoke(method, args, periodId) {
             const id = String(args[0]);
             const club = await clubById(p.id, id);
             await sknRequireReadClub(u, p, club);
-            const [r, students, regs] = await Promise.all([
-                result(db.from('attendance').select('grid').eq('period_id', p.id).eq('club_id', id).maybeSingle()), all('students', p.id), all('registrations', p.id)
+            const [r, regs] = await Promise.all([
+                result(db.from('attendance').select('grid').eq('period_id', p.id).eq('club_id', id).maybeSingle()),
+                result(db.from('registrations').select('student_id,club_id').eq('period_id', p.id).eq('club_id', id))
             ]);
-            const memberIds = new Set(regs.filter(x => x.club_id === id).map(x => x.student_id));
-            const members = students.filter(s => memberIds.has(s.id)).sort((a, b) => a.room.localeCompare(b.room, 'th', { numeric: true }) || Number(a.no) - Number(b.no));
+            const members = (await sknStudentsForClub(p.id,regs))
+                .sort((a,b)=>String(a.room).localeCompare(String(b.room),'th',{numeric:true})||Number(a.no)-Number(b.no));
             const g = r?.grid || { dates: Array(20).fill(''), records: {} };
             if (!Array.isArray(g.dates) || g.dates.length !== 20)
                 g.dates = Array(20).fill('');
@@ -1211,4 +1256,27 @@ async function sknInvoke(method, args, periodId) {
     }
     return output;
 }
-window.SKNBackend = { version: 'R3.9', invoke: sknInvoke, db, getApplicantTotals: sknApplicantCounts, countErrorText: sknCountFailureText };
+// Observe total round-trip time by operation, without logging row contents or credentials.
+// Do not alter writes, retry writes automatically, or cache mutation results.
+const sknWrites=new Set(['registerClub','saveAttendanceGrid','saveClubReportData','saveUser','importUsersFromCSV',
+    'deleteUser','deleteStudentsBulkServer','saveClub','updateClub','deleteClubAdmin','updateConfig',
+    'saveAdvancedSystemSettings','sendClubReportEmail','importLegacyChunk','setCurrentPeriod',
+    'deletePeriodWithBackup','deleteAcademicYearWithBackup','restoreBackupSnapshot',
+    'createFullBackupNow','upsertSignatureLibrary','setSignatureLibraryApproval',
+    'archiveSignatureLibrary','recordBulkSignatureExport','recordSignatureLibraryUse',
+    'startNewSemester','purgeSafeTrash']);
+async function sknMeasuredInvoke(method,args,periodId){
+    const clock=()=>typeof performance!=='undefined'&&typeof performance.now==='function'?performance.now():Date.now();
+    const t=clock();let ok=false;
+    try{const value=await sknInvoke(method,args,periodId);ok=true;return value;}
+    finally{
+        try{
+            const ms=Math.max(0,Math.round(clock()-t));
+            window.dispatchEvent(new CustomEvent('skn-backend-perf',{
+                detail:{kind:sknWrites.has(method)?'write':'read',ms,ok}
+            }));
+        }catch{} // Diagnostics never influence an operation's result.
+    }
+}
+window.SKNBackend = { version: 'R4.0', invoke: sknMeasuredInvoke, db,
+    getApplicantTotals: sknApplicantCounts, countErrorText: sknCountFailureText };
