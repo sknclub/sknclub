@@ -2347,7 +2347,22 @@
      หน้าต่างตั้งค่าระบบ (Admin Settings)
      ========================================== -->
 <transition name="fade">
-  <div v-if="view === 'admin_settings'" class="container-xl no-print skn-r3-admin">
+  <div v-if="view === 'admin_settings'" class="container-xl no-print">
+    <!-- R3.4: client-side timings, no usernames/passwords/payload data are recorded. -->
+    <div class="card-clean bg-white border-0 shadow-sm p-3 p-md-4 mb-3 mt-2 no-print">
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+        <h6 class="fw-bold text-primary mb-0"><i class="fas fa-tachometer-alt me-2"></i>ความเร็วระบบ (วัดบนอุปกรณ์นี้)</h6>
+        <button type="button" class="btn btn-sm btn-outline-primary" @click="refreshData(false)" :disabled="loading"><i class="fas fa-sync-alt me-1"></i>วัดการโหลด Dashboard ใหม่</button>
+      </div>
+      <div class="row g-2 small">
+        <div class="col-6 col-lg-3"><div class="bg-light rounded p-2">ข้อมูลหลัก <strong class="d-block">{{perfStats.dashboardMs===null?'ยังไม่วัด':perfStats.dashboardMs+' ms'}}</strong></div></div>
+        <div class="col-6 col-lg-3"><div class="bg-light rounded p-2">รายชื่อครู/นักเรียน <strong class="d-block">{{perfStats.usersMs===null?'ยังไม่วัด':perfStats.usersMs+' ms'}}</strong></div></div>
+        <div class="col-6 col-lg-3"><div class="bg-light rounded p-2">ข้อมูลเช็กชื่อ <strong class="d-block">{{perfStats.attendanceMs===null?'ยังไม่วัด':perfStats.attendanceMs+' ms'}}</strong></div></div>
+        <div class="col-6 col-lg-3"><div class="bg-light rounded p-2">ข้อมูลรายงาน <strong class="d-block">{{perfStats.reportMs===null?'ยังไม่วัด':perfStats.reportMs+' ms'}}</strong></div></div>
+      </div>
+      <div class="small text-secondary mt-2">คำขอ {{perfStats.requests}} ครั้ง · ผิดพลาด {{perfStats.errors}} ครั้ง · ข้ามการวาดตารางเดิม {{perfStats.unchanged}} ครั้ง · ล่าสุด {{perfStats.lastMeasured||'-'}}</div>
+      <div class="small text-secondary mt-1">ตัวเลขคือเวลาตั้งแต่เบราว์เซอร์ส่งคำขอจนได้รับคำตอบ รวมเครือข่ายและเซิร์ฟเวอร์ ไม่ใช่เวลา SQL อย่างเดียว</div>
+    </div>
     <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4 mt-3">
       <div>
         <h4 class="fw-800 m-0 text-danger"><i class="fas fa-cogs me-2"></i>ตั้งค่าระบบขั้นสูง</h4>
@@ -3749,7 +3764,7 @@
     <script src="config.js"></script>
     <script src="bridge.js"></script>
     <script src="backend.js"></script>
-    <!-- R3.3: Vue 3.5.13 is embedded locally to avoid HTTP 403 / CDN access failures.
+    <!-- R3.4: Vue 3.5.13 is embedded locally to avoid HTTP 403 / CDN access failures.
          Source: Vue.js global production build, MIT license, attribution below.
          Do not remove: this application uses Vue.createApp and in-browser templates. -->
     <script id="skn-vue-bundled" data-vue-version="3.5.13">
@@ -3890,6 +3905,7 @@ data() {
     usersList: [],
     usersFetchSerial: 0,
     usersLoadError: '', 
+    perfStats: {dashboardMs:null, attendanceMs:null, reportMs:null, usersMs:null, requests:0, errors:0, unchanged:0, lastMeasured:''},
     searchClubQuery: '',
     searchQuery: '', // ประกาศแค่ที่เดียวพอครับ
     searchResult: null,
@@ -3964,13 +3980,18 @@ data() {
     mounted() {
       this._lastRefresh=0;this._refreshTimer=null;this._liveChannel=null;
       // Works even if Realtime publication is not enabled: low-cost periodic fallback.
+      // R3.4: adaptive fallback polling. Realtime/local edits already trigger an early refresh.
+      // Avoid repeatedly fetching the full dashboard while the user is editing a report.
       this._pollTimer=setInterval(()=>{
-        if(!this.isLoggedIn||document.hidden||this.loading)return;
+        if(!this.isLoggedIn||document.hidden||this.loading||this.view!=='dashboard')return;
         const urgent=this.config?.open_reg==='true'||this.config?.allow_transfer==='true';
-        const interval=urgent?12000:45000;
+        const interval=urgent?25000:90000;
         if(Date.now()-(this._lastRefresh||0)>=interval)this.refreshData(true);
-      },4000);
-      this._onFocus=()=>{if(this.isLoggedIn)this.requestFastRefresh();};
+      },5000);
+      this._onFocus=()=>{
+        if(this.isLoggedIn && !document.hidden && Date.now()-(this._lastRefresh||0)>15000)
+          this.requestFastRefresh('focus');
+      };
       window.addEventListener('focus',this._onFocus);
       document.addEventListener('visibilitychange',this._onFocus);
       if(this.isLoggedIn)this.refreshData();
@@ -5397,10 +5418,14 @@ executeDownload(html, fileName) {
 
 
  
-requestFastRefresh(){
+requestFastRefresh(reason='local'){
   if(!this.isLoggedIn)return;
+  // Remote Realtime events can arrive in bursts; local saves are never throttled.
+  if(reason!=='local' && this.view!=='dashboard')return;
+  if(reason!=='local' && Date.now()-(this._lastRefresh||0)<6000)return;
+  if(reason==='local' && this._refreshInFlight){this._refreshQueued=true;return;}
   clearTimeout(this._refreshTimer);
-  this._refreshTimer=setTimeout(()=>this.refreshData(true),350);
+  this._refreshTimer=setTimeout(()=>this.refreshData(true),reason==='realtime'?950:350);
 },
 attachRealtime(){
   if(!this.isLoggedIn||!this.activePeriodId||!window.SKN_DB)return;
@@ -5411,73 +5436,114 @@ attachRealtime(){
   try{
     const ch=window.SKN_DB.channel('skn-period-'+this.activePeriodId);
     for(const table of ['registrations','clubs','period_config','period_teachers']){
-      ch.on('postgres_changes',{event:'*',schema:'public',table,filter:'period_id=eq.'+this.activePeriodId},()=>this.requestFastRefresh());
+      ch.on('postgres_changes',{event:'*',schema:'public',table,filter:'period_id=eq.'+this.activePeriodId},()=>this.requestFastRefresh('realtime'));
     }
     this._liveChannel=ch.subscribe();
   }catch(err){console.warn('Realtime unavailable, polling enabled',err);}
 },
 
-refreshData(isSilent = false) {
-          if(this._refreshInFlight)return;
-          this._refreshInFlight=true;this._lastRefresh=Date.now();
-          if (!isSilent) this.loading = true;
-
-          google.script.run
-            .withFailureHandler(err => {
-              this._refreshInFlight=false;
-              if(!isSilent)this.loading=false;
-              if (!isSilent) Swal.fire('Error', 'ไม่สามารถดึงข้อมูลได้: ' + err, 'error');
-            })
-            .withSuccessHandler(data => {
-              if (!data) { this._refreshInFlight=false; if(!isSilent)this.loading=false; return; }
-              // Ignore a response started before Admin switched or deleted a term.
-              if(window.SKNBridge.periodId && data.periodId !== window.SKNBridge.periodId){
-                this._refreshInFlight=false;if(!isSilent)this.loading=false;
-                this.refreshData(true);return;
-              }
-
-              this.config = data.config || {};
-              this.teachersList = data.teachers || [];
-              // The server's teacher_name is sometimes "..." for a co-advised club.
-              // Build the display name from ALL owner IDs, preserving other fields.
-              this.clubs = (data.clubs || []).map(c => ({
-                ...c, teacher_name: this.resolveClubAdvisorNames(c) || c.teacher_name || ''
-              }));
-              if (this.view === 'report' && this.currentClubId) {
-                const activeClub = this.clubs.find(c => String(c.id) === String(this.currentClubId));
-                if (activeClub) this.reportData.teacher = this.resolveClubAdvisorNames(activeClub);
-              }
-              this.periods = data.periods || [];
-              this.activePeriodId = data.periodId || '';
-              this.archiveReadonly = !!data.isReadonly;
-              this.attachRealtime();
-              document.body.classList.toggle('archive-readonly', this.archiveReadonly);
-              if (this.user && this.user.role === 'student') this.user.clubId = data.myClubId || '';
-              
-              if (this.user && this.user.role === 'admin') {
-                this.summary = data.summary;
-              }
-
-              const map = {};
-              this.clubs.forEach(c => { map[String(c.id)] = c; });
-              this.clubMap = map;
-              
-              if (this.user && this.user.role === 'teacher') {
-                const myId = String(this.user.id);
-                this.user.hasClub = this.clubs.some(c => 
-                  String(c.owner_id).split(',').map(id => id.trim()).includes(myId)
-                );
-              }
-
-              // ---------- ส่วนที่เพิ่มเข้าไปเพื่อให้ข้อมูล Admin อัปเดต ----------
-              if (typeof this.syncAdvancedSettings === 'function') {
-                  this.syncAdvancedSettings();
-              }
-              // --------------------------------------------------------
-
-              this._refreshInFlight=false;
-              if(!isSilent)this.loading=false;
-            }).getAppData();
+recordPerf(key,started,ok=true){
+          const took=Math.max(0,Math.round(performance.now()-started));
+          this.perfStats={...this.perfStats,[key]:took,
+            requests:this.perfStats.requests+1,
+            errors:this.perfStats.errors+(ok?0:1),
+            lastMeasured:new Date().toLocaleTimeString('th-TH')};
+          return took;
+        },
+        refreshData(isSilent = false) {
+          if(!this.isLoggedIn)return;
+          if(this._refreshInFlight){
+            // Never lose an explicit user refresh made while a background request is in flight.
+            if(!isSilent || (window.SKNBridge?.periodId && window.SKNBridge.periodId!==this.activePeriodId))this._refreshQueued=true;
+            return;
+          }
+          this._refreshInFlight=true;
+          this._lastRefresh=Date.now();
+          const started=performance.now();
+          if (!isSilent) this.loading=true;
+          const finish=(ok)=>{
+            this.recordPerf('dashboardMs',started,ok);
+            this._refreshInFlight=false;
+            if(!isSilent)this.loading=false;
+            if(this._refreshQueued){
+              this._refreshQueued=false;
+              if(this.isLoggedIn) Promise.resolve().then(()=>this.refreshData(true));
+            }
+          };
+          try {
+            google.script.run
+              .withFailureHandler(err => {
+                finish(false);
+                if(!isSilent) Swal.fire('โหลดข้อมูลไม่สำเร็จ',String(err?.message||err),'error');
+              })
+              .withSuccessHandler(data => {
+                if(!data || data.error || data.success===false){
+                  finish(false);
+                  if(!isSilent) Swal.fire('โหลดข้อมูลไม่สำเร็จ',String(data?.error||data?.message||'ไม่มีข้อมูลตอบกลับ'),'error');
+                  return;
+                }
+                // A stale response from the previous term must NEVER overwrite the new term.
+                if(window.SKNBridge?.periodId && data.periodId !== window.SKNBridge.periodId){
+                  finish(true);
+                  this.refreshData(true);
+                  return;
+                }
+                // R3.4: reduce expensive Vue DOM re-renders when data did not change.
+                // Signatures cover ALL roster fields, including co-advisor owner IDs.
+                const teachers=data.teachers||[];
+                const clubs=data.clubs||[];
+                const rosterFingerprint=JSON.stringify([data.periodId,teachers,clubs]);
+                if(this._lastRosterFingerprint!==rosterFingerprint){
+                  this.teachersList=teachers;
+                  this.clubs=clubs.map(c=>({...c,teacher_name:this.resolveClubAdvisorNames(c)||c.teacher_name||''}));
+                  const nextMap={};
+                  this.clubs.forEach(c=>{nextMap[String(c.id)]=c;});
+                  this.clubMap=nextMap;
+                  this._lastRosterFingerprint=rosterFingerprint;
+                } else {
+                  this.perfStats.unchanged++;
+                }
+                const config=data.config||{};
+                const periods=data.periods||[];
+                const summary=data.summary||null;
+                const configFingerprint=JSON.stringify(config);
+                const periodsFingerprint=JSON.stringify(periods);
+                const summaryFingerprint=JSON.stringify(summary);
+                const configChanged=this._lastConfigFingerprint!==configFingerprint;
+                const periodChanged=this.activePeriodId!==(data.periodId||'');
+                if(configChanged){this.config=config;this._lastConfigFingerprint=configFingerprint;}
+                if(this._lastPeriodsFingerprint!==periodsFingerprint){this.periods=periods;this._lastPeriodsFingerprint=periodsFingerprint;}
+                if(this.user?.role==='admin'&&this._lastSummaryFingerprint!==summaryFingerprint){
+                  this.summary=summary;this._lastSummaryFingerprint=summaryFingerprint;
+                }
+                this.activePeriodId=data.periodId||'';
+                this.archiveReadonly=!!data.isReadonly;
+                document.body.classList.toggle('archive-readonly',this.archiveReadonly);
+                if(this.user?.role==='student'){
+                  const nextId=data.myClubId||'';
+                  if(this.user.clubId!==nextId)this.user.clubId=nextId;
+                }
+                if(this.user?.role==='teacher'){
+                  const id=String(this.user.id);
+                  this.user.hasClub=this.clubs.some(c=>
+                    String(c.owner_id||'').split(',').map(s=>s.trim()).includes(id));
+                }
+                if(this.view==='report'&&this.currentClubId){
+                  const club=this.clubs.find(c=>String(c.id)===String(this.currentClubId));
+                  if(club){
+                    const names=this.resolveClubAdvisorNames(club);
+                    if(names&&this.reportData.teacher!==names)this.reportData.teacher=names;
+                  }
+                }
+                this.attachRealtime();
+                // This helper may fetch Admin signature images from Drive: do NOT call on unchanged polls.
+                if((configChanged||periodChanged) && typeof this.syncAdvancedSettings==='function') this.syncAdvancedSettings();
+                finish(true);
+              }).getAppData();
+          } catch(err) {
+            finish(false);
+            if(!isSilent) Swal.fire('โหลดข้อมูลไม่สำเร็จ',String(err?.message||err),'error');
+          }
         },
 
 
@@ -5517,105 +5583,88 @@ refreshData(isSilent = false) {
             else this.view = 'report';
         },
 
-          loadClubData(club, viewName) {
-            this.currentClubId = club.id; 
-            this.currentClubName = club.name;
-            this.attStudents = []; 
-            this.attData = { dates: new Array(20).fill(""), records: {} };
-            
-            // 1. รีเซ็ตค่าหน้ารายงานเป็นค่าเริ่มต้นก่อนโหลดใหม่ทุกครั้ง
-            this.reportActData = {
-                objectives: ['ส่งเสริมให้นักเรียนใช้เวลาว่างให้เกิดประโยชน์และสร้างสรรค์', 'เพื่อพัฒนาทักษะทางด้าน...', 'เพื่อให้ผู้เรียนมีความรับผิดชอบและฝึกการทำงานร่วมกับผู้อื่น'],
-                committees: ['','','','',''],
-                activities: Array(20).fill(''),
-                remark: 'ไม่มี',
-                caption: 'บรรยากาศการเรียนการสอนและการทำกิจกรรมร่วมกันของนักเรียน'
+          async loadClubData(club, viewName) {
+            if(!club?.id)return;
+            const token=this._clubLoadSeq=(this._clubLoadSeq||0)+1;
+            this.currentClubId=club.id;
+            this.currentClubName=club.name;
+            this.attStudents=[];
+            this.attData={dates:new Array(20).fill(''),records:{}};
+            this.reportActData={
+              objectives:['ส่งเสริมให้นักเรียนใช้เวลาว่างให้เกิดประโยชน์และสร้างสรรค์','เพื่อพัฒนาทักษะทางด้าน...','เพื่อให้ผู้เรียนมีความรับผิดชอบและฝึกการทำงานร่วมกับผู้อื่น'],
+              committees:['','','','',''], activities:Array(20).fill(''),
+              remark:'ไม่มี',caption:'บรรยากาศการเรียนการสอนและการทำกิจกรรมร่วมกันของนักเรียน'
             };
-            this.reportData.photos = {};
+            this.reportData.photos={};
             this.reportOriginalSources={};this.reportMediaRefs={};this.reportPermissionDiagnostics=[];
-            this.reportData.logo = '';
-            this.reportData.teacher = this.resolveClubAdvisorNames(club);
-
-            Swal.fire({ title: 'กำลังโหลด...', didOpen: () => Swal.showLoading() });
-            
-            // 2. ดึงข้อมูลเช็คชื่อ (ของเดิม)
-            google.script.run.withSuccessHandler(res => {
-                
-                // เรียงลำดับนักเรียน
-                res.students.sort((a, b) => {
-                    const roomA = a.room.toString(); 
-                    const roomB = b.room.toString();
-                    if(roomA !== roomB) return roomA.localeCompare(roomB, undefined, {numeric: true, sensitivity: 'base'});
-                    return Number(a.no) - Number(b.no);
+            this.reportData.logo='';
+            this.reportData.teacher=this.resolveClubAdvisorNames(club);
+            Swal.fire({title:'กำลังโหลด...',didOpen:()=>Swal.showLoading()});
+            // Fetch attendance AND saved report in parallel. Previously these awaited one another.
+            const request=(method,key)=>new Promise((resolve,reject)=>{
+              const started=performance.now();
+              const success=value=>{this.recordPerf(key,started,true);resolve(value);};
+              const failure=error=>{this.recordPerf(key,started,false);reject(error);};
+              try{google.script.run.withSuccessHandler(success).withFailureHandler(failure)[method](club.id);}
+              catch(error){failure(error);}
+            });
+            try{
+              const [res,reportRes]=await Promise.all([
+                request('getClubAttendanceGrid','attendanceMs'),
+                viewName==='report'?request('getSavedClubReport','reportMs'):Promise.resolve(null)
+              ]);
+              if(token!==this._clubLoadSeq)return;
+              if(!res||!Array.isArray(res.students)||!res.gridData)throw Error('ข้อมูลเช็กชื่อไม่ครบถ้วน');
+              res.students.sort((a,b)=>{
+                const ar=String(a.room||'');const br=String(b.room||'');
+                if(ar!==br)return ar.localeCompare(br,undefined,{numeric:true,sensitivity:'base'});
+                return Number(a.no)-Number(b.no);
+              });
+              const loaded=res.gridData;
+              if(!Array.isArray(loaded.dates))loaded.dates=[];
+              if(!loaded.records||typeof loaded.records!=='object')loaded.records={};
+              for(let i=0;i<20;i++){
+                if(!loaded.dates[i]&&this.systemDates?.[i])loaded.dates[i]=this.systemDates[i];
+              }
+              for(const student of res.students){
+                const vals=loaded.records[student.id];
+                loaded.records[student.id]=Array.from({length:20},(_,i)=>{
+                  const val=Array.isArray(vals)?vals[i]:0;
+                  if(val==='P')return 1;if(val==='L')return 2;if(val==='A')return 3;
+                  if(val===''||val==null)return 0;
+                  return Number(val)||0;
                 });
-                
-                this.attStudents = res.students;
-                const loadedData = res.gridData;
-
-                // Smart Default: ใส่วันที่จาก Admin ถ้ายังว่างอยู่
-                for(let i = 0; i < 20; i++) {
-                    if (!loadedData.dates[i] && this.systemDates && this.systemDates[i]) {
-                        loadedData.dates[i] = this.systemDates[i];
-                    }
-                }
-
-                this.attStudents.forEach(s => {
-                    if (!loadedData.records[s.id]) { 
-                        loadedData.records[s.id] = new Array(20).fill(0); 
-                    } else { 
-                        loadedData.records[s.id] = loadedData.records[s.id].map(val => { 
-                            if (val === 'P') return 1; 
-                            if (val === 'L') return 2; 
-                            if (val === 'A') return 3; 
-                            if (val === '' || val === null) return 0; 
-                            return Number(val); 
-                        }); 
-                    }
-                });
-                
-                this.attData = loadedData; 
-
-                // 3. (ส่วนที่เพิ่มใหม่) ถ้าเป็นการเปิด "หน้ารายงาน" ให้ดึงข้อมูลที่เคย Save ไว้มาทับ
-                  if (viewName === 'report') {
-                    google.script.run.withSuccessHandler(reportRes => {
-                        Swal.close();
-                        if (reportRes && reportRes.found && reportRes.data) {
-                            const savedData = reportRes.data;
-                            if (savedData.actData) { this.reportActData = Object.assign(this.reportActData, savedData.actData); }
-                            // Current club advisors take precedence over an old/manual "..."
-                            // stored in earlier reports. Only use saved text if IDs cannot
-                            // be resolved and it is not a placeholder.
-                            const currentAdvisorNames = this.resolveClubAdvisorNames(club);
-                            const savedAdvisorNames = String(savedData.teacher || '').trim();
-                            this.reportData.teacher = currentAdvisorNames ||
-                              (/^(?:\.{2,}|[-—–]|กรุณาระบุ)$/i.test(savedAdvisorNames) ? '' : savedAdvisorNames);
-                            // เพิ่มบรรทัดโหลดรูปลงไปตรงนี้
-                            if (savedData.logo) this.reportData.logo = savedData.logo;
-                            if (savedData.photos) this.reportData.photos = savedData.photos;
-                            if (savedData.signatures) this.reportData.signatures = savedData.signatures;
-                            this.reportMediaRefs=savedData.mediaRefs||{};this._failedMediaSlots={};
-                            this.reportOriginalSources={logo:this.reportData.logo};
-                            for(let i=1;i<=4;i++)this.reportOriginalSources['photo_'+i]=this.reportData.photos?.[i]||'';
-                            for(const [k,v] of Object.entries(this.reportData.signatures||{}))this.reportOriginalSources[k]=v;
-                            this.reportMediaErrors=savedData.mediaErrors||[];
-                            if (savedData.mediaErrors?.length) {
-                              console.groupCollapsed('SKN Drive: โหลดภาพไม่สำเร็จ '+savedData.mediaErrors.length+' รายการ');
-                              savedData.mediaErrors.forEach((error,i)=>console.warn('ภาพที่ '+(i+1)+':',String(error)));
-                              console.groupEnd();
-                              // The concise inline banner is the only user-visible warning.
-                            }
-                        }
-                        this.view = viewName;
-                        // Do not block the report on large Drive photos; load originals progressively.
-                        this.loadReportImagesProgressively().catch(e=>console.warn('SKN progressive media:',e));
-                    }).getSavedClubReport(club.id);
-                } else {
-                    Swal.close();
-                    this.view = viewName;
-                }
-
-            }).getClubAttendanceGrid(club.id);
-        },
+              }
+              this.attStudents=res.students;
+              this.attData=loaded;
+              if(viewName==='report'&&reportRes?.found&&reportRes?.data){
+                const saved=reportRes.data;
+                if(saved.actData)this.reportActData=Object.assign(this.reportActData,saved.actData);
+                const currentNames=this.resolveClubAdvisorNames(club);
+                const previous=String(saved.teacher||'').trim();
+                this.reportData.teacher=currentNames||
+                  (/^(?:\.{2,}|[-—–]|กรุณาระบุ)$/i.test(previous)?'':previous);
+                if(saved.logo)this.reportData.logo=saved.logo;
+                if(saved.photos)this.reportData.photos=saved.photos;
+                if(saved.signatures)this.reportData.signatures=saved.signatures;
+                this.reportMediaRefs=saved.mediaRefs||{};this._failedMediaSlots={};
+                this.reportOriginalSources={logo:this.reportData.logo};
+                for(let i=1;i<=4;i++)this.reportOriginalSources['photo_'+i]=this.reportData.photos?.[i]||'';
+                for(const [k,v] of Object.entries(this.reportData.signatures||{}))this.reportOriginalSources[k]=v;
+                this.reportMediaErrors=saved.mediaErrors||[];
+              }
+              this.view=viewName;
+              if(viewName==='report'){
+                this.loadReportImagesProgressively().catch(e=>console.warn('SKN report image loading:',e));
+              }
+            }catch(error){
+              if(token===this._clubLoadSeq){
+                Swal.fire('โหลดข้อมูลไม่สำเร็จ',String(error?.message||error),'error');
+              }
+            }finally{
+              if(token===this._clubLoadSeq&&Swal.isLoading())Swal.close();
+            }
+          },
 
 
         goToManageUsers() { this.manageRole = 'student'; this.fetchUsers('student'); this.view = 'manage_users'; },
@@ -5638,11 +5687,13 @@ refreshData(isSilent = false) {
         fetchUsers(role) {
           role = role === 'teacher' ? 'teacher' : 'student';
           const seq = ++this.usersFetchSerial;
+          const started=performance.now();
           this.usersLoadError = '';
           this.usersList = []; // Never show a student list under the Teacher tab or vice versa.
           Swal.fire({toast:true,position:'top-end',title:'กำลังโหลดรายชื่อ...',showConfirmButton:false, didOpen:()=>Swal.showLoading()});
           const failed = err => {
             if(seq !== this.usersFetchSerial) return;
+            this.recordPerf('usersMs',started,false);
             Swal.close();
             this.usersList = [];
             this.usersLoadError = this.sknUserRequestMessage(err, role === 'teacher' ? 'โหลดรายชื่อครู' : 'โหลดรายชื่อนักเรียน');
@@ -5664,6 +5715,7 @@ refreshData(isSilent = false) {
               }
               this.usersList = list;
               this.usersLoadError = '';
+              this.recordPerf('usersMs',started,true);
             }).withFailureHandler(failed).getUsersByRole(role);
           } catch(err) { failed(err); }
         },        
