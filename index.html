@@ -2644,6 +2644,11 @@
             </div>
 <!-- ปิดส่วนของโค๊ด เพิ่มส่วนของการจัดการข้อมูลนักเรียน ลบนักเรียนรายกลุ่ม -->
       
+      <!-- R3.1 TEACHER IMPORT DIAGNOSTICS: show an actionable failure instead of an empty table. -->
+      <div v-if="usersLoadError" class="alert alert-warning mb-3 no-print" role="alert">
+        <i class="fas fa-exclamation-triangle me-2"></i>{{ usersLoadError }}
+        <button type="button" class="btn btn-outline-dark btn-sm ms-2" @click="fetchUsers(manageRole)">ลองโหลดอีกครั้ง</button>
+      </div>
       <div class="bg-white p-2 rounded-3 border mb-3 d-inline-flex gap-1 shadow-sm">
         <button class="btn btn-fast border-0" :class="manageRole === 'student' ? 'btn-primary-fast' : 'btn-white text-secondary'" @click="switchManageRole('student')" style="min-width: 100px;">นักเรียน</button>
         <button class="btn btn-fast border-0" :class="manageRole === 'teacher' ? 'btn-primary-fast' : 'btn-white text-secondary'" @click="switchManageRole('teacher')" style="min-width: 100px;">คุณครู</button>
@@ -3812,7 +3817,9 @@ data() {
     signatureLibraryWorking: false,
     adminBulkExportBusy: false, adminBulkExportProgress: '', 
     manageRole: 'student', 
-    usersList: [], 
+    usersList: [],
+    usersFetchSerial: 0,
+    usersLoadError: '', 
     searchClubQuery: '',
     searchQuery: '', // ประกาศแค่ที่เดียวพอครับ
     searchResult: null,
@@ -5525,7 +5532,50 @@ refreshData(isSilent = false) {
         // fetchUsers(role) { Swal.fire({ title: 'กำลังโหลด...', didOpen: () => Swal.showLoading() }); google.script.run.withSuccessHandler(res => { Swal.close(); this.usersList = res; }).getUsersByRole(role); },
 
         //ทำเป็นกล่องขนาดเล็ก 260569
-        fetchUsers(role) { Swal.fire({ toast: true, position: 'top-end', title: 'กำลังโหลด...', showConfirmButton: false, didOpen: () => Swal.showLoading() }); google.script.run.withSuccessHandler(res => { Swal.close(); this.usersList = res; }).getUsersByRole(role); },        
+        // R3.1: return server errors, guard against stale responses after changing roles.
+        sknUserRequestMessage(err, action = 'โหลดรายชื่อ') {
+          const status = Number(err?.status || err?.statusCode || err?.response?.status || 0);
+          const code = String(err?.code || err?.error?.code || '').trim();
+          const raw = typeof err === 'string' ? err :
+            (err?.message || err?.error?.message || err?.details || 'ไม่ทราบรายละเอียด');
+          const msg = String(raw).replace(/(apikey|access_token|refresh_token|authorization)=([^&\s]+)/gi, '$1=[hidden]').slice(0, 450);
+          const denied = status === 403 || code === '42501' || /\b403\b|forbidden|permission denied|not authorized/i.test(msg);
+          if (denied) return `${action}ไม่สำเร็จ (403/ไม่มีสิทธิ์): ${msg} — กรุณาตรวจรายการคำขอสีแดงใน Network และสิทธิ์ Supabase/บัญชี Admin`;
+          if (status === 401) return `${action}ไม่สำเร็จ (401): เซสชันอาจหมดอายุ กรุณาเข้าสู่ระบบใหม่`;
+          return `${action}ไม่สำเร็จ${status ? ' (HTTP '+status+')' : ''}${code ? ' ['+code+']' : ''}: ${msg}`;
+        },
+        fetchUsers(role) {
+          role = role === 'teacher' ? 'teacher' : 'student';
+          const seq = ++this.usersFetchSerial;
+          this.usersLoadError = '';
+          this.usersList = []; // Never show a student list under the Teacher tab or vice versa.
+          Swal.fire({toast:true,position:'top-end',title:'กำลังโหลดรายชื่อ...',showConfirmButton:false, didOpen:()=>Swal.showLoading()});
+          const failed = err => {
+            if(seq !== this.usersFetchSerial) return;
+            Swal.close();
+            this.usersList = [];
+            this.usersLoadError = this.sknUserRequestMessage(err, role === 'teacher' ? 'โหลดรายชื่อครู' : 'โหลดรายชื่อนักเรียน');
+            Swal.fire({icon:'error',title:'โหลดข้อมูลไม่สำเร็จ',text:this.usersLoadError,confirmButtonText:'ปิด'});
+          };
+          try {
+            google.script.run.withSuccessHandler(res => {
+              if(seq !== this.usersFetchSerial) return;
+              Swal.close();
+              if(res?.error || res?.success === false) {
+                failed(res?.error || res?.message || 'เซิร์ฟเวอร์ปฏิเสธการอ่านข้อมูล'); return;
+              }
+              const list = Array.isArray(res) ? res :
+                (Array.isArray(res?.users) ? res.users :
+                 (Array.isArray(res?.rows) ? res.rows :
+                  (Array.isArray(res?.data) ? res.data : null)));
+              if(list === null) {
+                failed({message:'ผลลัพธ์จาก getUsersByRole ไม่ใช่รายการข้อมูล กรุณาตรวจ backend.js และ bridge.js'});return;
+              }
+              this.usersList = list;
+              this.usersLoadError = '';
+            }).withFailureHandler(failed).getUsersByRole(role);
+          } catch(err) { failed(err); }
+        },        
        
       // ใน Index.html ส่วน methods:
 async openUserModal(u = null) {
@@ -5594,14 +5644,18 @@ submitUser() {
                 google.script.run
                 .withFailureHandler((err) => {
                     this.loading = false;
-                    Swal.fire('ข้อผิดพลาด', 'เกิดข้อผิดพลาดจาก Server: ' + err, 'error');
+                    Swal.close();
+                    Swal.fire('นำเข้า CSV ไม่สำเร็จ', this.sknUserRequestMessage(err, 'นำเข้ารายชื่อ'), 'error');
                 })
                 .withSuccessHandler(res => {
                     this.loading = false;
                     Swal.close();
-                    
-                    if (res.error) {
-                        Swal.fire('เกิดข้อผิดพลาด', res.error, 'error');
+                    if (!res || typeof res !== 'object') {
+                        Swal.fire('นำเข้าไม่สำเร็จ', 'ไม่มีผลลัพธ์จากเซิร์ฟเวอร์ กรุณาตรวจ backend.js / bridge.js และแท็บ Network', 'error');
+                        return;
+                    }
+                    if (res.error || res.success === false) {
+                        Swal.fire('เกิดข้อผิดพลาด', this.sknUserRequestMessage(res.error || res.message || res, 'นำเข้ารายชื่อ'), 'error');
                         return;
                     }
                     
@@ -5687,7 +5741,12 @@ submitUser() {
                 }).importUsersFromCSV(csvData, app.manageRole);
             };
             
-            reader.readAsText(file);
+            reader.onerror = () => {
+              this.loading = false;
+              Swal.close();
+              Swal.fire('เปิดไฟล์ CSV ไม่สำเร็จ', 'ไม่สามารถอ่านไฟล์ได้ กรุณาบันทึกเป็น CSV UTF-8 แล้วลองใหม่', 'error');
+            };
+            reader.readAsText(file, 'UTF-8');
             e.target.value = '';
         },
 
